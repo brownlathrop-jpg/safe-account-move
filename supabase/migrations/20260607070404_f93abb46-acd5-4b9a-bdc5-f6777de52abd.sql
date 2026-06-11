@@ -1,0 +1,1 @@
+ALTER TABLE public.organizations ADD COLUMN IF NOT EXISTS invoice_number_start INT NOT NULL DEFAULT 1;

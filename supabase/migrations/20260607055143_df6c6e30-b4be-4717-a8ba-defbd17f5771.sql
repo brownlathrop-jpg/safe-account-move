@@ -1,0 +1,2 @@
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'product' CHECK (kind IN ('product','service'));
+ALTER TABLE public.invoice_items ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'product' CHECK (kind IN ('product','service'));
