@@ -1,0 +1,841 @@
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { ArrowLeft, Printer, CheckCircle2, XCircle, Trash2, Plus, Save, FileEdit, ChevronDown } from "lucide-react";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { amountInWords } from "@/lib/amount-in-words";
+import { ProductPicker, type PickedItem } from "@/components/ProductPicker";
+import { ProductPickerSingle } from "@/components/ProductPickerSingle";
+
+export const Route = createFileRoute("/_authenticated/invoices/$id")({
+  head: () => ({ meta: [{ title: "Накладная — КабинетCRM" }] }),
+  component: InvoiceView,
+});
+
+const fmt = new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB" });
+const nfmt = new Intl.NumberFormat("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const dfmt = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric" });
+
+type Item = { id?: string; product_id: string | null; name: string; quantity: number; price: number; kind: "product" | "service" };
+type DocType = "order" | "shipment" | "cash_receipt";
+
+const docLabels: Record<DocType, { title: string; one: string; createLabel: string }> = {
+  order: { title: "Заявка", one: "заявку", createLabel: "Заявка" },
+  shipment: { title: "Накладная", one: "накладную", createLabel: "Накладная" },
+  cash_receipt: { title: "ПКО", one: "ПКО", createLabel: "ПКО" },
+};
+
+function InvoiceView() {
+  const { id } = Route.useParams();
+  const navigate = useNavigate();
+  const qc = useQueryClient();
+
+  const { data: inv, isLoading } = useQuery({
+    queryKey: ["invoice", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("invoices")
+        .select("*, partner:partners(name,inn,phone,address), items:invoice_items(*)")
+        .eq("id", id).single();
+      if (error) throw error;
+      return data as any;
+    },
+  });
+
+  const { data: products = [] } = useQuery({
+    queryKey: ["products"],
+    queryFn: async () => (await supabase.from("products").select("id,name,price,cost,unit,kind").order("name")).data ?? [],
+  });
+  const { data: partners = [] } = useQuery({
+    queryKey: ["partners"],
+    queryFn: async () => (await supabase.from("partners").select("id,name,kind").order("name")).data ?? [],
+  });
+  const { data: myOrg } = useQuery({
+    queryKey: ["my-organization"],
+    queryFn: async () => (await supabase.from("organizations").select("*").order("is_primary", { ascending: false }).limit(1).maybeSingle()).data,
+  });
+  const { data: statuses = [] } = useQuery({
+    queryKey: ["invoice_statuses"],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return [];
+      let { data } = await supabase.from("invoice_statuses").select("id,name,color,sort_order").order("sort_order");
+      if (!data || data.length === 0) {
+        const defaults = [
+          { name: "Новый", color: "#64748b", sort_order: 0 },
+          { name: "Предоплата", color: "#eab308", sort_order: 1 },
+          { name: "Оплачен", color: "#3b82f6", sort_order: 2 },
+          { name: "Выполнен", color: "#22c55e", sort_order: 3 },
+        ].map(s => ({ ...s, user_id: user.id }));
+        await supabase.from("invoice_statuses").insert(defaults);
+        ({ data } = await supabase.from("invoice_statuses").select("id,name,color,sort_order").order("sort_order"));
+      }
+      return (data ?? []) as { id: string; name: string; color: string; sort_order: number }[];
+    },
+  });
+
+  const [kind, setKind] = useState<"outgoing" | "incoming">("outgoing");
+  const [number, setNumber] = useState("");
+  const [date, setDate] = useState("");
+  const [partnerId, setPartnerId] = useState<string>("");
+  const [note, setNote] = useState("");
+  const [items, setItems] = useState<Item[]>([]);
+  const [pickRow, setPickRow] = useState<number | null>(null);
+  const [printMode, setPrintMode] = useState<"standard" | "invoice" | "pko">("standard");
+  const [cashReceived, setCashReceived] = useState<number>(0);
+  const [cashBasis, setCashBasis] = useState<string>("");
+
+  const doPrint = (mode: "standard" | "invoice" | "pko") => {
+    setPrintMode(mode);
+    setTimeout(() => window.print(), 50);
+  };
+
+
+  useEffect(() => {
+    if (!inv) return;
+    setKind(inv.kind);
+    setNumber(inv.number);
+    setDate(inv.issue_date);
+    setPartnerId(inv.partner_id ?? "");
+    setNote(inv.note ?? "");
+    setCashReceived(Number(inv.cash_received ?? 0));
+    setCashBasis(inv.cash_basis ?? "");
+    setItems((inv.items ?? []).map((it: any) => ({
+      id: it.id, product_id: it.product_id, name: it.name,
+      quantity: Number(it.quantity), price: Number(it.price),
+      kind: (it.kind ?? "product") as "product" | "service",
+    })));
+  }, [inv]);
+
+  const docType: DocType = (inv?.doc_type ?? "order") as DocType;
+  const isOrder = docType === "order";
+  const isShipment = docType === "shipment";
+  const isPKO = docType === "cash_receipt";
+
+  // Children documents (shipments + PKO) of this order
+  const { data: children = [] } = useQuery({
+    queryKey: ["invoice-children", id],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("invoices")
+        .select("id,number,doc_type,issue_date,total,status,cash_received")
+        .eq("parent_id", id)
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as any[];
+    },
+    enabled: isOrder,
+  });
+
+  const total = useMemo(() => items.reduce((s, i) => s + i.quantity * i.price, 0), [items]);
+  const filteredPartners = partners.filter((p: any) => kind === "outgoing" ? p.kind === "customer" : p.kind === "supplier");
+  const editable = inv?.status !== "cancelled";
+
+  const addItem = () => setItems([...items, { product_id: null, name: "", quantity: 1, price: 0, kind: "product" }]);
+  const updateItem = (idx: number, patch: Partial<Item>) => setItems(items.map((it, i) => i === idx ? { ...it, ...patch } : it));
+  const removeItem = (idx: number) => setItems(items.filter((_, i) => i !== idx));
+  const pickProduct = (idx: number, productId: string) => {
+    const p: any = products.find((x: any) => x.id === productId);
+    if (!p) return;
+    updateItem(idx, { product_id: p.id, name: p.name, price: kind === "outgoing" ? Number(p.price) : Number(p.cost), kind: (p.kind ?? "product") as "product" | "service" });
+  };
+
+  const save = useMutation({
+    mutationFn: async () => {
+      const wasPosted = inv?.status === "posted";
+      // If posted — reverse stock first by moving to draft
+      if (wasPosted) {
+        const { error } = await supabase.from("invoices").update({ status: "draft" }).eq("id", id);
+        if (error) throw error;
+      }
+      const { error: upErr } = await (supabase as any).from("invoices").update({
+        kind, number, issue_date: date, partner_id: partnerId || null, note: note || null,
+        cash_received: isPKO ? cashReceived : null,
+        cash_basis: isPKO ? (cashBasis || null) : null,
+      }).eq("id", id);
+      if (upErr) throw upErr;
+      const { error: delErr } = await supabase.from("invoice_items").delete().eq("invoice_id", id);
+      if (delErr) throw delErr;
+      const rows = items.map(it => ({
+        invoice_id: id, product_id: it.product_id, name: it.name,
+        quantity: it.quantity, price: it.price, sum: it.quantity * it.price,
+        kind: it.kind ?? "product",
+      }));
+      if (rows.length) {
+        const { error: insErr } = await supabase.from("invoice_items").insert(rows);
+        if (insErr) throw insErr;
+      }
+      // Re-apply stock if it was posted
+      if (wasPosted) {
+        const { error } = await supabase.from("invoices").update({ status: "posted" }).eq("id", id);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["invoice", id] }); toast.success("Сохранено"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const setStatus = useMutation({
+    mutationFn: async (status: "posted" | "cancelled" | "draft") => {
+      const { error } = await supabase.from("invoices").update({ status }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["invoice", id] }); toast.success("Статус обновлён"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const setStatusId = useMutation({
+    mutationFn: async (status_id: string) => {
+      const { error } = await supabase.from("invoices").update({ status_id }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["invoice", id] }); toast.success("Статус обновлён"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  // auto-assign default status (first by sort) if invoice has none
+  useEffect(() => {
+    if (inv && !inv.status_id && statuses.length > 0) {
+      setStatusId.mutate(statuses[0].id);
+    }
+     
+  }, [inv?.id, statuses.length]);
+
+  const remove = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("invoices").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => { toast.success("Удалено"); navigate({ to: "/invoices" }); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const createShipment = useMutation({
+    mutationFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Нет сессии");
+      const cleanNum = String(inv!.number).replace(/^№\s*/, "");
+      const { data: ship, error } = await (supabase as any).from("invoices").insert({
+        user_id: user.id,
+        number: `Н-${cleanNum}`,
+        kind: inv!.kind,
+        partner_id: inv!.partner_id,
+        issue_date: new Date().toISOString().slice(0, 10),
+        status: "draft",
+        doc_type: "shipment",
+        parent_id: id,
+        note: `На основании заявки № ${cleanNum}`,
+      }).select().single();
+      if (error) throw error;
+      // Copy items
+      const rows = items.map(it => ({
+        invoice_id: ship.id, product_id: it.product_id, name: it.name,
+        quantity: it.quantity, price: it.price, sum: it.quantity * it.price,
+        kind: it.kind ?? "product",
+      }));
+      if (rows.length) {
+        const { error: insErr } = await supabase.from("invoice_items").insert(rows);
+        if (insErr) throw insErr;
+      }
+      return ship.id as string;
+    },
+    onSuccess: (newId) => {
+      qc.invalidateQueries({ queryKey: ["invoice-children", id] });
+      toast.success("Накладная создана");
+      navigate({ to: "/invoices/$id", params: { id: newId } });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const createReceipt = useMutation({
+    mutationFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Нет сессии");
+      const cleanNum = String(inv!.number).replace(/^№\s*/, "");
+      const { data: pko, error } = await (supabase as any).from("invoices").insert({
+        user_id: user.id,
+        number: `ПКО-${cleanNum}`,
+        kind: inv!.kind,
+        partner_id: inv!.partner_id,
+        issue_date: new Date().toISOString().slice(0, 10),
+        status: "draft",
+        doc_type: "cash_receipt",
+        parent_id: id,
+        cash_received: Number(inv!.total),
+        cash_basis: `Оплата по заявке № ${cleanNum} от ${dfmt.format(new Date(inv!.issue_date))}`,
+      }).select().single();
+      if (error) throw error;
+      return pko.id as string;
+    },
+    onSuccess: (newId) => {
+      qc.invalidateQueries({ queryKey: ["invoice-children", id] });
+      toast.success("ПКО создан");
+      navigate({ to: "/invoices/$id", params: { id: newId } });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  if (isLoading || !inv) return <div className="text-muted-foreground">Загрузка…</div>;
+
+  const partnerObj = inv.partner;
+  const orgAsParty = myOrg ? {
+    name: myOrg.name,
+    inn: myOrg.inn,
+    kpp: myOrg.kpp,
+    phone: myOrg.phone,
+    address: myOrg.legal_address,
+    bank_name: myOrg.bank_name,
+    bank_bik: myOrg.bank_bik,
+    bank_account: myOrg.bank_account,
+    bank_corr_account: myOrg.bank_corr_account,
+  } : null;
+  const supplierLine: any = kind === "outgoing" ? orgAsParty : partnerObj;
+  const buyerLine: any = kind === "outgoing" ? partnerObj : orgAsParty;
+  const cleanNumber = String(inv.number).replace(/^№\s*/, "");
+  const docTitle = docLabels[docType].title;
+  const title = printMode === "pko"
+    ? `Приходный кассовый ордер № ${cleanNumber}`
+    : printMode === "invoice"
+    ? `Счёт на оплату № ${cleanNumber} от ${dfmt.format(new Date(inv.issue_date))}`
+    : isShipment
+      ? (kind === "outgoing"
+          ? `Расходная накладная № ${cleanNumber} от ${dfmt.format(new Date(inv.issue_date))}`
+          : `Приходная накладная № ${cleanNumber} от ${dfmt.format(new Date(inv.issue_date))}`)
+      : (kind === "outgoing"
+          ? `Заказ покупателя № ${cleanNumber} от ${dfmt.format(new Date(inv.issue_date))}`
+          : `Приходная заявка № ${cleanNumber} от ${dfmt.format(new Date(inv.issue_date))}`);
+
+  return (
+    <div className="space-y-5">
+      {/* Toolbar */}
+      <div className="flex items-center justify-between print:hidden gap-2 flex-wrap">
+        <Link to="/invoices" className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1">
+          <ArrowLeft className="h-4 w-4" /> К списку заявок
+        </Link>
+        <div className="flex gap-2 items-center flex-wrap">
+          {statuses.length > 0 && (
+            <Select value={inv.status_id ?? undefined} onValueChange={(v) => setStatusId.mutate(v)}>
+              <SelectTrigger className="w-[180px] h-9">
+                <div className="flex items-center gap-2">
+                  <span
+                    className="inline-block h-2.5 w-2.5 rounded-full"
+                    style={{ background: statuses.find(s => s.id === inv.status_id)?.color ?? "#cbd5e1" }}
+                  />
+                  <SelectValue placeholder="Статус" />
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                {statuses.map(s => (
+                  <SelectItem key={s.id} value={s.id}>
+                    <span className="inline-flex items-center gap-2">
+                      <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: s.color }} />
+                      {s.name}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          {isShipment && (
+            <Badge variant={inv.status === "posted" ? "default" : inv.status === "draft" ? "secondary" : "destructive"}>
+              Учёт: {inv.status === "posted" ? "Проведена" : inv.status === "draft" ? "Черновик" : "Отменена"}
+            </Badge>
+          )}
+          {editable && <Button variant="outline" onClick={() => save.mutate()} disabled={save.isPending}><Save className="h-4 w-4 mr-1" /> Сохранить</Button>}
+          {isShipment && inv.status === "draft" && <Button onClick={() => setStatus.mutate("posted")}><CheckCircle2 className="h-4 w-4 mr-1" /> Провести</Button>}
+          {isShipment && inv.status === "posted" && <Button variant="outline" onClick={() => setStatus.mutate("draft")}><FileEdit className="h-4 w-4 mr-1" /> Распровести</Button>}
+          {!isPKO && inv.status !== "cancelled" && (
+            <Button variant="outline" onClick={() => {
+              if (!confirm(`Отменить ${docLabels[docType].one}?`)) return;
+              setStatus.mutate("cancelled", { onSuccess: () => navigate({ to: "/invoices" }) });
+            }}><XCircle className="h-4 w-4 mr-1" /> Отменить</Button>
+          )}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline"><Printer className="h-4 w-4 mr-1" /> Печать <ChevronDown className="h-4 w-4 ml-1" /></Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {isPKO ? (
+                <DropdownMenuItem onClick={() => doPrint("pko")}>Приходный кассовый ордер (КО-1)</DropdownMenuItem>
+              ) : (
+                <>
+                  <DropdownMenuItem onClick={() => doPrint("standard")}>
+                    {isShipment
+                      ? (kind === "outgoing" ? "Расходная накладная" : "Приходная накладная")
+                      : (kind === "outgoing" ? "Заказ покупателя" : "Приходная заявка")}
+                  </DropdownMenuItem>
+                  {kind === "outgoing" && (
+                    <DropdownMenuItem onClick={() => doPrint("invoice")}>Счёт на оплату</DropdownMenuItem>
+                  )}
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button variant="ghost" onClick={() => { if (confirm(`Удалить ${docLabels[docType].one}?`)) remove.mutate(); }}>
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+
+      {/* Header label */}
+      <div className="print:hidden">
+        <h1 className="text-2xl font-semibold">
+          {docTitle} № {cleanNumber}
+        </h1>
+        {inv.parent_id && (
+          <p className="text-sm text-muted-foreground mt-1">
+            На основании заявки —{" "}
+            <Link to="/invoices/$id" params={{ id: inv.parent_id }} className="text-primary hover:underline">
+              открыть исходную заявку
+            </Link>
+          </p>
+        )}
+      </div>
+
+      {/* Related documents (только для заявки) */}
+      {isOrder && (
+        <Card className="p-5 print:hidden">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-medium">Связанные документы</h3>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={() => createShipment.mutate()} disabled={createShipment.isPending || items.length === 0}>
+                <Plus className="h-4 w-4 mr-1" /> Накладная
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => createReceipt.mutate()} disabled={createReceipt.isPending}>
+                <Plus className="h-4 w-4 mr-1" /> ПКО
+              </Button>
+            </div>
+          </div>
+          {children.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Создайте накладную для списания остатков или ПКО для квитанции об оплате.
+            </p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Документ</TableHead>
+                  <TableHead>№</TableHead>
+                  <TableHead>Дата</TableHead>
+                  <TableHead>Статус</TableHead>
+                  <TableHead className="text-right">Сумма</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {children.map(c => (
+                  <TableRow key={c.id}>
+                    <TableCell>{c.doc_type === "shipment" ? "Накладная" : "ПКО"}</TableCell>
+                    <TableCell>
+                      <Link to="/invoices/$id" params={{ id: c.id }} className="text-primary hover:underline">{c.number}</Link>
+                    </TableCell>
+                    <TableCell>{dfmt.format(new Date(c.issue_date))}</TableCell>
+                    <TableCell className="text-sm">
+                      {c.doc_type === "shipment"
+                        ? (c.status === "posted" ? "Проведена" : c.status === "cancelled" ? "Отменена" : "Черновик")
+                        : "—"}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {fmt.format(Number(c.doc_type === "cash_receipt" ? (c.cash_received ?? 0) : c.total))}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </Card>
+      )}
+
+
+      {/* Edit form */}
+      <div className="print:hidden space-y-5">
+        <Card className="p-5">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="space-y-2">
+              <Label>Тип</Label>
+              <Select value={kind} onValueChange={(v) => setKind(v as any)} disabled={!editable}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="outgoing">Расход (продажа)</SelectItem>
+                  <SelectItem value="incoming">Приход (поступление)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Номер</Label>
+              <Input value={number} onChange={e => setNumber(e.target.value)} disabled={!editable} />
+            </div>
+            <div className="space-y-2">
+              <Label>Дата</Label>
+              <Input type="date" value={date} onChange={e => setDate(e.target.value)} disabled={!editable} />
+            </div>
+            <div className="space-y-2">
+              <Label>{kind === "outgoing" ? "Покупатель" : "Поставщик"}</Label>
+              <Select value={partnerId} onValueChange={setPartnerId} disabled={!editable}>
+                <SelectTrigger><SelectValue placeholder="Не выбран" /></SelectTrigger>
+                <SelectContent>
+                  {filteredPartners.length === 0 && <div className="px-2 py-1.5 text-sm text-muted-foreground">Нет контрагентов</div>}
+                  {filteredPartners.map((p: any) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </Card>
+
+        {isPKO ? (
+          <Card className="p-5">
+            <h3 className="font-medium mb-4">Реквизиты квитанции</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Сумма, ₽</Label>
+                <Input type="number" step="0.01" value={cashReceived}
+                  onChange={e => setCashReceived(Number(e.target.value))} disabled={!editable} />
+              </div>
+              <div className="space-y-2 md:col-span-2">
+                <Label>Основание</Label>
+                <Textarea rows={2} value={cashBasis} onChange={e => setCashBasis(e.target.value)} disabled={!editable} />
+              </div>
+            </div>
+          </Card>
+        ) : (
+          <Card className="p-0 overflow-hidden">
+            <div className="p-4 border-b flex items-center justify-between">
+              <h3 className="font-medium">Позиции</h3>
+              <div className="flex gap-2">
+                {editable && (
+                  <ProductPicker
+                    products={products as any}
+                    kind={kind}
+                    onAdd={(picked: PickedItem[]) => setItems([...items, ...picked])}
+                  />
+                )}
+                {editable && <Button size="sm" variant="outline" onClick={addItem}><Plus className="h-4 w-4 mr-1" /> Строка</Button>}
+              </div>
+            </div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[40%]">Товар</TableHead>
+                  <TableHead className="w-28 text-right">Кол-во</TableHead>
+                  <TableHead className="w-32 text-right">Цена</TableHead>
+                  <TableHead className="text-right">Сумма</TableHead>
+                  <TableHead className="w-10"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {items.length === 0 && (
+                  <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">Нет позиций</TableCell></TableRow>
+                )}
+                {items.map((it, idx) => (
+                  <TableRow key={idx}>
+                    <TableCell>
+                      {editable ? (
+                        <button
+                          type="button"
+                          className="text-left w-full px-3 py-2 rounded-md border border-input bg-background hover:bg-accent transition-colors text-sm min-h-9"
+                          onClick={() => setPickRow(idx)}
+                        >
+                          {it.name || <span className="text-muted-foreground">Выберите товар</span>}
+                        </button>
+                      ) : (it.name)}
+                    </TableCell>
+                    <TableCell>
+                      <Input type="number" step="1" inputMode="decimal" className="text-right" value={it.quantity}
+                        onChange={e => updateItem(idx, { quantity: Number(e.target.value) })} disabled={!editable} />
+                    </TableCell>
+                    <TableCell>
+                      <Input type="number" step="0.01" className="text-right" value={it.price}
+                        onChange={e => updateItem(idx, { price: Number(e.target.value) })} disabled={!editable} />
+                    </TableCell>
+                    <TableCell className="text-right font-medium">{fmt.format(it.quantity * it.price)}</TableCell>
+                    <TableCell>
+                      {editable && <Button size="icon" variant="ghost" onClick={() => removeItem(idx)}><Trash2 className="h-4 w-4" /></Button>}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+            <div className="p-4 border-t flex justify-end items-center gap-4">
+              <span className="text-sm text-muted-foreground">Итого:</span>
+              <span className="text-xl font-semibold">{fmt.format(total)}</span>
+            </div>
+          </Card>
+        )}
+
+        <Card className="p-5">
+          <Label>Комментарий</Label>
+          <Textarea className="mt-2" rows={3} value={note} onChange={e => setNote(e.target.value)} disabled={!editable} />
+        </Card>
+
+        <ProductPickerSingle
+          open={pickRow !== null}
+          onOpenChange={(v) => { if (!v) setPickRow(null); }}
+          products={products as any}
+          onPick={(productId) => { if (pickRow !== null) pickProduct(pickRow, productId); }}
+        />
+      </div>
+
+      {/* Print layout (hidden on screen) */}
+      {printMode !== "pko" && (
+      <div className="invoice-print hidden print:block bg-white text-black mx-auto" style={{ maxWidth: 900 }}>
+        {printMode === "invoice" && orgAsParty && (
+          <>
+            <p className="text-center font-bold text-sm mb-2">Образец заполнения платежного поручения</p>
+            <table className="w-full border-collapse text-sm mb-5">
+              <tbody>
+                <tr>
+                  <td className="border border-black px-2 py-1 align-middle" style={{ width: "30%" }}>ИНН {orgAsParty.inn || "—"}</td>
+                  <td className="border border-black px-2 py-1 align-middle" style={{ width: "20%" }}>КПП {orgAsParty.kpp || "—"}</td>
+                  <td className="border border-black px-2 py-1 align-middle" rowSpan={2} style={{ width: "12%" }}>Сч. №</td>
+                  <td className="border border-black px-2 py-1 align-middle font-semibold" rowSpan={2}>{orgAsParty.bank_account || "—"}</td>
+                </tr>
+                <tr>
+                  <td className="border border-black px-2 py-1 align-top" colSpan={2}>
+                    <div>Получатель</div>
+                    <div className="font-semibold">{orgAsParty.name}</div>
+                  </td>
+                </tr>
+                <tr>
+                  <td className="border border-black px-2 py-1 align-top" colSpan={2} rowSpan={2}>
+                    <div>Банк получателя</div>
+                    <div className="font-semibold">{orgAsParty.bank_name || "—"}</div>
+                  </td>
+                  <td className="border border-black px-2 py-1 align-middle">БИК</td>
+                  <td className="border border-black px-2 py-1 align-middle font-semibold">{orgAsParty.bank_bik || "—"}</td>
+                </tr>
+                <tr>
+                  <td className="border border-black px-2 py-1 align-middle">Кор.сч.</td>
+                  <td className="border border-black px-2 py-1 align-middle font-semibold">{orgAsParty.bank_corr_account || "—"}</td>
+                </tr>
+              </tbody>
+            </table>
+          </>
+        )}
+        <h1 className="text-center text-xl font-bold mb-5">{title}</h1>
+        {supplierLine && (
+          <p className="mb-2 text-sm"><span className="font-bold">Поставщик:</span> {supplierLine.name}
+            {supplierLine.inn ? `, ИНН ${supplierLine.inn}` : ""}
+            {supplierLine.kpp ? `, КПП ${supplierLine.kpp}` : ""}
+            {supplierLine.address ? `, ${supplierLine.address}` : ""}
+            {supplierLine.phone ? `, тел.: ${supplierLine.phone}` : ""}
+            {supplierLine.bank_name ? `. Банк: ${supplierLine.bank_name}` : ""}
+            {supplierLine.bank_bik ? `, БИК ${supplierLine.bank_bik}` : ""}
+            {supplierLine.bank_account ? `, р/с ${supplierLine.bank_account}` : ""}
+            {supplierLine.bank_corr_account ? `, к/с ${supplierLine.bank_corr_account}` : ""}
+          </p>
+        )}
+        {buyerLine
+          ? <p className="mb-4 text-sm"><span className="font-bold">Покупатель:</span> {buyerLine.name}
+              {buyerLine.inn ? `, ИНН ${buyerLine.inn}` : ""}
+              {buyerLine.kpp ? `, КПП ${buyerLine.kpp}` : ""}
+              {buyerLine.address ? `, ${buyerLine.address}` : ""}
+              {buyerLine.phone ? `, тел.: ${buyerLine.phone}` : ""}</p>
+          : <p className="mb-4 text-sm"><span className="font-bold">Покупатель:</span> Частное лицо</p>}
+
+        <table className="w-full border-collapse text-sm">
+          <thead>
+            <tr style={{ background: "#f3f4f6" }}>
+              <th className="border border-black px-2 py-1 text-center w-10">№</th>
+              <th className="border border-black px-2 py-1 text-center">Наименование товара, работ, услуг</th>
+              <th className="border border-black px-2 py-1 text-center w-20">Ед. изм.</th>
+              <th className="border border-black px-2 py-1 text-center w-20">Кол-во</th>
+              <th className="border border-black px-2 py-1 text-center w-28">Цена</th>
+              <th className="border border-black px-2 py-1 text-center w-32">Сумма</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(() => {
+              const goods = items.filter(it => (it.kind ?? "product") === "product");
+              const services = items.filter(it => it.kind === "service");
+              const goodsTotal = goods.reduce((s, i) => s + i.quantity * i.price, 0);
+              const servicesTotal = services.reduce((s, i) => s + i.quantity * i.price, 0);
+              const hasBoth = goods.length > 0 && services.length > 0;
+              let n = 0;
+              const renderRow = (it: Item, i: number) => {
+                const p: any = products.find((x: any) => x.id === it.product_id);
+                n += 1;
+                return (
+                  <tr key={`${it.kind}-${i}`}>
+                    <td className="border border-black px-2 py-1 text-center">{n}</td>
+                    <td className="border border-black px-2 py-1">{it.name}</td>
+                    <td className="border border-black px-2 py-1 text-center">{p?.unit || (it.kind === "service" ? "усл" : "шт")}</td>
+                    <td className="border border-black px-2 py-1 text-right">{it.quantity}</td>
+                    <td className="border border-black px-2 py-1 text-right">{nfmt.format(it.price)}</td>
+                    <td className="border border-black px-2 py-1 text-right">{nfmt.format(it.quantity * it.price)}</td>
+                  </tr>
+                );
+              };
+              return (
+                <>
+                  {hasBoth && (
+                    <tr>
+                      <td colSpan={6} className="px-2 py-1 font-bold uppercase">Товары</td>
+                    </tr>
+                  )}
+                  {goods.map(renderRow)}
+                  {hasBoth && goods.length > 0 && (
+                    <tr>
+                      <td colSpan={5} className="px-2 py-1 text-right font-bold">Итого по товарам:</td>
+                      <td className="border border-black px-2 py-1 text-right font-bold">{nfmt.format(goodsTotal)}</td>
+                    </tr>
+                  )}
+                  {hasBoth && (
+                    <tr>
+                      <td colSpan={6} className="px-2 py-1 font-bold uppercase">Услуги</td>
+                    </tr>
+                  )}
+                  {services.map(renderRow)}
+                  {hasBoth && services.length > 0 && (
+                    <tr>
+                      <td colSpan={5} className="px-2 py-1 text-right font-bold">Итого по услугам:</td>
+                      <td className="border border-black px-2 py-1 text-right font-bold">{nfmt.format(servicesTotal)}</td>
+                    </tr>
+                  )}
+                  <tr><td colSpan={5} className="px-2 py-1 text-right font-bold">Итого:</td>
+                    <td className="border border-black px-2 py-1 text-right font-bold">{nfmt.format(total)}</td></tr>
+                  <tr><td colSpan={5} className="px-2 py-1 text-right font-bold">Без налога (НДС):</td>
+                    <td className="border border-black px-2 py-1 text-right">---</td></tr>
+                  <tr><td colSpan={5} className="px-2 py-1 text-right font-bold">Всего к оплате:</td>
+                    <td className="border border-black px-2 py-1 text-right font-bold">{nfmt.format(total)}</td></tr>
+                </>
+              );
+            })()}
+          </tbody>
+        </table>
+        <p className="mt-4 text-sm">Всего наименований {items.length}, на сумму {nfmt.format(total)} руб.</p>
+        <p className="mt-1 text-sm font-bold">{amountInWords(total)}</p>
+        {note && <p className="mt-4 text-sm"><span className="font-bold">Комментарий:</span> {note}</p>}
+        <div className="mt-12 text-sm">
+          <div className="font-bold mb-6">{kind === "outgoing" ? "Заказ принял:" : "Товар принял:"}</div>
+          <div className="border-b border-black" style={{ width: 260 }} />
+        </div>
+      </div>
+      )}
+
+      {/* ПКО print layout (КО-1) */}
+      {printMode === "pko" && (
+      <div className="invoice-print hidden print:block bg-white text-black mx-auto" style={{ maxWidth: 900, fontSize: 12 }}>
+        <div className="text-right text-xs mb-1">Унифицированная форма № КО-1<br/>Утверждена постановлением Госкомстата России от 18.08.98 № 88</div>
+        <table className="w-full border-collapse text-xs mb-2">
+          <tbody>
+            <tr>
+              <td className="border border-black px-2 py-1 align-top w-1/2">
+                <div>Организация</div>
+                <div className="font-semibold">{orgAsParty?.name || "—"}</div>
+              </td>
+              <td className="border border-black px-2 py-1 align-top w-32 text-center">
+                <div>Код по ОКПО</div>
+                <div className="font-semibold">{myOrg?.okpo || ""}</div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <h1 className="text-center text-lg font-bold mt-4">ПРИХОДНЫЙ КАССОВЫЙ ОРДЕР</h1>
+        <table className="w-full border-collapse text-xs mt-2 mb-4">
+          <thead>
+            <tr>
+              <th className="border border-black px-2 py-1 w-24">Номер документа</th>
+              <th className="border border-black px-2 py-1 w-32">Дата составления</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td className="border border-black px-2 py-1 text-center">{cleanNumber}</td>
+              <td className="border border-black px-2 py-1 text-center">{dfmt.format(new Date(inv.issue_date))}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <table className="w-full border-collapse text-xs mb-4">
+          <thead>
+            <tr>
+              <th className="border border-black px-2 py-1" colSpan={2}>Дебет</th>
+              <th className="border border-black px-2 py-1" rowSpan={2}>Кредит</th>
+              <th className="border border-black px-2 py-1" rowSpan={2}>Сумма,<br/>руб. коп.</th>
+              <th className="border border-black px-2 py-1" rowSpan={2}>Код целевого<br/>назначения</th>
+            </tr>
+            <tr>
+              <th className="border border-black px-2 py-1">Корреспондирующий<br/>счёт, субсчёт</th>
+              <th className="border border-black px-2 py-1">Код аналитического<br/>учёта</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td className="border border-black px-2 py-1 text-center">50</td>
+              <td className="border border-black px-2 py-1"></td>
+              <td className="border border-black px-2 py-1 text-center">62</td>
+              <td className="border border-black px-2 py-1 text-right font-semibold">{nfmt.format(cashReceived)}</td>
+              <td className="border border-black px-2 py-1"></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div className="text-sm mb-2"><span className="font-bold">Принято от:</span> {partnerObj?.name || "—"}</div>
+        <div className="text-sm mb-2"><span className="font-bold">Основание:</span> {cashBasis || "—"}</div>
+        <div className="text-sm mb-2"><span className="font-bold">Сумма:</span> {amountInWords(cashReceived)}</div>
+        <div className="text-sm mb-2"><span className="font-bold">В том числе:</span> без налога (НДС)</div>
+        <div className="text-sm mb-4"><span className="font-bold">Приложение:</span> _____________________________________</div>
+
+        <div className="grid grid-cols-2 gap-6 text-sm mt-6">
+          <div>
+            <div>Главный бухгалтер</div>
+            <div className="border-b border-black mt-4" />
+            <div className="text-xs text-center mt-1">подпись, расшифровка</div>
+          </div>
+          <div>
+            <div>Получил кассир</div>
+            <div className="border-b border-black mt-4" />
+            <div className="text-xs text-center mt-1">подпись, расшифровка</div>
+          </div>
+        </div>
+
+        <div className="border-t-2 border-dashed border-black my-6" />
+
+        {/* Отрывная квитанция */}
+        <div>
+          <h2 className="text-center text-base font-bold">КВИТАНЦИЯ</h2>
+          <p className="text-sm mt-1">к приходному кассовому ордеру № {cleanNumber} от {dfmt.format(new Date(inv.issue_date))}</p>
+          <div className="text-sm mt-2"><span className="font-bold">Принято от:</span> {partnerObj?.name || "—"}</div>
+          <div className="text-sm mt-1"><span className="font-bold">Основание:</span> {cashBasis || "—"}</div>
+          <div className="text-sm mt-1"><span className="font-bold">Сумма:</span> {amountInWords(cashReceived)}</div>
+          <div className="text-sm mt-1"><span className="font-bold">В том числе:</span> без налога (НДС)</div>
+          <div className="grid grid-cols-3 gap-4 text-sm mt-6">
+            <div>«___» __________ {new Date(inv.issue_date).getFullYear()} г.</div>
+            <div className="text-center">М.П. (штампа)</div>
+            <div></div>
+          </div>
+          <div className="grid grid-cols-2 gap-6 text-sm mt-6">
+            <div>
+              <div>Главный бухгалтер</div>
+              <div className="border-b border-black mt-4" />
+            </div>
+            <div>
+              <div>Кассир</div>
+              <div className="border-b border-black mt-4" />
+            </div>
+          </div>
+        </div>
+      </div>
+      )}
+
+      <style>{`
+        @media print {
+          @page { size: A4; margin: 15mm; }
+          body { background: white !important; }
+          body * { visibility: hidden !important; }
+          .invoice-print, .invoice-print * { visibility: visible !important; }
+          .invoice-print { position: absolute; left: 0; top: 0; width: 100%; }
+        }
+      `}</style>
+    </div>
+  );
+}

@@ -1,0 +1,1 @@
+ALTER TABLE public.organizations ADD COLUMN IF NOT EXISTS invoice_number_mask TEXT NOT NULL DEFAULT '{YYYY}-{MM}-{DD}-{NNN}';
