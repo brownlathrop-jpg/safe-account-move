@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Printer, CheckCircle2, XCircle, Trash2, Plus, Save, FileEdit, ChevronDown } from "lucide-react";
+import { ArrowLeft, Printer, CheckCircle2, XCircle, Plus, Save, FileEdit, ChevronDown } from "lucide-react";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { amountInWords } from "@/lib/amount-in-words";
 import { ProductPicker, type PickedItem } from "@/components/ProductPicker";
@@ -152,34 +152,23 @@ function InvoiceView() {
 
   const save = useMutation({
     mutationFn: async () => {
-      const wasPosted = inv?.status === "posted";
-      // If posted — reverse stock first by moving to draft
-      if (wasPosted) {
-        const { error } = await supabase.from("invoices").update({ status: "draft" }).eq("id", id);
-        if (error) throw error;
-      }
-      const { error: upErr } = await (supabase as any).from("invoices").update({
-        kind, number, issue_date: date, partner_id: partnerId || null, note: note || null,
-        cash_received: isPKO ? cashReceived : null,
-        cash_basis: isPKO ? (cashBasis || null) : null,
-      }).eq("id", id);
-      if (upErr) throw upErr;
-      const { error: delErr } = await supabase.from("invoice_items").delete().eq("invoice_id", id);
-      if (delErr) throw delErr;
       const rows = items.map(it => ({
-        invoice_id: id, product_id: it.product_id, name: it.name,
+        product_id: it.product_id, name: it.name,
         quantity: it.quantity, price: it.price, sum: it.quantity * it.price,
         kind: it.kind ?? "product",
       }));
-      if (rows.length) {
-        const { error: insErr } = await supabase.from("invoice_items").insert(rows);
-        if (insErr) throw insErr;
-      }
-      // Re-apply stock if it was posted
-      if (wasPosted) {
-        const { error } = await supabase.from("invoices").update({ status: "posted" }).eq("id", id);
-        if (error) throw error;
-      }
+      const { error } = await (supabase as any).rpc("replace_invoice_with_items", {
+        _invoice_id: id,
+        _kind: kind,
+        _number: number,
+        _issue_date: date,
+        _partner_id: partnerId || null,
+        _note: note || null,
+        _cash_received: isPKO ? cashReceived : null,
+        _cash_basis: isPKO ? (cashBasis || null) : null,
+        _items: rows,
+      });
+      if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["invoice", id] }); toast.success("Сохранено"); },
     onError: (e: Error) => toast.error(e.message),
@@ -210,15 +199,6 @@ function InvoiceView() {
     }
      
   }, [inv?.id, statuses.length]);
-
-  const remove = useMutation({
-    mutationFn: async () => {
-      const { error } = await supabase.from("invoices").delete().eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => { toast.success("Удалено"); navigate({ to: "/invoices" }); },
-    onError: (e: Error) => toast.error(e.message),
-  });
 
   const createShipment = useMutation({
     mutationFn: async () => {
@@ -354,7 +334,7 @@ function InvoiceView() {
           {editable && <Button variant="outline" onClick={() => save.mutate()} disabled={save.isPending}><Save className="h-4 w-4 mr-1" /> Сохранить</Button>}
           {isShipment && inv.status === "draft" && <Button onClick={() => setStatus.mutate("posted")}><CheckCircle2 className="h-4 w-4 mr-1" /> Провести</Button>}
           {isShipment && inv.status === "posted" && <Button variant="outline" onClick={() => setStatus.mutate("draft")}><FileEdit className="h-4 w-4 mr-1" /> Распровести</Button>}
-          {!isPKO && inv.status !== "cancelled" && (
+          {inv.status !== "cancelled" && (
             <Button variant="outline" onClick={() => {
               if (!confirm(`Отменить ${docLabels[docType].one}?`)) return;
               setStatus.mutate("cancelled", { onSuccess: () => navigate({ to: "/invoices" }) });
@@ -381,9 +361,6 @@ function InvoiceView() {
               )}
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button variant="ghost" onClick={() => { if (confirm(`Удалить ${docLabels[docType].one}?`)) remove.mutate(); }}>
-            <Trash2 className="h-4 w-4" />
-          </Button>
         </div>
       </div>
 
