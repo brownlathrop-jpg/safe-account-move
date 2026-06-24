@@ -153,29 +153,47 @@ function InvoiceView() {
   const save = useMutation({
     mutationFn: async () => {
       const wasPosted = inv?.status === "posted";
-      // If posted — reverse stock first by moving to draft
       if (wasPosted) {
         const { error } = await supabase.from("invoices").update({ status: "draft" }).eq("id", id);
         if (error) throw error;
       }
+
       const { error: upErr } = await (supabase as any).from("invoices").update({
         kind, number, issue_date: date, partner_id: partnerId || null, note: note || null,
         cash_received: isPKO ? cashReceived : null,
         cash_basis: isPKO ? (cashBasis || null) : null,
       }).eq("id", id);
       if (upErr) throw upErr;
-      const { error: delErr } = await supabase.from("invoice_items").delete().eq("invoice_id", id);
-      if (delErr) throw delErr;
+
       const rows = items.map(it => ({
+        id: it.id,
         invoice_id: id, product_id: it.product_id, name: it.name,
         quantity: it.quantity, price: it.price, sum: it.quantity * it.price,
         kind: it.kind ?? "product",
       }));
-      if (rows.length) {
-        const { error: insErr } = await supabase.from("invoice_items").insert(rows);
+
+      const existingRows = rows.filter((row) => Boolean(row.id));
+      const newRows = rows.filter((row) => !row.id).map(({ id: _id, ...row }) => row);
+
+      for (const row of existingRows) {
+        const { id: itemId, ...patch } = row;
+        const { error: itemErr } = await supabase.from("invoice_items").update(patch).eq("id", itemId as string);
+        if (itemErr) throw itemErr;
+      }
+
+      if (newRows.length) {
+        const { error: insErr } = await supabase.from("invoice_items").insert(newRows);
         if (insErr) throw insErr;
       }
-      // Re-apply stock if it was posted
+
+      const keptIds = existingRows.map((row) => row.id).filter(Boolean) as string[];
+      const originalIds = (inv?.items ?? []).map((it: any) => it.id).filter(Boolean) as string[];
+      const removedIds = originalIds.filter((itemId) => !keptIds.includes(itemId));
+      if (removedIds.length) {
+        const { error: delErr } = await supabase.from("invoice_items").delete().in("id", removedIds).eq("invoice_id", id);
+        if (delErr) throw delErr;
+      }
+
       if (wasPosted) {
         const { error } = await supabase.from("invoices").update({ status: "posted" }).eq("id", id);
         if (error) throw error;
@@ -210,15 +228,6 @@ function InvoiceView() {
     }
      
   }, [inv?.id, statuses.length]);
-
-  const remove = useMutation({
-    mutationFn: async () => {
-      const { error } = await supabase.from("invoices").delete().eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => { toast.success("Удалено"); navigate({ to: "/invoices" }); },
-    onError: (e: Error) => toast.error(e.message),
-  });
 
   const createShipment = useMutation({
     mutationFn: async () => {
@@ -354,7 +363,7 @@ function InvoiceView() {
           {editable && <Button variant="outline" onClick={() => save.mutate()} disabled={save.isPending}><Save className="h-4 w-4 mr-1" /> Сохранить</Button>}
           {isShipment && inv.status === "draft" && <Button onClick={() => setStatus.mutate("posted")}><CheckCircle2 className="h-4 w-4 mr-1" /> Провести</Button>}
           {isShipment && inv.status === "posted" && <Button variant="outline" onClick={() => setStatus.mutate("draft")}><FileEdit className="h-4 w-4 mr-1" /> Распровести</Button>}
-          {!isPKO && inv.status !== "cancelled" && (
+          {inv.status !== "cancelled" && (
             <Button variant="outline" onClick={() => {
               if (!confirm(`Отменить ${docLabels[docType].one}?`)) return;
               setStatus.mutate("cancelled", { onSuccess: () => navigate({ to: "/invoices" }) });
@@ -381,9 +390,6 @@ function InvoiceView() {
               )}
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button variant="ghost" onClick={() => { if (confirm(`Удалить ${docLabels[docType].one}?`)) remove.mutate(); }}>
-            <Trash2 className="h-4 w-4" />
-          </Button>
         </div>
       </div>
 
