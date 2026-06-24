@@ -172,7 +172,7 @@ function InvoiceView() {
         kind: it.kind ?? "product",
       }));
 
-      const existingRows = rows.filter((row) => row.id);
+      const existingRows = rows.filter((row): row is typeof row & { id: string } => Boolean(row.id));
       const newRows = rows.filter((row) => !row.id).map(({ id: _id, ...row }) => row);
 
       for (const row of existingRows) {
