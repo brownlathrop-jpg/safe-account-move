@@ -152,23 +152,52 @@ function InvoiceView() {
 
   const save = useMutation({
     mutationFn: async () => {
+      const wasPosted = inv?.status === "posted";
+      if (wasPosted) {
+        const { error } = await supabase.from("invoices").update({ status: "draft" }).eq("id", id);
+        if (error) throw error;
+      }
+
+      const { error: upErr } = await (supabase as any).from("invoices").update({
+        kind, number, issue_date: date, partner_id: partnerId || null, note: note || null,
+        cash_received: isPKO ? cashReceived : null,
+        cash_basis: isPKO ? (cashBasis || null) : null,
+      }).eq("id", id);
+      if (upErr) throw upErr;
+
       const rows = items.map(it => ({
-        product_id: it.product_id, name: it.name,
+        id: it.id,
+        invoice_id: id, product_id: it.product_id, name: it.name,
         quantity: it.quantity, price: it.price, sum: it.quantity * it.price,
         kind: it.kind ?? "product",
       }));
-      const { error } = await (supabase as any).rpc("replace_invoice_with_items", {
-        _invoice_id: id,
-        _kind: kind,
-        _number: number,
-        _issue_date: date,
-        _partner_id: partnerId || null,
-        _note: note || null,
-        _cash_received: isPKO ? cashReceived : null,
-        _cash_basis: isPKO ? (cashBasis || null) : null,
-        _items: rows,
-      });
-      if (error) throw error;
+
+      const existingRows = rows.filter((row) => row.id);
+      const newRows = rows.filter((row) => !row.id).map(({ id: _id, ...row }) => row);
+
+      for (const row of existingRows) {
+        const { id: itemId, ...patch } = row;
+        const { error: itemErr } = await supabase.from("invoice_items").update(patch).eq("id", itemId);
+        if (itemErr) throw itemErr;
+      }
+
+      if (newRows.length) {
+        const { error: insErr } = await supabase.from("invoice_items").insert(newRows);
+        if (insErr) throw insErr;
+      }
+
+      const keptIds = existingRows.map((row) => row.id).filter(Boolean) as string[];
+      const originalIds = (inv?.items ?? []).map((it: any) => it.id).filter(Boolean) as string[];
+      const removedIds = originalIds.filter((itemId) => !keptIds.includes(itemId));
+      if (removedIds.length) {
+        const { error: delErr } = await supabase.from("invoice_items").delete().in("id", removedIds).eq("invoice_id", id);
+        if (delErr) throw delErr;
+      }
+
+      if (wasPosted) {
+        const { error } = await supabase.from("invoices").update({ status: "posted" }).eq("id", id);
+        if (error) throw error;
+      }
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["invoice", id] }); toast.success("Сохранено"); },
     onError: (e: Error) => toast.error(e.message),
