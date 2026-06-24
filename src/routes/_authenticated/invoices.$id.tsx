@@ -172,12 +172,12 @@ function InvoiceView() {
         kind: it.kind ?? "product",
       }));
 
-      const existingRows = rows.filter((row): row is typeof row & { id: string } => Boolean(row.id));
+      const existingRows = rows.filter((row) => Boolean(row.id));
       const newRows = rows.filter((row) => !row.id).map(({ id: _id, ...row }) => row);
 
       for (const row of existingRows) {
         const { id: itemId, ...patch } = row;
-        const { error: itemErr } = await supabase.from("invoice_items").update(patch).eq("id", itemId);
+        const { error: itemErr } = await supabase.from("invoice_items").update(patch).eq("id", itemId as string);
         if (itemErr) throw itemErr;
       }
 
