@@ -50,7 +50,7 @@ const empty: Org = {
 
 function SettingsPage() {
   const qc = useQueryClient();
-  const { data: org, isLoading } = useQuery({
+  const { data: org } = useQuery({
     queryKey: ["my-organization"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -107,8 +107,6 @@ function SettingsPage() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["my-organization"] }); toast.success("Сохранено"); },
     onError: (e: Error) => toast.error(e.message),
   });
-
-  if (isLoading) return <div className="text-muted-foreground">Загрузка…</div>;
 
   return (
     <div className="space-y-5 max-w-4xl">
