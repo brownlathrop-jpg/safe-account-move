@@ -42,6 +42,7 @@ function ProductsPage() {
   const [editing, setEditing] = useState<Partial<Product> | null>(null);
   const [open, setOpen] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [zoomImage, setZoomImage] = useState<string | null>(null);
   const [selectedFolder, setSelectedFolder] = useState<string>(ALL);
   const selectedFolderRef = useRef<string>(ALL);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -453,9 +454,13 @@ function ProductsPage() {
               <div className="space-y-2">
                 <Label>Фото</Label>
                 <div className="flex items-center gap-3">
-                  <div className="h-20 w-20 rounded-md border bg-muted/40 flex items-center justify-center overflow-hidden shrink-0">
+                  <div
+                    className={`h-20 w-20 rounded-md border bg-muted/40 flex items-center justify-center overflow-hidden shrink-0 ${editing.image_url ? "cursor-zoom-in" : ""}`}
+                    onClick={() => { if (editing?.image_url) setZoomImage(editing.image_url); }}
+                    title={editing.image_url ? "Открыть фото" : undefined}
+                  >
                     {editing.image_url ? (
-                      <img src={editing.image_url} alt="" className="h-full w-full object-cover" />
+                      <img src={editing.image_url} alt="" className="max-h-full max-w-full object-contain" />
                     ) : (
                       <ImageIcon className="h-6 w-6 text-muted-foreground" />
                     )}
