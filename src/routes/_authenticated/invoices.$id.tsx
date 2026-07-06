@@ -64,6 +64,11 @@ function InvoiceView() {
     enabled: !!wsId,
     queryFn: async () => (await (supabase as any).from("partners").select("id,name,kind").eq("workspace_id", wsId).order("name")).data ?? [],
   });
+  const { data: warehouses = [] } = useQuery({
+    queryKey: ["warehouses", wsId],
+    enabled: !!wsId,
+    queryFn: async () => (await (supabase as any).from("warehouses").select("id,name,is_default").eq("workspace_id", wsId).order("is_default", { ascending: false }).order("name")).data as { id: string; name: string; is_default: boolean }[] ?? [],
+  });
   const { data: myOrg } = useQuery({
     queryKey: ["my-organization", wsId],
     enabled: !!wsId,
@@ -94,6 +99,7 @@ function InvoiceView() {
   const [number, setNumber] = useState("");
   const [date, setDate] = useState("");
   const [partnerId, setPartnerId] = useState<string>("");
+  const [warehouseId, setWarehouseId] = useState<string>("");
   const [note, setNote] = useState("");
   const [items, setItems] = useState<Item[]>([]);
   const [pickRow, setPickRow] = useState<number | null>(null);
@@ -113,6 +119,7 @@ function InvoiceView() {
     setNumber(inv.number);
     setDate(inv.issue_date);
     setPartnerId(inv.partner_id ?? "");
+    setWarehouseId(inv.warehouse_id ?? "");
     setNote(inv.note ?? "");
     setCashReceived(Number(inv.cash_received ?? 0));
     setCashBasis(inv.cash_basis ?? "");
@@ -171,6 +178,7 @@ function InvoiceView() {
 
       const { error: upErr } = await (supabase as any).from("invoices").update({
         kind, number, issue_date: date, partner_id: partnerId || null, note: note || null,
+        warehouse_id: isShipment ? (warehouseId || null) : null,
         cash_received: isPKO ? cashReceived : null,
         cash_basis: isPKO ? (cashBasis || null) : null,
       }).eq("id", id);
