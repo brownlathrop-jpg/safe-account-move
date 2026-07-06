@@ -585,6 +585,15 @@ function ProductsPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={!!zoomImage} onOpenChange={(v) => { if (!v) setZoomImage(null); }}>
+        <DialogContent className="max-w-3xl p-2 bg-transparent border-0 shadow-none">
+          <DialogHeader className="sr-only"><DialogTitle>Фото</DialogTitle></DialogHeader>
+          {zoomImage && (
+            <img src={zoomImage} alt="" className="w-full h-auto max-h-[85vh] object-contain rounded-md" />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
