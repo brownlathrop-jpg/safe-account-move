@@ -257,8 +257,12 @@ function ProductsPage() {
     }
     if (selectedFolder === KIND_PRODUCT) return p.kind === "product";
     if (selectedFolder === KIND_SERVICE) return p.kind === "service";
-    if (selectedFolder === ALL) return p.folder_id === null;
+    if (selectedFolder === ALL) return true;
     if (selectedFolder === ROOT) return p.folder_id === null;
+    if (folderIds.has(selectedFolder)) {
+      const ids = new Set(descendantsOf(selectedFolder));
+      return !!p.folder_id && ids.has(p.folder_id);
+    }
     return p.folder_id === selectedFolder;
   });
 
