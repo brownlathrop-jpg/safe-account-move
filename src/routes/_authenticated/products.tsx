@@ -78,6 +78,9 @@ function ProductsPage() {
     return map;
   }, [folders]);
 
+  const folderIds = useMemo(() => new Set(folders.map(f => f.id)), [folders]);
+  const selectedRealFolderId = folderIds.has(selectedFolder) ? selectedFolder : null;
+
   const descendantsOf = (id: string): string[] => {
     const result: string[] = [];
     const stack = [id];
@@ -196,12 +199,17 @@ function ProductsPage() {
   };
 
   const openNew = () => {
-    const folder_id = selectedFolder === ALL || selectedFolder === ROOT || selectedFolder === KIND_PRODUCT || selectedFolder === KIND_SERVICE ? null : selectedFolder;
+    const folder_id = selectedRealFolderId;
     const kind: "product" | "service" = selectedFolder === KIND_SERVICE ? "service" : "product";
     setEditing({ name: "", unit: kind === "service" ? "усл" : "шт", price: 0, cost: 0, stock: 0, folder_id, kind });
     setOpen(true);
   };
   const openEdit = (p: Product) => { setEditing(p); setOpen(true); };
+
+  const openFolderDialog = (parent_id: string | null, editingFolder?: FolderRow) => {
+    setFolderName(editingFolder?.name ?? "");
+    setFolderDialog({ open: true, parent_id, editing: editingFolder });
+  };
 
   const renderFolderTree = (parentId: string | null, depth = 0) => {
     const list = childrenOf.get(parentId) ?? [];
@@ -227,11 +235,11 @@ function ProductsPage() {
             <span className="truncate flex-1">{f.name}</span>
             <div className="opacity-0 group-hover:opacity-100 flex gap-0.5">
               <Button size="icon" variant="ghost" className="h-6 w-6" title="Подпапка"
-                onClick={(e) => { e.stopPropagation(); setFolderName(""); setFolderDialog({ open: true, parent_id: f.id }); }}>
+                onClick={(e) => { e.stopPropagation(); openFolderDialog(f.id); }}>
                 <FolderPlus className="h-3.5 w-3.5" />
               </Button>
               <Button size="icon" variant="ghost" className="h-6 w-6" title="Переименовать"
-                onClick={(e) => { e.stopPropagation(); setFolderName(f.name); setFolderDialog({ open: true, parent_id: f.parent_id, editing: f }); }}>
+                onClick={(e) => { e.stopPropagation(); openFolderDialog(f.parent_id, f); }}>
                 <Pencil className="h-3.5 w-3.5" />
               </Button>
               <Button size="icon" variant="ghost" className="h-6 w-6" title="Удалить"
@@ -254,11 +262,7 @@ function ProductsPage() {
           <p className="text-sm text-muted-foreground">Справочник с ценами, остатками и папками</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => {
-            const parent_id = (selectedFolder === ALL || selectedFolder === ROOT || selectedFolder === KIND_PRODUCT || selectedFolder === KIND_SERVICE) ? null : selectedFolder;
-            setFolderName("");
-            setFolderDialog({ open: true, parent_id });
-          }}>
+          <Button variant="outline" onClick={() => openFolderDialog(selectedRealFolderId)}>
             <FolderPlus className="h-4 w-4 mr-1" /> Добавить папку
           </Button>
           <Button onClick={openNew}><Plus className="h-4 w-4 mr-1" /> Добавить</Button>
@@ -335,7 +339,7 @@ function ProductsPage() {
                     {productCountIn(f.id)} товаров
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button size="icon" variant="ghost" onClick={(e) => { e.stopPropagation(); setFolderName(f.name); setFolderDialog({ open: true, parent_id: f.parent_id, editing: f }); }}><Pencil className="h-4 w-4" /></Button>
+                    <Button size="icon" variant="ghost" onClick={(e) => { e.stopPropagation(); openFolderDialog(f.parent_id, f); }}><Pencil className="h-4 w-4" /></Button>
                     <Button size="icon" variant="ghost" onClick={(e) => { e.stopPropagation(); if (confirm(`Удалить папку "${f.name}"?`)) removeFolder.mutate(f.id); }}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -435,7 +439,7 @@ function ProductsPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={folderDialog.open} onOpenChange={(v) => setFolderDialog({ ...folderDialog, open: v })}>
+      <Dialog open={folderDialog.open} onOpenChange={(v) => setFolderDialog(current => v ? { ...current, open: true } : { open: false, parent_id: null })}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>{folderDialog.editing ? "Переименовать папку" : "Новая папка"}</DialogTitle>
