@@ -253,12 +253,14 @@ function InvoiceView() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Нет сессии");
       const cleanNum = String(inv!.number).replace(/^№\s*/, "");
+      const defaultWh = warehouses.find(w => w.is_default)?.id ?? warehouses[0]?.id ?? null;
       const { data: ship, error } = await (supabase as any).from("invoices").insert({
         user_id: user.id,
         workspace_id: inv!.workspace_id ?? wsId,
         number: `Н-${cleanNum}`,
         kind: inv!.kind,
         partner_id: inv!.partner_id,
+        warehouse_id: defaultWh,
         issue_date: new Date().toISOString().slice(0, 10),
         status: "draft",
         doc_type: "shipment",
