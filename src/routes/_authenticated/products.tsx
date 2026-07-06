@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -38,6 +38,7 @@ function ProductsPage() {
   const [editing, setEditing] = useState<Partial<Product> | null>(null);
   const [open, setOpen] = useState(false);
   const [selectedFolder, setSelectedFolder] = useState<string>(ALL);
+  const selectedFolderRef = useRef<string>(ALL);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [folderDialog, setFolderDialog] = useState<{ open: boolean; parent_id: string | null; editing?: FolderRow }>({ open: false, parent_id: null });
   const [folderName, setFolderName] = useState("");
@@ -77,6 +78,14 @@ function ProductsPage() {
     });
     return map;
   }, [folders]);
+
+  const folderIds = useMemo(() => new Set(folders.map(f => f.id)), [folders]);
+  const selectFolder = (id: string) => {
+    selectedFolderRef.current = id;
+    setSelectedFolder(id);
+  };
+  const getSelectedRealFolderId = () => folderIds.has(selectedFolderRef.current) ? selectedFolderRef.current : null;
+  const selectedRealFolderId = folderIds.has(selectedFolder) ? selectedFolder : null;
 
   const descendantsOf = (id: string): string[] => {
     const result: string[] = [];
@@ -196,12 +205,17 @@ function ProductsPage() {
   };
 
   const openNew = () => {
-    const folder_id = selectedFolder === ALL || selectedFolder === ROOT || selectedFolder === KIND_PRODUCT || selectedFolder === KIND_SERVICE ? null : selectedFolder;
+    const folder_id = selectedRealFolderId;
     const kind: "product" | "service" = selectedFolder === KIND_SERVICE ? "service" : "product";
     setEditing({ name: "", unit: kind === "service" ? "усл" : "шт", price: 0, cost: 0, stock: 0, folder_id, kind });
     setOpen(true);
   };
   const openEdit = (p: Product) => { setEditing(p); setOpen(true); };
+
+  const openFolderDialog = (parent_id: string | null, editingFolder?: FolderRow) => {
+    setFolderName(editingFolder?.name ?? "");
+    setFolderDialog({ open: true, parent_id, editing: editingFolder });
+  };
 
   const renderFolderTree = (parentId: string | null, depth = 0) => {
     const list = childrenOf.get(parentId) ?? [];
@@ -214,7 +228,7 @@ function ProductsPage() {
           <div
             className={`group flex items-center gap-1 rounded-md text-sm cursor-pointer hover:bg-muted/60 ${active ? "bg-muted font-medium" : ""}`}
             style={{ paddingLeft: 8 + depth * 14, paddingRight: 4, paddingTop: 4, paddingBottom: 4 }}
-            onClick={() => setSelectedFolder(f.id)}
+            onClick={() => selectFolder(f.id)}
           >
             <button
               type="button"
@@ -227,11 +241,11 @@ function ProductsPage() {
             <span className="truncate flex-1">{f.name}</span>
             <div className="opacity-0 group-hover:opacity-100 flex gap-0.5">
               <Button size="icon" variant="ghost" className="h-6 w-6" title="Подпапка"
-                onClick={(e) => { e.stopPropagation(); setFolderName(""); setFolderDialog({ open: true, parent_id: f.id }); }}>
+                onClick={(e) => { e.stopPropagation(); openFolderDialog(f.id); }}>
                 <FolderPlus className="h-3.5 w-3.5" />
               </Button>
               <Button size="icon" variant="ghost" className="h-6 w-6" title="Переименовать"
-                onClick={(e) => { e.stopPropagation(); setFolderName(f.name); setFolderDialog({ open: true, parent_id: f.parent_id, editing: f }); }}>
+                onClick={(e) => { e.stopPropagation(); openFolderDialog(f.parent_id, f); }}>
                 <Pencil className="h-3.5 w-3.5" />
               </Button>
               <Button size="icon" variant="ghost" className="h-6 w-6" title="Удалить"
@@ -254,11 +268,7 @@ function ProductsPage() {
           <p className="text-sm text-muted-foreground">Справочник с ценами, остатками и папками</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => {
-            const parent_id = (selectedFolder === ALL || selectedFolder === ROOT || selectedFolder === KIND_PRODUCT || selectedFolder === KIND_SERVICE) ? null : selectedFolder;
-            setFolderName("");
-            setFolderDialog({ open: true, parent_id });
-          }}>
+          <Button variant="outline" onClick={() => openFolderDialog(getSelectedRealFolderId())}>
             <FolderPlus className="h-4 w-4 mr-1" /> Добавить папку
           </Button>
           <Button onClick={openNew}><Plus className="h-4 w-4 mr-1" /> Добавить</Button>
@@ -270,14 +280,14 @@ function ProductsPage() {
           <div className="text-sm font-medium mb-2">Папки</div>
           <div className="space-y-0.5">
             <div className={`px-2 py-1.5 text-sm rounded-md cursor-pointer hover:bg-muted/60 ${selectedFolder === ALL ? "bg-muted font-medium" : ""}`}
-              onClick={() => setSelectedFolder(ALL)}>Все</div>
+              onClick={() => selectFolder(ALL)}>Все</div>
             <div className={`flex items-center gap-2 px-2 py-1.5 text-sm rounded-md cursor-pointer hover:bg-muted/60 ${selectedFolder === KIND_PRODUCT ? "bg-muted font-medium" : ""}`}
-              onClick={() => setSelectedFolder(KIND_PRODUCT)}>
+              onClick={() => selectFolder(KIND_PRODUCT)}>
               <Folder className="h-4 w-4 text-muted-foreground" /> Товары
               <span className="ml-auto text-xs text-muted-foreground">{products.filter(p => p.kind === "product").length}</span>
             </div>
             <div className={`flex items-center gap-2 px-2 py-1.5 text-sm rounded-md cursor-pointer hover:bg-muted/60 ${selectedFolder === KIND_SERVICE ? "bg-muted font-medium" : ""}`}
-              onClick={() => setSelectedFolder(KIND_SERVICE)}>
+              onClick={() => selectFolder(KIND_SERVICE)}>
               <Folder className="h-4 w-4 text-muted-foreground" /> Услуги
               <span className="ml-auto text-xs text-muted-foreground">{products.filter(p => p.kind === "service").length}</span>
             </div>
@@ -287,7 +297,7 @@ function ProductsPage() {
 
         <Card className="p-0 overflow-hidden">
           <div className="p-3 border-b flex items-center gap-2 text-sm">
-            <button type="button" className="text-muted-foreground hover:text-foreground" onClick={() => setSelectedFolder(ALL)}>Все товары</button>
+            <button type="button" className="text-muted-foreground hover:text-foreground" onClick={() => selectFolder(ALL)}>Все товары</button>
             {(() => {
               if (selectedFolder === ALL || selectedFolder === ROOT) return null;
               const trail: FolderRow[] = [];
@@ -296,7 +306,7 @@ function ProductsPage() {
               return trail.map(f => (
                 <span key={f.id} className="flex items-center gap-2">
                   <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-                  <button type="button" className="hover:text-primary font-medium" onClick={() => setSelectedFolder(f.id)}>{f.name}</button>
+                   <button type="button" className="hover:text-primary font-medium" onClick={() => selectFolder(f.id)}>{f.name}</button>
                 </span>
               ));
             })()}
@@ -323,7 +333,7 @@ function ProductsPage() {
               )}
               {rightFolders.map(f => (
                 <TableRow key={f.id} className="cursor-pointer hover:bg-muted/40"
-                  onClick={() => setSelectedFolder(f.id)}>
+                  onClick={() => selectFolder(f.id)}>
                   <TableCell className="text-muted-foreground"></TableCell>
                   <TableCell className="font-medium">
                     <span className="inline-flex items-center gap-2">
@@ -335,7 +345,7 @@ function ProductsPage() {
                     {productCountIn(f.id)} товаров
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button size="icon" variant="ghost" onClick={(e) => { e.stopPropagation(); setFolderName(f.name); setFolderDialog({ open: true, parent_id: f.parent_id, editing: f }); }}><Pencil className="h-4 w-4" /></Button>
+                    <Button size="icon" variant="ghost" onClick={(e) => { e.stopPropagation(); openFolderDialog(f.parent_id, f); }}><Pencil className="h-4 w-4" /></Button>
                     <Button size="icon" variant="ghost" onClick={(e) => { e.stopPropagation(); if (confirm(`Удалить папку "${f.name}"?`)) removeFolder.mutate(f.id); }}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -435,7 +445,7 @@ function ProductsPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={folderDialog.open} onOpenChange={(v) => setFolderDialog({ ...folderDialog, open: v })}>
+      <Dialog open={folderDialog.open} onOpenChange={(v) => setFolderDialog(current => v ? { ...current, open: true } : { open: false, parent_id: null })}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>{folderDialog.editing ? "Переименовать папку" : "Новая папка"}</DialogTitle>
