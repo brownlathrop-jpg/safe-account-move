@@ -583,6 +583,32 @@ function ProductsPage() {
                   <Input type="number" step="0.001" value={editing.stock ?? 0} onChange={e => setEditing({ ...editing, stock: Number(e.target.value) })} disabled={!!editing.id} />
                 </div>
               </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Вид номенклатуры</Label>
+                  <Select value={editing.product_type_id ?? "__none"} onValueChange={v => setEditing({ ...editing, product_type_id: v === "__none" ? null : v })}>
+                    <SelectTrigger><SelectValue placeholder="Не выбран" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none">— не выбран —</SelectItem>
+                      {productTypes.map(t => (
+                        <SelectItem key={t.id} value={t.id}>{t.name}{t.is_service ? " (услуга)" : ""}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Ставка НДС</Label>
+                  <Select value={editing.vat_rate ?? "none"} onValueChange={v => setEditing({ ...editing, vat_rate: v })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Без НДС</SelectItem>
+                      <SelectItem value="0">0%</SelectItem>
+                      <SelectItem value="10">10%</SelectItem>
+                      <SelectItem value="20">20%</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
               <div className="space-y-2">
                 <Label>Описание</Label>
                 <Textarea rows={2} value={editing.description ?? ""} onChange={e => setEditing({ ...editing, description: e.target.value })} />
