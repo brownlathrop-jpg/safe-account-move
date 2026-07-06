@@ -280,7 +280,9 @@ const NOMENCLATURE_GROUP_FLAGS = ["ЭтоГруппа", "Это группа", "
 const NOMENCLATURE_PATH_FIELDS = [
   "ПолныйПуть", "Полный путь", "Путь", "Иерархия", "ПутьКПапке", "ПутьКГруппе",
   "ПутьККатегории", "ПутьНоменклатуры", "РодительНаименование", "РодительПредставление",
+  "ПолноеНаименование", "Полное наименование", "FullName", "Представление",
 ];
+const NOMENCLATURE_ROOT_FOLDER_NAMES = ["Товары и услуги", "Номенклатура", "Товары", "Услуги"];
 
 function isNomenclatureType(type: string): boolean {
   return /(^|[.\s])Номенклатура($|[.\s])/i.test(type);
@@ -303,6 +305,7 @@ function splitFolderPath(value: string, itemName?: string): string[] {
     .filter(Boolean);
   if (parts.length === 0) return [];
   if (itemName && parts.length > 0 && sameText(parts[parts.length - 1], itemName)) parts.pop();
+  while (parts.length > 0 && NOMENCLATURE_ROOT_FOLDER_NAMES.some(root => sameText(root, parts[0]))) parts.shift();
   if (parts.length === 1 && itemName && sameText(parts[0], itemName)) return [];
   return parts;
 }
