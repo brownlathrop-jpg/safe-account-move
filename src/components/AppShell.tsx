@@ -1,5 +1,5 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import { LayoutDashboard, Package, FileText, Users, LogOut, Plus, Settings } from "lucide-react";
+import { LayoutDashboard, Package, FileText, Users, LogOut, Plus, Settings, Warehouse } from "lucide-react";
 import type { ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import { WorkspaceSwitcher } from "@/components/WorkspaceSwitcher";
 const nav = [
   { to: "/dashboard", label: "Аналитика", icon: LayoutDashboard },
   { to: "/products", label: "Товары и услуги", icon: Package },
+  { to: "/stock", label: "Склад", icon: Warehouse },
   { to: "/invoices", label: "Заявки", icon: FileText },
   { to: "/partners", label: "Контрагенты", icon: Users },
   { to: "/settings", label: "Настройки", icon: Settings },

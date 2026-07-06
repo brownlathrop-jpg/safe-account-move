@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedStockRouteImport } from './routes/_authenticated/stock'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedProductsRouteImport } from './routes/_authenticated/products'
 import { Route as AuthenticatedPartnersRouteImport } from './routes/_authenticated/partners'
@@ -34,6 +35,11 @@ const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedStockRoute = AuthenticatedStockRouteImport.update({
+  id: '/stock',
+  path: '/stock',
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
   id: '/settings',
@@ -86,6 +92,7 @@ export interface FileRoutesByFullPath {
   '/partners': typeof AuthenticatedPartnersRoute
   '/products': typeof AuthenticatedProductsRoute
   '/settings': typeof AuthenticatedSettingsRoute
+  '/stock': typeof AuthenticatedStockRoute
   '/invoices/$id': typeof AuthenticatedInvoicesIdRoute
   '/invoices/new': typeof AuthenticatedInvoicesNewRoute
   '/invoices/': typeof AuthenticatedInvoicesIndexRoute
@@ -97,6 +104,7 @@ export interface FileRoutesByTo {
   '/partners': typeof AuthenticatedPartnersRoute
   '/products': typeof AuthenticatedProductsRoute
   '/settings': typeof AuthenticatedSettingsRoute
+  '/stock': typeof AuthenticatedStockRoute
   '/invoices/$id': typeof AuthenticatedInvoicesIdRoute
   '/invoices/new': typeof AuthenticatedInvoicesNewRoute
   '/invoices': typeof AuthenticatedInvoicesIndexRoute
@@ -111,6 +119,7 @@ export interface FileRoutesById {
   '/_authenticated/partners': typeof AuthenticatedPartnersRoute
   '/_authenticated/products': typeof AuthenticatedProductsRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
+  '/_authenticated/stock': typeof AuthenticatedStockRoute
   '/_authenticated/invoices/$id': typeof AuthenticatedInvoicesIdRoute
   '/_authenticated/invoices/new': typeof AuthenticatedInvoicesNewRoute
   '/_authenticated/invoices/': typeof AuthenticatedInvoicesIndexRoute
@@ -125,6 +134,7 @@ export interface FileRouteTypes {
     | '/partners'
     | '/products'
     | '/settings'
+    | '/stock'
     | '/invoices/$id'
     | '/invoices/new'
     | '/invoices/'
@@ -136,6 +146,7 @@ export interface FileRouteTypes {
     | '/partners'
     | '/products'
     | '/settings'
+    | '/stock'
     | '/invoices/$id'
     | '/invoices/new'
     | '/invoices'
@@ -149,6 +160,7 @@ export interface FileRouteTypes {
     | '/_authenticated/partners'
     | '/_authenticated/products'
     | '/_authenticated/settings'
+    | '/_authenticated/stock'
     | '/_authenticated/invoices/$id'
     | '/_authenticated/invoices/new'
     | '/_authenticated/invoices/'
@@ -182,6 +194,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/stock': {
+      id: '/_authenticated/stock'
+      path: '/stock'
+      fullPath: '/stock'
+      preLoaderRoute: typeof AuthenticatedStockRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/settings': {
       id: '/_authenticated/settings'
@@ -265,6 +284,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedPartnersRoute: typeof AuthenticatedPartnersRoute
   AuthenticatedProductsRoute: typeof AuthenticatedProductsRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
+  AuthenticatedStockRoute: typeof AuthenticatedStockRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -273,6 +293,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedPartnersRoute: AuthenticatedPartnersRoute,
   AuthenticatedProductsRoute: AuthenticatedProductsRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
+  AuthenticatedStockRoute: AuthenticatedStockRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
