@@ -143,8 +143,17 @@ export function parseAllObjects(xml: string): Obj[] {
 
 // ---------------------------------------------------------------- импорт
 async function batchUpsert(table: string, rows: any[], onConflict = "workspace_id,ext_1c_id", chunk = 200) {
-  for (let i = 0; i < rows.length; i += chunk) {
-    const part = rows.slice(i, i + chunk);
+  // Дедупликация по ключу конфликта — иначе Postgres ругается,
+  // что одна и та же строка обновляется дважды в одном запросе.
+  const keys = onConflict.split(",").map(k => k.trim());
+  const seen = new Map<string, any>();
+  for (const r of rows) {
+    const k = keys.map(kk => String(r?.[kk] ?? "")).join("||");
+    seen.set(k, r); // последний выигрывает
+  }
+  const deduped = Array.from(seen.values());
+  for (let i = 0; i < deduped.length; i += chunk) {
+    const part = deduped.slice(i, i + chunk);
     const { error } = await (supabase as any).from(table).upsert(part, { onConflict });
     if (error) throw new Error(`${table}: ${error.message}`);
   }
