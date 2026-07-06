@@ -35,12 +35,36 @@ function textOf(el: Element | null): string {
   const v = firstChildByTag(el, "Значение");
   return (v?.textContent ?? "").trim();
 }
+function firstDescendantByTag(el: Element, tag: string): Element | null {
+  for (let c = el.firstElementChild; c; c = c.nextElementSibling) {
+    if (c.localName === tag || c.tagName === tag) return c;
+    const nested = firstDescendantByTag(c, tag);
+    if (nested) return nested;
+  }
+  return null;
+}
+function normalizeExtId(value: string | null | undefined): string | null {
+  const raw = (value ?? "").trim();
+  if (!raw) return null;
+  const uuid = raw.match(/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/);
+  if (uuid) return uuid[0];
+  const compact = raw.match(/[0-9a-fA-F]{32}/);
+  return compact ? compact[0] : raw;
+}
+function boolOf(value: string): boolean {
+  const v = value.trim().toLowerCase();
+  return v === "true" || v === "истина" || v === "да" || v === "1";
+}
 function extIdOfRef(ref: Element | null): string | null {
   if (!ref) return null;
   for (const p of childrenByTag(ref, "Свойство")) {
-    if (p.getAttribute("Имя") === "{УникальныйИдентификатор}") return textOf(p);
+    if (p.getAttribute("Имя") === "{УникальныйИдентификатор}") return normalizeExtId(textOf(p));
   }
-  return null;
+  const nestedUid = Array.from(ref.getElementsByTagName("Свойство")).find(
+    p => p.getAttribute("Имя") === "{УникальныйИдентификатор}",
+  );
+  if (nestedUid) return normalizeExtId(textOf(nestedUid));
+  return normalizeExtId(textOf(ref) || ref.textContent || "");
 }
 function readProps(scope: Element): Pick<Obj, "props" | "refs" | "num" | "bool"> {
   const props: Record<string, string> = {};
@@ -51,14 +75,19 @@ function readProps(scope: Element): Pick<Obj, "props" | "refs" | "num" | "bool">
     const name = p.getAttribute("Имя") || "";
     const type = p.getAttribute("Тип") || "";
     if (!name) continue;
-    const link = firstChildByTag(p, "Ссылка");
+    const link = firstChildByTag(p, "Ссылка") ?? firstDescendantByTag(p, "Ссылка");
+    const val = textOf(p);
     if (link) {
       const id = extIdOfRef(link);
       if (id) refs[name] = id;
       continue;
     }
-    const val = textOf(p);
-    if (type === "Булево") bool[name] = val === "true";
+    if (/Ссылка/i.test(type)) {
+      const id = normalizeExtId(val || p.textContent || "");
+      if (id) refs[name] = id;
+      continue;
+    }
+    if (type === "Булево" || name === "ЭтоГруппа") bool[name] = boolOf(val);
     else if (type === "Число") num[name] = Number(val.replace(",", ".")) || 0;
     else props[name] = val;
   }
