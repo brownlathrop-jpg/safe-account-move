@@ -252,7 +252,8 @@ async function loadExtMap(table: string, wsId: string): Promise<Map<string, stri
 }
 
 const NOMENCLATURE_PARENT_FIELDS = [
-  "Родитель", "Parent", "Группа", "Папка", "Folder", "Категория", "Раздел",
+  "Родитель", "Parent", "Владелец", "Owner", "Хозяин",
+  "Группа", "Папка", "Folder", "Категория", "Раздел",
   "РодительНоменклатуры", "ГруппаНоменклатуры", "НоменклатурнаяГруппа", "КатегорияНоменклатуры",
 ];
 const NOMENCLATURE_GROUP_FLAGS = ["ЭтоГруппа", "Это группа", "IsGroup", "IsFolder", "ЭтоПапка", "Это папка"];
