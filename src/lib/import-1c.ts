@@ -252,7 +252,8 @@ async function loadExtMap(table: string, wsId: string): Promise<Map<string, stri
 }
 
 const NOMENCLATURE_PARENT_FIELDS = [
-  "Родитель", "Parent", "Группа", "Папка", "Folder", "Категория", "Раздел",
+  "Родитель", "Parent", "Владелец", "Owner", "Хозяин",
+  "Группа", "Папка", "Folder", "Категория", "Раздел",
   "РодительНоменклатуры", "ГруппаНоменклатуры", "НоменклатурнаяГруппа", "КатегорияНоменклатуры",
 ];
 const NOMENCLATURE_GROUP_FLAGS = ["ЭтоГруппа", "Это группа", "IsGroup", "IsFolder", "ЭтоПапка", "Это папка"];
@@ -541,12 +542,25 @@ export async function importAll(
     await batchUpsert("product_folders", folderRows);
     // parent
     const fmap = await loadExtMap("product_folders", wsId);
+    const groupExtSet = new Set(groups.map(g => g.ext!).filter(Boolean));
+    const findParentForGroup = (o: Obj): string | undefined => {
+      // 1) явное поле «Родитель/Владелец/…»
+      const explicit = readRef(o, NOMENCLATURE_PARENT_FIELDS);
+      if (explicit && explicit !== o.ext && groupExtSet.has(explicit)) return explicit;
+      // 2) любая ссылка, ведущая на другую известную папку
+      for (const v of Object.values(o.refs)) {
+        const norm = normalizeExtId(v);
+        if (norm && norm !== o.ext && groupExtSet.has(norm)) return norm;
+      }
+      return undefined;
+    };
     for (const o of groups) {
       const pathExt = pathFolderExtByObject.get(o.ext!);
-      const pExt = readRef(o, NOMENCLATURE_PARENT_FIELDS) ?? (pathExt ? syntheticFolders.get(pathExt)?.parentExt ?? undefined : undefined);
+      const pExt = findParentForGroup(o)
+        ?? (pathExt ? syntheticFolders.get(pathExt)?.parentExt ?? undefined : undefined);
       const id = fmap.get(o.ext!);
       const parent = pExt ? fmap.get(pExt) : null;
-      if (id && parent) await (supabase as any).from("product_folders").update({ parent_id: parent }).eq("id", id);
+      if (id) await (supabase as any).from("product_folders").update({ parent_id: parent ?? null }).eq("id", id);
     }
     for (const f of syntheticFolders.values()) {
       const id = fmap.get(f.ext);
