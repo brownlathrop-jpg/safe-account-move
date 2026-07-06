@@ -254,7 +254,11 @@ function ProductsPage() {
           <p className="text-sm text-muted-foreground">Справочник с ценами, остатками и папками</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => { setFolderName(""); setFolderDialog({ open: true, parent_id: null }); }}>
+          <Button variant="outline" onClick={() => {
+            const parent_id = (selectedFolder === ALL || selectedFolder === ROOT || selectedFolder === KIND_PRODUCT || selectedFolder === KIND_SERVICE) ? null : selectedFolder;
+            setFolderName("");
+            setFolderDialog({ open: true, parent_id });
+          }}>
             <FolderPlus className="h-4 w-4 mr-1" /> Добавить папку
           </Button>
           <Button onClick={openNew}><Plus className="h-4 w-4 mr-1" /> Добавить</Button>
