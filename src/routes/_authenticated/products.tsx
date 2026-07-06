@@ -84,6 +84,17 @@ function ProductsPage() {
     },
   });
 
+  const { data: productTypes = [] } = useQuery({
+    queryKey: ["product_types", wsId],
+    enabled: !!wsId,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).from("product_types")
+        .select("id,name,is_service").eq("workspace_id", wsId).order("name");
+      if (error) throw error;
+      return (data ?? []) as { id: string; name: string; is_service: boolean }[];
+    },
+  });
+
   const childrenOf = useMemo(() => {
     const map = new Map<string | null, FolderRow[]>();
     folders.forEach(f => {
