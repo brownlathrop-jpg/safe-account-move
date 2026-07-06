@@ -15,6 +15,7 @@ import { lookupOrgByInn, lookupBankByBik } from "@/lib/dadata.functions";
 import { useActiveWorkspaceId, activeWorkspace } from "@/lib/workspace";
 import { WarehousesRef, ProductTypesRef, PriceTypesRef, CashflowItemsRef, BanksRef } from "@/components/settings-simple-refs";
 import { BankAccountsEditor } from "@/components/bank-accounts-editor";
+import { Import1CPanel } from "@/components/import-1c-panel";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({ meta: [{ title: "Настройки — КабинетCRM" }] }),
