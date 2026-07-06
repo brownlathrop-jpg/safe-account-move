@@ -21,7 +21,20 @@ export const Route = createFileRoute("/_authenticated/partners")({
   component: PartnersPage,
 });
 
-type Partner = { id: string; kind: "customer" | "supplier"; name: string; inn: string | null; phone: string | null; email: string | null; address: string | null; };
+type Partner = {
+  id: string;
+  kind: "customer" | "supplier";
+  name: string;
+  full_name: string | null;
+  inn: string | null;
+  kpp: string | null;
+  okpo: string | null;
+  entity_type: "legal" | "individual" | "entrepreneur" | null;
+  phone: string | null;
+  email: string | null;
+  address: string | null;
+  comment: string | null;
+};
 
 function PartnersPage() {
   const qc = useQueryClient();
@@ -33,7 +46,15 @@ function PartnersPage() {
     mutationFn: (inn: string) => lookupOrg({ data: { inn } }),
     onSuccess: (res) => {
       if (!res) { toast.error("Организация не найдена"); return; }
-      setEditing((prev) => prev ? { ...prev, name: res.name || prev.name, inn: res.inn, address: res.legal_address || prev.address } : prev);
+      setEditing((prev) => prev ? {
+        ...prev,
+        name: res.name || prev.name,
+        full_name: (res as any).full_name || prev.full_name || null,
+        inn: res.inn,
+        kpp: (res as any).kpp || prev.kpp || null,
+        okpo: (res as any).okpo || prev.okpo || null,
+        address: res.legal_address || prev.address,
+      } : prev);
       toast.success("Данные контрагента загружены");
     },
     onError: (e: Error) => toast.error(e.message),
@@ -59,8 +80,15 @@ function PartnersPage() {
         workspace_id: wsId,
         kind: p.kind || "customer",
         name: p.name!,
-        inn: p.inn || null, phone: p.phone || null,
-        email: p.email || null, address: p.address || null,
+        full_name: p.full_name || null,
+        inn: p.inn || null,
+        kpp: p.kpp || null,
+        okpo: p.okpo || null,
+        entity_type: p.entity_type || null,
+        phone: p.phone || null,
+        email: p.email || null,
+        address: p.address || null,
+        comment: p.comment || null,
       };
       if (p.id) {
         const { error } = await (supabase as any).from("partners").update(payload).eq("id", p.id);
@@ -124,7 +152,7 @@ function PartnersPage() {
       </Card>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editing?.id ? "Редактировать" : "Новый контрагент"}</DialogTitle></DialogHeader>
           {editing && (
             <form onSubmit={(e) => { e.preventDefault(); upsert.mutate(editing); }} className="space-y-4">
@@ -140,6 +168,27 @@ function PartnersPage() {
                   </Select>
                 </div>
                 <div className="space-y-2">
+                  <Label>Юр/физ лицо</Label>
+                  <Select value={editing.entity_type ?? "legal"} onValueChange={(v) => setEditing({ ...editing, entity_type: v as any })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="legal">Юр. лицо</SelectItem>
+                      <SelectItem value="entrepreneur">ИП</SelectItem>
+                      <SelectItem value="individual">Физ. лицо</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Краткое название *</Label>
+                <Input required value={editing.name ?? ""} onChange={e => setEditing({ ...editing, name: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>Полное наименование</Label>
+                <Input value={editing.full_name ?? ""} onChange={e => setEditing({ ...editing, full_name: e.target.value })} placeholder='Общество с ограниченной ответственностью "Ромашка"' />
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2">
                   <Label>ИНН</Label>
                   <div className="flex gap-2">
                     <Input value={editing.inn ?? ""} onChange={e => setEditing({ ...editing, inn: e.target.value })} />
@@ -148,10 +197,8 @@ function PartnersPage() {
                     </Button>
                   </div>
                 </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Название *</Label>
-                <Input required value={editing.name ?? ""} onChange={e => setEditing({ ...editing, name: e.target.value })} />
+                <div className="space-y-2"><Label>КПП</Label><Input value={editing.kpp ?? ""} onChange={e => setEditing({ ...editing, kpp: e.target.value })} /></div>
+                <div className="space-y-2"><Label>ОКПО</Label><Input value={editing.okpo ?? ""} onChange={e => setEditing({ ...editing, okpo: e.target.value })} /></div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2"><Label>Телефон</Label><Input value={editing.phone ?? ""} onChange={e => setEditing({ ...editing, phone: e.target.value })} /></div>
@@ -160,6 +207,10 @@ function PartnersPage() {
               <div className="space-y-2">
                 <Label>Адрес</Label>
                 <Input value={editing.address ?? ""} onChange={e => setEditing({ ...editing, address: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>Комментарий</Label>
+                <Input value={editing.comment ?? ""} onChange={e => setEditing({ ...editing, comment: e.target.value })} />
               </div>
               <DialogFooter>
                 <Button type="button" variant="ghost" onClick={() => setOpen(false)}>Отмена</Button>

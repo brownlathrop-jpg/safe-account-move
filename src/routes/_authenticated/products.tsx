@@ -23,6 +23,9 @@ type Product = {
   id: string; sku: string | null; name: string; unit: string;
   price: number; cost: number; stock: number; description: string | null;
   folder_id: string | null; kind: "product" | "service"; image_url: string | null;
+  is_service?: boolean;
+  vat_rate?: string | null;
+  product_type_id?: string | null;
 };
 
 type FolderRow = { id: string; name: string; parent_id: string | null };
@@ -78,6 +81,17 @@ function ProductsPage() {
       const { data, error } = await (supabase as any).from("units").select("id,short_name").eq("workspace_id", wsId).order("short_name");
       if (error) throw error;
       return (data ?? []) as { id: string; short_name: string }[];
+    },
+  });
+
+  const { data: productTypes = [] } = useQuery({
+    queryKey: ["product_types", wsId],
+    enabled: !!wsId,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).from("product_types")
+        .select("id,name,is_service").eq("workspace_id", wsId).order("name");
+      if (error) throw error;
+      return (data ?? []) as { id: string; name: string; is_service: boolean }[];
     },
   });
 
@@ -140,6 +154,9 @@ function ProductsPage() {
         folder_id: p.folder_id ?? null,
         kind: (p.kind ?? "product") as "product" | "service",
         image_url: p.image_url ?? null,
+        is_service: (p.kind ?? "product") === "service",
+        vat_rate: p.vat_rate || "none",
+        product_type_id: p.product_type_id ?? null,
       };
       if (p.id) {
         const { error } = await supabase.from("products").update(payload as never).eq("id", p.id);
@@ -564,6 +581,32 @@ function ProductsPage() {
                 <div className="space-y-2">
                   <Label>Начальный остаток</Label>
                   <Input type="number" step="0.001" value={editing.stock ?? 0} onChange={e => setEditing({ ...editing, stock: Number(e.target.value) })} disabled={!!editing.id} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Вид номенклатуры</Label>
+                  <Select value={editing.product_type_id ?? "__none"} onValueChange={v => setEditing({ ...editing, product_type_id: v === "__none" ? null : v })}>
+                    <SelectTrigger><SelectValue placeholder="Не выбран" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none">— не выбран —</SelectItem>
+                      {productTypes.map(t => (
+                        <SelectItem key={t.id} value={t.id}>{t.name}{t.is_service ? " (услуга)" : ""}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Ставка НДС</Label>
+                  <Select value={editing.vat_rate ?? "none"} onValueChange={v => setEditing({ ...editing, vat_rate: v })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Без НДС</SelectItem>
+                      <SelectItem value="0">0%</SelectItem>
+                      <SelectItem value="10">10%</SelectItem>
+                      <SelectItem value="20">20%</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
               <div className="space-y-2">
