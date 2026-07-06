@@ -40,7 +40,7 @@ function InvoiceView() {
   const navigate = useNavigate();
   const qc = useQueryClient();
 
-  const { data: inv, isLoading } = useQuery({
+  const { data: inv, isLoading, error } = useQuery({
     queryKey: ["invoice", id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -294,6 +294,7 @@ function InvoiceView() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  if (error) return <div className="text-destructive">Ошибка загрузки: {(error as Error).message}</div>;
   if (isLoading || !inv) return <div className="text-muted-foreground">Загрузка…</div>;
 
   const partnerObj = inv.partner;
