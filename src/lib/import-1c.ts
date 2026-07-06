@@ -55,6 +55,26 @@ function boolOf(value: string): boolean {
   const v = value.trim().toLowerCase();
   return v === "true" || v === "истина" || v === "да" || v === "1";
 }
+function keyOf(name: string): string {
+  return name.replace(/[{}\s_-]/g, "").toLowerCase();
+}
+function readNamed(record: Record<string, string>, names: string[]): string | undefined {
+  for (const name of names) {
+    if (record[name]) return record[name];
+  }
+  const aliases = names.map(keyOf);
+  for (const [key, value] of Object.entries(record)) {
+    const normalized = keyOf(key);
+    if (aliases.some(alias => normalized === alias || normalized.includes(alias))) return value;
+  }
+  return undefined;
+}
+function readRef(o: Obj, names: string[]): string | undefined {
+  return readNamed(o.refs, names) ?? readNamed(o.props, names);
+}
+function readProp(o: Obj, names: string[]): string | undefined {
+  return readNamed(o.props, names) ?? readNamed(o.refs, names);
+}
 function extIdOfRef(ref: Element | null): string | null {
   if (!ref) return null;
   for (const p of childrenByTag(ref, "Свойство")) {
@@ -315,13 +335,13 @@ export async function importAll(
     onProgress("Папки номенклатуры", 0, groups.length);
     const folderRows = groups.map(o => ({
       ...base, ext_1c_id: o.ext,
-      name: o.props["Наименование"] || "Папка",
+      name: readProp(o, ["Наименование", "НаименованиеПолное"]) || "Папка",
     }));
     await batchUpsert("product_folders", folderRows);
     // parent
     const fmap = await loadExtMap("product_folders", wsId);
     for (const o of groups) {
-      const pExt = o.refs["Родитель"];
+      const pExt = readRef(o, ["Родитель", "Группа", "Папка", "РодительНоменклатуры"]);
       const id = fmap.get(o.ext!);
       const parent = pExt ? fmap.get(pExt) : null;
       if (id && parent) await (supabase as any).from("product_folders").update({ parent_id: parent }).eq("id", id);
@@ -333,17 +353,22 @@ export async function importAll(
     onProgress("Товары", 0, items.length);
     const total = items.length;
     let done = 0;
+    let withParent = 0;
+    let withFolder = 0;
     const chunk = 200;
     for (let i = 0; i < total; i += chunk) {
       const part = items.slice(i, i + chunk).map(o => {
-        const ptExt = o.refs["ВидНоменклатуры"];
+        const ptExt = readRef(o, ["ВидНоменклатуры"]);
         const ptId = ptExt ? ptMap.get(ptExt) : null;
-        const isService = /услуг/i.test(o.props["Наименование"] || "");
-        const parentExt = o.refs["Родитель"];
+        const name = readProp(o, ["Наименование", "НаименованиеПолное"]) || "Товар";
+        const isService = /услуг/i.test(name);
+        const parentExt = readRef(o, ["Родитель", "Группа", "Папка", "РодительНоменклатуры"]);
         const folderId = parentExt ? fmap.get(parentExt) ?? null : null;
+        if (parentExt) withParent += 1;
+        if (folderId) withFolder += 1;
         return {
           ...base, ext_1c_id: o.ext,
-          name: o.props["Наименование"] || o.props["НаименованиеПолное"] || "Товар",
+          name,
           unit: o.props["ЕдиницаХраненияОстатков"] || "шт",
           price: 0, cost: 0,
           kind: isService ? "service" : "product",
@@ -355,7 +380,7 @@ export async function importAll(
       const { error } = await (supabase as any).from("products").upsert(part, { onConflict: "workspace_id,ext_1c_id" });
       if (error) throw new Error("products: " + error.message);
       done += part.length;
-      onProgress("Товары", done, total);
+      onProgress("Товары", done, total, `с родителем: ${withParent}, с папкой: ${withFolder}`);
     }
   }
 
