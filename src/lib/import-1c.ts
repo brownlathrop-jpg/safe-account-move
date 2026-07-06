@@ -127,6 +127,12 @@ function extIdOfRef(ref: Element | null): string | null {
     p => p.getAttribute("Имя") === "{УникальныйИдентификатор}",
   );
   if (nestedUid) return normalizeExtId(textOf(nestedUid));
+  for (const attr of Array.from(ref.attributes)) {
+    if (/уникальный.*идентификатор|uuid|guid|\bид\b|\bid\b/i.test(attr.name) && attr.value.trim()) {
+      const id = normalizeExtId(attr.value);
+      if (id) return id;
+    }
+  }
   return normalizeExtId(textOf(ref) || ref.textContent || "");
 }
 function readProps(scope: Element): Pick<Obj, "props" | "refs" | "num" | "bool"> {
@@ -135,8 +141,22 @@ function readProps(scope: Element): Pick<Obj, "props" | "refs" | "num" | "bool">
   const num: Record<string, number> = {};
   const bool: Record<string, boolean> = {};
   for (const attr of Array.from(scope.attributes)) {
+    const attrName = attr.name;
+    const attrValue = attr.value.trim();
+    if (!attrValue) continue;
     if (/булево|boolean/i.test(attr.name) || /это\s*(группа|папка)|is\s*(group|folder)/i.test(attr.name)) {
-      bool[attr.name] = boolOf(attr.value);
+      bool[attrName] = boolOf(attrValue);
+      continue;
+    }
+    // В некоторых XML 1С ссылка на родителя лежит прямо в атрибуте
+    // элемента/ссылки: Родитель="Solo Porte" или Родитель="<uuid>".
+    if (/родител|владел|хозяин|parent|owner|папк|folder|категор|раздел/i.test(attrName)) {
+      const ref = normalizeExtId(attrValue);
+      if (ref) refs[attrName] = ref;
+      continue;
+    }
+    if (!["Тип", "type", "Имя", "name"].includes(attrName) && !(attrName in props)) {
+      props[attrName] = attrValue;
     }
   }
   for (const p of propertyElements(scope)) {
