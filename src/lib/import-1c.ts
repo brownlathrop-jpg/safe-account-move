@@ -344,8 +344,17 @@ export async function importAll(
   // 8. Номенклатура: сначала все папки, потом товары
   {
     const src = byType.get("СправочникСсылка.Номенклатура") ?? [];
-    const groups = src.filter(o => o.bool["ЭтоГруппа"] === true);
-    const items  = src.filter(o => o.bool["ЭтоГруппа"] !== true);
+    // Определяем группы: явный флаг ЭтоГруппа/IsFolder ИЛИ ext, на который ссылается
+    // хотя бы один другой объект номенклатуры как на родителя.
+    const parentRefs = new Set<string>();
+    for (const o of src) {
+      const p = readRef(o, ["Родитель", "Группа", "Папка", "РодительНоменклатуры"]);
+      if (p) parentRefs.add(p);
+    }
+    const isGroup = (o: Obj) =>
+      readBool(o, ["ЭтоГруппа", "IsFolder", "ЭтоПапка"]) || (o.ext ? parentRefs.has(o.ext) : false);
+    const groups = src.filter(isGroup);
+    const items  = src.filter(o => !isGroup(o));
 
     // 8a. папки
     onProgress("Папки номенклатуры", 0, groups.length);
