@@ -25,12 +25,16 @@ type Product = {
 };
 
 type FolderRow = { id: string; name: string; parent_id: string | null };
+type FolderKind = "product" | "service";
+type FolderDialogState = { open: boolean; parent_id: string | null; parentKind?: FolderKind; editing?: FolderRow };
 
 const fmt = new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB" });
 const ALL = "__all";
 const ROOT = "__root";
 const KIND_PRODUCT = "__kind_product";
 const KIND_SERVICE = "__kind_service";
+const PRODUCT_ROOT_NAME = "Товары";
+const SERVICE_ROOT_NAME = "Услуги";
 
 function ProductsPage() {
   const qc = useQueryClient();
@@ -40,7 +44,7 @@ function ProductsPage() {
   const [selectedFolder, setSelectedFolder] = useState<string>(ALL);
   const selectedFolderRef = useRef<string>(ALL);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-  const [folderDialog, setFolderDialog] = useState<{ open: boolean; parent_id: string | null; editing?: FolderRow }>({ open: false, parent_id: null });
+  const [folderDialog, setFolderDialog] = useState<FolderDialogState>({ open: false, parent_id: null });
   const [folderName, setFolderName] = useState("");
 
   const { data: products = [] } = useQuery({
@@ -80,12 +84,25 @@ function ProductsPage() {
   }, [folders]);
 
   const folderIds = useMemo(() => new Set(folders.map(f => f.id)), [folders]);
+  const productRootFolder = useMemo(() => folders.find(f => f.parent_id === null && f.name.trim().toLowerCase() === PRODUCT_ROOT_NAME.toLowerCase()) ?? null, [folders]);
+  const serviceRootFolder = useMemo(() => folders.find(f => f.parent_id === null && f.name.trim().toLowerCase() === SERVICE_ROOT_NAME.toLowerCase()) ?? null, [folders]);
+  const virtualRootIds = useMemo(() => new Set([productRootFolder?.id, serviceRootFolder?.id].filter(Boolean) as string[]), [productRootFolder?.id, serviceRootFolder?.id]);
+  const rootFolders = childrenOf.get(null) ?? [];
+  const visibleRootFolders = rootFolders.filter(f => !virtualRootIds.has(f.id));
+  const productCategoryFolders = [...(productRootFolder ? childrenOf.get(productRootFolder.id) ?? [] : []), ...visibleRootFolders];
+  const serviceCategoryFolders = serviceRootFolder ? childrenOf.get(serviceRootFolder.id) ?? [] : [];
   const selectFolder = (id: string) => {
     selectedFolderRef.current = id;
     setSelectedFolder(id);
   };
   const getSelectedRealFolderId = () => folderIds.has(selectedFolderRef.current) ? selectedFolderRef.current : null;
-  const selectedRealFolderId = folderIds.has(selectedFolder) ? selectedFolder : null;
+  const getNewFolderTarget = (): { parent_id: string | null; parentKind?: FolderKind } => {
+    const parent_id = getSelectedRealFolderId();
+    if (parent_id) return { parent_id };
+    if (selectedFolderRef.current === KIND_PRODUCT) return { parent_id: productRootFolder?.id ?? null, parentKind: "product" };
+    if (selectedFolderRef.current === KIND_SERVICE) return { parent_id: serviceRootFolder?.id ?? null, parentKind: "service" };
+    return { parent_id: null };
+  };
 
   const descendantsOf = (id: string): string[] => {
     const result: string[] = [];
@@ -149,8 +166,24 @@ function ProductsPage() {
         const { error } = await supabase.from("product_folders").update({ name }).eq("id", folderDialog.editing.id);
         if (error) throw error;
       } else {
+        let parent_id = folderDialog.parent_id;
+        if (!parent_id && folderDialog.parentKind) {
+          const rootName = folderDialog.parentKind === "service" ? SERVICE_ROOT_NAME : PRODUCT_ROOT_NAME;
+          const existingRoot = folderDialog.parentKind === "service" ? serviceRootFolder : productRootFolder;
+          if (existingRoot) {
+            parent_id = existingRoot.id;
+          } else {
+            const { data: rootFolder, error: rootError } = await supabase
+              .from("product_folders")
+              .insert({ user_id: user.id, name: rootName, parent_id: null })
+              .select("id,name,parent_id")
+              .single();
+            if (rootError) throw rootError;
+            parent_id = rootFolder.id;
+          }
+        }
         const { error } = await supabase.from("product_folders").insert({
-          user_id: user.id, name, parent_id: folderDialog.parent_id,
+          user_id: user.id, name, parent_id,
         });
         if (error) throw error;
       }
@@ -181,10 +214,12 @@ function ProductsPage() {
   // Folders shown as rows in the right pane (direct children of current folder)
   const rightFolders = useMemo(() => {
     if (search) return [];
-    if (selectedFolder === ROOT || selectedFolder === KIND_PRODUCT || selectedFolder === KIND_SERVICE) return [];
-    const parentId = selectedFolder === ALL ? null : selectedFolder;
-    return childrenOf.get(parentId) ?? [];
-  }, [selectedFolder, childrenOf, search]);
+    if (selectedFolder === KIND_PRODUCT) return productCategoryFolders;
+    if (selectedFolder === KIND_SERVICE) return serviceCategoryFolders;
+    if (selectedFolder === ROOT) return visibleRootFolders;
+    if (selectedFolder === ALL) return visibleRootFolders;
+    return childrenOf.get(selectedFolder) ?? [];
+  }, [selectedFolder, childrenOf, search, productCategoryFolders, serviceCategoryFolders, visibleRootFolders]);
 
   // Products shown in the right pane
   const filtered = products.filter(p => {
@@ -205,20 +240,20 @@ function ProductsPage() {
   };
 
   const openNew = () => {
-    const folder_id = selectedRealFolderId;
+    const folder_id = getSelectedRealFolderId();
     const kind: "product" | "service" = selectedFolder === KIND_SERVICE ? "service" : "product";
     setEditing({ name: "", unit: kind === "service" ? "усл" : "шт", price: 0, cost: 0, stock: 0, folder_id, kind });
     setOpen(true);
   };
   const openEdit = (p: Product) => { setEditing(p); setOpen(true); };
 
-  const openFolderDialog = (parent_id: string | null, editingFolder?: FolderRow) => {
+  const openFolderDialog = (parent_id: string | null, editingFolder?: FolderRow, parentKind?: FolderKind) => {
     setFolderName(editingFolder?.name ?? "");
-    setFolderDialog({ open: true, parent_id, editing: editingFolder });
+    setFolderDialog({ open: true, parent_id, editing: editingFolder, parentKind });
   };
 
-  const renderFolderTree = (parentId: string | null, depth = 0) => {
-    const list = childrenOf.get(parentId) ?? [];
+  const renderFolderTree = (parentId: string | null, depth = 0, overrideList?: FolderRow[]) => {
+    const list = overrideList ?? childrenOf.get(parentId) ?? [];
     return list.map(f => {
       const hasChildren = (childrenOf.get(f.id) ?? []).length > 0;
       const isOpen = expanded[f.id] ?? true;
@@ -260,6 +295,32 @@ function ProductsPage() {
     });
   };
 
+  const renderKindRoot = (id: typeof KIND_PRODUCT | typeof KIND_SERVICE, label: string, count: number, list: FolderRow[]) => {
+    const active = selectedFolder === id;
+    const isOpen = expanded[id] ?? true;
+    const hasChildren = list.length > 0;
+    return (
+      <div>
+        <div
+          className={`flex items-center gap-1 px-2 py-1.5 text-sm rounded-md cursor-pointer hover:bg-muted/60 ${active ? "bg-muted font-medium" : ""}`}
+          onClick={() => selectFolder(id)}
+        >
+          <button
+            type="button"
+            className="h-4 w-4 flex items-center justify-center text-muted-foreground"
+            onClick={(e) => { e.stopPropagation(); setExpanded({ ...expanded, [id]: !isOpen }); }}
+          >
+            {hasChildren ? (isOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />) : null}
+          </button>
+          {active ? <FolderOpen className="h-4 w-4 text-primary" /> : <Folder className="h-4 w-4 text-muted-foreground" />}
+          <span className="truncate flex-1">{label}</span>
+          <span className="text-xs text-muted-foreground">{count}</span>
+        </div>
+        {hasChildren && isOpen && renderFolderTree(null, 1, list)}
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
@@ -268,7 +329,10 @@ function ProductsPage() {
           <p className="text-sm text-muted-foreground">Справочник с ценами, остатками и папками</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => openFolderDialog(getSelectedRealFolderId())}>
+          <Button variant="outline" onClick={() => {
+            const target = getNewFolderTarget();
+            openFolderDialog(target.parent_id, undefined, target.parentKind);
+          }}>
             <FolderPlus className="h-4 w-4 mr-1" /> Добавить папку
           </Button>
           <Button onClick={openNew}><Plus className="h-4 w-4 mr-1" /> Добавить</Button>
@@ -281,17 +345,8 @@ function ProductsPage() {
           <div className="space-y-0.5">
             <div className={`px-2 py-1.5 text-sm rounded-md cursor-pointer hover:bg-muted/60 ${selectedFolder === ALL ? "bg-muted font-medium" : ""}`}
               onClick={() => selectFolder(ALL)}>Все</div>
-            <div className={`flex items-center gap-2 px-2 py-1.5 text-sm rounded-md cursor-pointer hover:bg-muted/60 ${selectedFolder === KIND_PRODUCT ? "bg-muted font-medium" : ""}`}
-              onClick={() => selectFolder(KIND_PRODUCT)}>
-              <Folder className="h-4 w-4 text-muted-foreground" /> Товары
-              <span className="ml-auto text-xs text-muted-foreground">{products.filter(p => p.kind === "product").length}</span>
-            </div>
-            <div className={`flex items-center gap-2 px-2 py-1.5 text-sm rounded-md cursor-pointer hover:bg-muted/60 ${selectedFolder === KIND_SERVICE ? "bg-muted font-medium" : ""}`}
-              onClick={() => selectFolder(KIND_SERVICE)}>
-              <Folder className="h-4 w-4 text-muted-foreground" /> Услуги
-              <span className="ml-auto text-xs text-muted-foreground">{products.filter(p => p.kind === "service").length}</span>
-            </div>
-            <div className="pt-1">{renderFolderTree(null)}</div>
+            {renderKindRoot(KIND_PRODUCT, PRODUCT_ROOT_NAME, products.filter(p => p.kind === "product").length, productCategoryFolders)}
+            {renderKindRoot(KIND_SERVICE, SERVICE_ROOT_NAME, products.filter(p => p.kind === "service").length, serviceCategoryFolders)}
           </div>
         </Card>
 
@@ -300,9 +355,20 @@ function ProductsPage() {
             <button type="button" className="text-muted-foreground hover:text-foreground" onClick={() => selectFolder(ALL)}>Все товары</button>
             {(() => {
               if (selectedFolder === ALL || selectedFolder === ROOT) return null;
+              if (selectedFolder === KIND_PRODUCT || selectedFolder === KIND_SERVICE) {
+                return (
+                  <span className="flex items-center gap-2">
+                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="font-medium">{selectedFolder === KIND_PRODUCT ? PRODUCT_ROOT_NAME : SERVICE_ROOT_NAME}</span>
+                  </span>
+                );
+              }
               const trail: FolderRow[] = [];
               let cur = folders.find(f => f.id === selectedFolder);
-              while (cur) { trail.unshift(cur); cur = cur.parent_id ? folders.find(f => f.id === cur!.parent_id) : undefined; }
+              while (cur) {
+                if (!virtualRootIds.has(cur.id)) trail.unshift(cur);
+                cur = cur.parent_id ? folders.find(f => f.id === cur!.parent_id) : undefined;
+              }
               return trail.map(f => (
                 <span key={f.id} className="flex items-center gap-2">
                   <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
