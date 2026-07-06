@@ -464,30 +464,30 @@ function InvoiceView() {
 
       {/* Edit form */}
       <div className="print:hidden space-y-5">
-        <Card className="p-5">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="space-y-2">
-              <Label>Тип</Label>
+        <Card className="p-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Тип</Label>
               <Select value={kind} onValueChange={(v) => setKind(v as any)} disabled={!editable}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="outgoing">Расход (продажа)</SelectItem>
                   <SelectItem value="incoming">Приход (поступление)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Номер</Label>
-              <Input value={number} onChange={e => setNumber(e.target.value)} disabled={!editable} />
+            <div className="space-y-1">
+              <Label className="text-xs">Номер</Label>
+              <Input className="h-8" value={number} onChange={e => setNumber(e.target.value)} disabled={!editable} />
             </div>
-            <div className="space-y-2">
-              <Label>Дата</Label>
-              <Input type="date" value={date} onChange={e => setDate(e.target.value)} disabled={!editable} />
+            <div className="space-y-1">
+              <Label className="text-xs">Дата</Label>
+              <Input className="h-8" type="date" value={date} onChange={e => setDate(e.target.value)} disabled={!editable} />
             </div>
-            <div className="space-y-2">
-              <Label>{kind === "outgoing" ? "Покупатель" : "Поставщик"}</Label>
+            <div className="space-y-1">
+              <Label className="text-xs">{kind === "outgoing" ? "Покупатель" : "Поставщик"}</Label>
               <Select value={partnerId} onValueChange={setPartnerId} disabled={!editable}>
-                <SelectTrigger><SelectValue placeholder="Не выбран" /></SelectTrigger>
+                <SelectTrigger className="h-8"><SelectValue placeholder="Не выбран" /></SelectTrigger>
                 <SelectContent>
                   {filteredPartners.length === 0 && <div className="px-2 py-1.5 text-sm text-muted-foreground">Нет контрагентов</div>}
                   {filteredPartners.map((p: any) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
@@ -514,8 +514,8 @@ function InvoiceView() {
           </Card>
         ) : (
           <Card className="p-0 overflow-hidden">
-            <div className="p-4 border-b flex items-center justify-between">
-              <h3 className="font-medium">Позиции</h3>
+            <div className="px-3 py-2 border-b flex items-center justify-between">
+              <h3 className="font-medium text-sm">Позиции</h3>
               <div className="flex gap-2">
                 {editable && (
                   <ProductPicker
@@ -527,19 +527,19 @@ function InvoiceView() {
                 {editable && <Button size="sm" variant="outline" onClick={addItem}><Plus className="h-4 w-4 mr-1" /> Строка</Button>}
               </div>
             </div>
-            <Table>
+            <Table className="xls-table">
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-[40%]">Товар</TableHead>
-                  <TableHead className="w-28 text-right">Кол-во</TableHead>
-                  <TableHead className="w-32 text-right">Цена</TableHead>
-                  <TableHead className="text-right">Сумма</TableHead>
-                  <TableHead className="w-10"></TableHead>
+                  <TableHead className="w-24 text-right">Кол-во</TableHead>
+                  <TableHead className="w-28 text-right">Цена</TableHead>
+                  <TableHead className="w-32 text-right">Сумма</TableHead>
+                  <TableHead className="w-8"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {items.length === 0 && (
-                  <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">Нет позиций</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-6">Нет позиций</TableCell></TableRow>
                 )}
                 {items.map((it, idx) => (
                   <TableRow key={idx}>
@@ -547,7 +547,7 @@ function InvoiceView() {
                       {editable ? (
                         <button
                           type="button"
-                          className="text-left w-full px-3 py-2 rounded-md border border-input bg-background hover:bg-accent transition-colors text-sm min-h-9"
+                          className="xls-cell text-left hover:bg-accent"
                           onClick={() => setPickRow(idx)}
                         >
                           {it.name || <span className="text-muted-foreground">Выберите товар</span>}
@@ -555,31 +555,31 @@ function InvoiceView() {
                       ) : (it.name)}
                     </TableCell>
                     <TableCell>
-                      <Input type="number" step="1" inputMode="decimal" className="text-right" value={it.quantity}
+                      <Input type="number" step="1" inputMode="decimal" className="xls-cell text-right" value={it.quantity}
                         onChange={e => updateItem(idx, { quantity: Number(e.target.value) })} disabled={!editable} />
                     </TableCell>
                     <TableCell>
-                      <Input type="number" step="0.01" className="text-right" value={it.price}
+                      <Input type="number" step="0.01" className="xls-cell text-right" value={it.price}
                         onChange={e => updateItem(idx, { price: Number(e.target.value) })} disabled={!editable} />
                     </TableCell>
                     <TableCell className="text-right font-medium">{fmt.format(it.quantity * it.price)}</TableCell>
                     <TableCell>
-                      {editable && <Button size="icon" variant="ghost" onClick={() => removeItem(idx)}><Trash2 className="h-4 w-4" /></Button>}
+                      {editable && <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => removeItem(idx)}><Trash2 className="h-3.5 w-3.5" /></Button>}
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
-            <div className="p-4 border-t flex justify-end items-center gap-4">
-              <span className="text-sm text-muted-foreground">Итого:</span>
-              <span className="text-xl font-semibold">{fmt.format(total)}</span>
+            <div className="px-3 py-2 border-t flex justify-end items-center gap-3">
+              <span className="text-xs text-muted-foreground">Итого:</span>
+              <span className="text-base font-semibold">{fmt.format(total)}</span>
             </div>
           </Card>
         )}
 
-        <Card className="p-5">
-          <Label>Комментарий</Label>
-          <Textarea className="mt-2" rows={3} value={note} onChange={e => setNote(e.target.value)} disabled={!editable} />
+        <Card className="p-3">
+          <Label className="text-xs">Комментарий</Label>
+          <Textarea className="mt-1 text-sm" rows={2} value={note} onChange={e => setNote(e.target.value)} disabled={!editable} />
         </Card>
 
         <ProductPickerSingle
