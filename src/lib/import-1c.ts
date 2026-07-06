@@ -519,7 +519,11 @@ export async function importAll(
         const isService = /услуг/i.test(name);
         const parentExt = readRef(o, NOMENCLATURE_PARENT_FIELDS);
         const pathExt = pathFolderExtByObject.get(o.ext!);
-        const folderId = (parentExt ? fmap.get(parentExt) ?? null : null) ?? (pathExt ? fmap.get(pathExt) ?? null : null);
+        const folderId = parentExt && fmap.has(parentExt)
+          ? fmap.get(parentExt)!
+          : pathExt && fmap.has(pathExt)
+            ? fmap.get(pathExt)!
+            : null;
         if (parentExt) withParent += 1;
         if (folderId) withFolder += 1;
         return {
