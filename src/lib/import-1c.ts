@@ -394,17 +394,26 @@ export async function importAll(
   {
     const src = byType.get("СправочникСсылка.Банки") ?? [];
     onProgress("Банки", 0, src.length);
-    const rows = src.map(o => ({
+    const rowsRaw = src.map(o => ({
       ...base, ext_1c_id: o.ext,
       bik: o.props["Код"] || o.props["БИК"] || o.ext!.slice(0, 9),
       name: o.props["Наименование"] || "Банк",
       corr_account: o.props["КоррСчет"] || null,
       city: o.props["Город"] || null,
     }));
-    // banks has UNIQUE (workspace_id, bik) — предпочтём этот ключ
+    // Дедуп по (workspace_id, bik): в выгрузке 1С встречаются банки с одинаковым БИК
+    const seenBik = new Set<string>();
+    const rows = rowsRaw.filter(r => {
+      const k = `${r.workspace_id}|${r.bik}`;
+      if (seenBik.has(k)) return false;
+      seenBik.add(k);
+      return true;
+    });
     for (let i = 0; i < rows.length; i += 200) {
       const part = rows.slice(i, i + 200);
-      const { error } = await (supabase as any).from("banks").upsert(part, { onConflict: "workspace_id,bik" });
+      const { error } = await (supabase as any)
+        .from("banks")
+        .upsert(part, { onConflict: "workspace_id,ext_1c_id" });
       if (error) throw new Error("banks: " + error.message);
     }
     onProgress("Банки", rows.length, rows.length);
