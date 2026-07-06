@@ -70,10 +70,17 @@ function readNamed(record: Record<string, string>, names: string[]): string | un
   return undefined;
 }
 function readRef(o: Obj, names: string[]): string | undefined {
-  return readNamed(o.refs, names) ?? readNamed(o.props, names);
+  const raw = readNamed(o.refs, names) ?? readNamed(o.props, names);
+  if (!raw) return undefined;
+  return normalizeExtId(raw) ?? undefined;
 }
 function readProp(o: Obj, names: string[]): string | undefined {
   return readNamed(o.props, names) ?? readNamed(o.refs, names);
+}
+function readBool(o: Obj, names: string[]): boolean {
+  for (const n of names) if (n in o.bool) return o.bool[n];
+  const v = readNamed(o.props, names);
+  return v !== undefined ? boolOf(v) : false;
 }
 function extIdOfRef(ref: Element | null): string | null {
   if (!ref) return null;
