@@ -241,6 +241,10 @@ function SettingsPage() {
           <CashflowItemsRef />
           <InvoiceStatusesRef />
         </TabsContent>
+
+        <TabsContent value="import" className="mt-5">
+          <Import1CPanel />
+        </TabsContent>
       </Tabs>
     </div>
   );
