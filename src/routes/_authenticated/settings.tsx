@@ -13,7 +13,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Save, Search, Loader2, Plus, Trash2, Database, Check, Pencil } from "lucide-react";
 import { lookupOrgByInn, lookupBankByBik } from "@/lib/dadata.functions";
 import { useActiveWorkspaceId, activeWorkspace } from "@/lib/workspace";
-import { WarehousesRef, ProductTypesRef, PriceTypesRef, CashflowItemsRef } from "@/components/settings-simple-refs";
+import { WarehousesRef, ProductTypesRef, PriceTypesRef, CashflowItemsRef, BanksRef } from "@/components/settings-simple-refs";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({ meta: [{ title: "Настройки — КабинетCRM" }] }),
@@ -228,6 +228,7 @@ function SettingsPage() {
           <ProductTypesRef />
           <PriceTypesRef />
           <UnitsRef />
+          <BanksRef />
           <CashflowItemsRef />
           <InvoiceStatusesRef />
         </TabsContent>
