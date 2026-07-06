@@ -368,6 +368,55 @@ function rememberUnique(map: Map<string, string | null>, key: string, ext: strin
   if (old === undefined) map.set(key, ext);
   else if (old !== ext) map.set(key, null);
 }
+function copyObj(o: Obj): Obj {
+  return {
+    type: o.type,
+    ext: o.ext,
+    props: { ...o.props },
+    refs: { ...o.refs },
+    bool: { ...o.bool },
+    num: { ...o.num },
+    tables: { ...o.tables },
+  };
+}
+function mergeObjectsByExt(src: Obj[]): Obj[] {
+  const byExt = new Map<string, Obj>();
+  const withoutExt: Obj[] = [];
+
+  for (const o of src) {
+    if (!o.ext) {
+      withoutExt.push(o);
+      continue;
+    }
+
+    const existing = byExt.get(o.ext);
+    if (!existing) {
+      byExt.set(o.ext, copyObj(o));
+      continue;
+    }
+
+    // В XML 1С один и тот же справочник часто встречается несколько раз:
+    // один раз как полноценная папка/товар, а потом ещё как короткая ссылка.
+    // Нельзя, чтобы короткая ссылка без «Родителя» затирала уже найденную иерархию.
+    for (const [key, value] of Object.entries(o.props)) {
+      if (value && !existing.props[key]) existing.props[key] = value;
+    }
+    for (const [key, value] of Object.entries(o.refs)) {
+      if (value && !existing.refs[key]) existing.refs[key] = value;
+    }
+    for (const [key, value] of Object.entries(o.bool)) {
+      existing.bool[key] = existing.bool[key] === true || value === true;
+    }
+    for (const [key, value] of Object.entries(o.num)) {
+      if (!(key in existing.num)) existing.num[key] = value;
+    }
+    for (const [key, value] of Object.entries(o.tables)) {
+      if (!existing.tables[key]?.length && value.length) existing.tables[key] = value;
+    }
+  }
+
+  return [...withoutExt, ...byExt.values()];
+}
 
 export async function importAll(
   xml: string,
