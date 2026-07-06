@@ -101,6 +101,7 @@ function propertyElements(scope: Element): Element[] {
   const direct = childrenByTag(scope, "Свойство");
   const nested = Array.from(scope.getElementsByTagName("Свойство")).filter(p => {
     if (p.parentElement === scope) return false;
+    if (isInsideTag(p, scope, "Объект")) return false;
     if (isInsideTag(p, scope, "Ссылка")) return false;
     if ((scope.localName !== "Запись" && scope.tagName !== "Запись") && isInsideTag(p, scope, "ТабличнаяЧасть")) return false;
     return true;
@@ -108,7 +109,7 @@ function propertyElements(scope: Element): Element[] {
   return [...direct, ...nested];
 }
 function isKnownStructuralTag(name: string): boolean {
-  return ["Ссылка", "Свойство", "ТабличнаяЧасть", "Запись", "Значение"].includes(name);
+  return ["Ссылка", "Свойство", "ТабличнаяЧасть", "Запись", "Значение", "Объект", "Объекты"].includes(name);
 }
 function firstIdText(el: Element): string {
   for (const tag of ["Ид", "ID", "Id", "Код", "Идентификатор", "УникальныйИдентификатор"]) {
