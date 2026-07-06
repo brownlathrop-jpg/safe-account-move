@@ -101,6 +101,7 @@ function propertyElements(scope: Element): Element[] {
   const direct = childrenByTag(scope, "Свойство");
   const nested = Array.from(scope.getElementsByTagName("Свойство")).filter(p => {
     if (p.parentElement === scope) return false;
+    if (isInsideTag(p, scope, "Объект")) return false;
     if (isInsideTag(p, scope, "Ссылка")) return false;
     if ((scope.localName !== "Запись" && scope.tagName !== "Запись") && isInsideTag(p, scope, "ТабличнаяЧасть")) return false;
     return true;
@@ -108,7 +109,7 @@ function propertyElements(scope: Element): Element[] {
   return [...direct, ...nested];
 }
 function isKnownStructuralTag(name: string): boolean {
-  return ["Ссылка", "Свойство", "ТабличнаяЧасть", "Запись", "Значение"].includes(name);
+  return ["Ссылка", "Свойство", "ТабличнаяЧасть", "Запись", "Значение", "Объект", "Объекты"].includes(name);
 }
 function firstIdText(el: Element): string {
   for (const tag of ["Ид", "ID", "Id", "Код", "Идентификатор", "УникальныйИдентификатор"]) {
@@ -127,7 +128,22 @@ function extIdOfRef(ref: Element | null): string | null {
     p => p.getAttribute("Имя") === "{УникальныйИдентификатор}",
   );
   if (nestedUid) return normalizeExtId(textOf(nestedUid));
+  for (const attr of Array.from(ref.attributes)) {
+    if (/уникальный.*идентификатор|uuid|guid|\bид\b|\bid\b/i.test(attr.name) && attr.value.trim()) {
+      const id = normalizeExtId(attr.value);
+      if (id) return id;
+    }
+  }
   return normalizeExtId(textOf(ref) || ref.textContent || "");
+}
+function parentObjectRef(el: Element): { ext: string; type: string } | null {
+  for (let p = el.parentElement; p; p = p.parentElement) {
+    if (p.localName !== "Объект" && p.tagName !== "Объект") continue;
+    const ext = extIdOfRef(firstChildByTag(p, "Ссылка"));
+    const type = p.getAttribute("Тип") || "";
+    if (ext) return { ext, type };
+  }
+  return null;
 }
 function readProps(scope: Element): Pick<Obj, "props" | "refs" | "num" | "bool"> {
   const props: Record<string, string> = {};
@@ -135,8 +151,22 @@ function readProps(scope: Element): Pick<Obj, "props" | "refs" | "num" | "bool">
   const num: Record<string, number> = {};
   const bool: Record<string, boolean> = {};
   for (const attr of Array.from(scope.attributes)) {
+    const attrName = attr.name;
+    const attrValue = attr.value.trim();
+    if (!attrValue) continue;
     if (/булево|boolean/i.test(attr.name) || /это\s*(группа|папка)|is\s*(group|folder)/i.test(attr.name)) {
-      bool[attr.name] = boolOf(attr.value);
+      bool[attrName] = boolOf(attrValue);
+      continue;
+    }
+    // В некоторых XML 1С ссылка на родителя лежит прямо в атрибуте
+    // элемента/ссылки: Родитель="Solo Porte" или Родитель="<uuid>".
+    if (/родител|владел|хозяин|parent|owner|папк|folder|категор|раздел/i.test(attrName)) {
+      const ref = normalizeExtId(attrValue);
+      if (ref) refs[attrName] = ref;
+      continue;
+    }
+    if (!["Тип", "type", "Имя", "name"].includes(attrName) && !(attrName in props)) {
+      props[attrName] = attrValue;
     }
   }
   for (const p of propertyElements(scope)) {
@@ -203,11 +233,18 @@ export function parseAllObjects(xml: string): Obj[] {
     // <Ссылка><Свойство Имя="ЭтоГруппа">true</Свойство>...</Ссылка>.
     const fromRef = ref ? readProps(ref) : { props: {}, refs: {}, num: {}, bool: {} };
     const fromObj = readProps(el);
+    const xmlParent = parentObjectRef(el);
+    const refs = { ...fromRef.refs, ...fromObj.refs };
+    // Если в выгрузке 1С папка была раскрыта деревом, дочерние папки/товары
+    // могут лежать физически внутри родительского <Объект>, без поля «Родитель».
+    if (xmlParent && isNomenclatureType(type) && isNomenclatureType(xmlParent.type) && xmlParent.ext !== ext) {
+      refs.__xmlParent = xmlParent.ext;
+    }
     out.push({
       type,
       ext,
       props: { ...fromRef.props, ...fromObj.props },
-      refs: { ...fromRef.refs, ...fromObj.refs },
+      refs,
       num: { ...fromRef.num, ...fromObj.num },
       bool: { ...fromRef.bool, ...fromObj.bool },
       tables: readTables(el),
@@ -252,7 +289,7 @@ async function loadExtMap(table: string, wsId: string): Promise<Map<string, stri
 }
 
 const NOMENCLATURE_PARENT_FIELDS = [
-  "Родитель", "Parent", "Владелец", "Owner", "Хозяин",
+  "__xmlParent", "Родитель", "Parent", "Владелец", "Owner", "Хозяин",
   "Группа", "Папка", "Folder", "Категория", "Раздел",
   "РодительНоменклатуры", "ГруппаНоменклатуры", "НоменклатурнаяГруппа", "КатегорияНоменклатуры",
 ];
@@ -260,7 +297,9 @@ const NOMENCLATURE_GROUP_FLAGS = ["ЭтоГруппа", "Это группа", "
 const NOMENCLATURE_PATH_FIELDS = [
   "ПолныйПуть", "Полный путь", "Путь", "Иерархия", "ПутьКПапке", "ПутьКГруппе",
   "ПутьККатегории", "ПутьНоменклатуры", "РодительНаименование", "РодительПредставление",
+  "ПолноеНаименование", "Полное наименование", "FullName", "Представление",
 ];
+const NOMENCLATURE_ROOT_FOLDER_NAMES = ["Товары и услуги", "Номенклатура", "Товары", "Услуги"];
 
 function isNomenclatureType(type: string): boolean {
   return /(^|[.\s])Номенклатура($|[.\s])/i.test(type);
@@ -283,6 +322,7 @@ function splitFolderPath(value: string, itemName?: string): string[] {
     .filter(Boolean);
   if (parts.length === 0) return [];
   if (itemName && parts.length > 0 && sameText(parts[parts.length - 1], itemName)) parts.pop();
+  while (parts.length > 0 && NOMENCLATURE_ROOT_FOLDER_NAMES.some(root => sameText(root, parts[0]))) parts.shift();
   if (parts.length === 1 && itemName && sameText(parts[0], itemName)) return [];
   return parts;
 }
@@ -505,22 +545,37 @@ export async function importAll(
     const groups = src.filter(isGroup);
     const items  = src.filter(o => !isGroup(o));
 
-    const syntheticFolders = new Map<string, { ext: string; name: string; parentExt: string | null }>();
+    const realGroupExtByPathKey = new Map<string, string>();
+    for (const g of groups) {
+      const name = readProp(g, ["Наименование", "НаименованиеПолное"]) || "";
+      if (!g.ext || !name) continue;
+      const parentParts = readFolderPathParts(g, name);
+      realGroupExtByPathKey.set(folderPathKey([...parentParts, name]), g.ext);
+    }
+
+    const syntheticFolders = new Map<string, { ext: string; name: string; parentExt: string | null; pathKey: string }>();
     const pathFolderExtByObject = new Map<string, string>();
     const addPathFolders = (parts: string[]): string | null => {
       if (parts.length === 0) return null;
+      let parentExt: string | null = null;
+      let finalExt: string | null = null;
       for (let i = 1; i <= parts.length; i++) {
         const current = parts.slice(0, i);
-        const ext = folderPathExt(current);
-        if (!syntheticFolders.has(ext)) {
+        const pathKey = folderPathKey(current);
+        const realExt = realGroupExtByPathKey.get(pathKey) ?? null;
+        const ext = realExt ?? folderPathExt(current);
+        if (!realExt && !syntheticFolders.has(ext)) {
           syntheticFolders.set(ext, {
             ext,
             name: parts[i - 1],
-            parentExt: i > 1 ? folderPathExt(parts.slice(0, i - 1)) : null,
+            parentExt,
+            pathKey,
           });
         }
+        parentExt = ext;
+        finalExt = ext;
       }
-      return folderPathExt(parts);
+      return finalExt;
     };
 
     for (const o of src) {
@@ -557,7 +612,8 @@ export async function importAll(
     for (const o of groups) {
       const pathExt = pathFolderExtByObject.get(o.ext!);
       const pExt = findParentForGroup(o)
-        ?? (pathExt ? syntheticFolders.get(pathExt)?.parentExt ?? undefined : undefined);
+        ?? pathExt
+        ?? undefined;
       const id = fmap.get(o.ext!);
       const parent = pExt ? fmap.get(pExt) : null;
       if (id) await (supabase as any).from("product_folders").update({ parent_id: parent ?? null }).eq("id", id);
