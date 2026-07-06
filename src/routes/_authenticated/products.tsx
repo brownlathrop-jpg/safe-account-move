@@ -23,6 +23,9 @@ type Product = {
   id: string; sku: string | null; name: string; unit: string;
   price: number; cost: number; stock: number; description: string | null;
   folder_id: string | null; kind: "product" | "service"; image_url: string | null;
+  is_service?: boolean;
+  vat_rate?: string | null;
+  product_type_id?: string | null;
 };
 
 type FolderRow = { id: string; name: string; parent_id: string | null };
