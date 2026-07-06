@@ -666,7 +666,10 @@ export async function importAll(
       const parent = f.parentExt ? fmap.get(f.parentExt) : null;
       if (id) await (supabase as any).from("product_folders").update({ parent_id: parent }).eq("id", id);
     }
-    onProgress("Папки номенклатуры", folderRows.length, folderRows.length, `из объектов: ${groups.length}, из путей: ${syntheticFolders.size}`);
+    const foldersWithParent = groups.filter(o => findParentForGroup(o) || pathFolderExtByObject.get(o.ext!)).length
+      + Array.from(syntheticFolders.values()).filter(f => f.parentExt).length;
+    const rootFolders = Math.max(0, folderRows.length - foldersWithParent);
+    onProgress("Папки номенклатуры", folderRows.length, folderRows.length, `из объектов: ${groups.length}, из путей: ${syntheticFolders.size}, с родителем: ${foldersWithParent}, верхний уровень: ${rootFolders}`);
 
     // 8b. товары
     const ptMap = await loadExtMap("product_types", wsId);
