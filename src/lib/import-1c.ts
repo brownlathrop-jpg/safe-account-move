@@ -362,6 +362,12 @@ function folderPathExt(parts: string[]): string {
   const key = folderPathKey(parts);
   return `path:${hashText(key)}:${key.slice(-42)}`;
 }
+function rememberUnique(map: Map<string, string | null>, key: string, ext: string) {
+  if (!key) return;
+  const old = map.get(key);
+  if (old === undefined) map.set(key, ext);
+  else if (old !== ext) map.set(key, null);
+}
 
 export async function importAll(
   xml: string,
@@ -545,6 +551,13 @@ export async function importAll(
     const groups = src.filter(isGroup);
     const items  = src.filter(o => !isGroup(o));
 
+    const groupExtSet = new Set(groups.map(g => g.ext!).filter(Boolean));
+    const uniqueGroupExtByName = new Map<string, string | null>();
+    for (const g of groups) {
+      const name = readProp(g, ["Наименование", "НаименованиеПолное"]);
+      if (g.ext && name) rememberUnique(uniqueGroupExtByName, keyOf(cleanFolderText(name)), g.ext);
+    }
+
     const realGroupExtByPathKey = new Map<string, string>();
     for (const g of groups) {
       const name = readProp(g, ["Наименование", "НаименованиеПолное"]) || "";
@@ -585,6 +598,37 @@ export async function importAll(
       if (o.ext && ext) pathFolderExtByObject.set(o.ext, ext);
     }
 
+    const resolveFolderExt = (value: string | undefined, currentExt?: string | null): string | undefined => {
+      if (!value) return undefined;
+      const clean = cleanFolderText(value);
+      if (!clean) return undefined;
+      const normalized = normalizeExtId(clean);
+      if (normalized && normalized !== currentExt && (groupExtSet.has(normalized) || syntheticFolders.has(normalized))) return normalized;
+
+      const parts = splitFolderPath(clean);
+      if (parts.length > 0) {
+        const pathKey = folderPathKey(parts);
+        const realByPath = realGroupExtByPathKey.get(pathKey);
+        if (realByPath && realByPath !== currentExt) return realByPath;
+        const syntheticByPath = folderPathExt(parts);
+        if (syntheticByPath !== currentExt && syntheticFolders.has(syntheticByPath)) return syntheticByPath;
+        const lastByName = uniqueGroupExtByName.get(keyOf(parts[parts.length - 1]));
+        if (lastByName && lastByName !== currentExt) return lastByName;
+      }
+
+      const byName = uniqueGroupExtByName.get(keyOf(clean));
+      return byName && byName !== currentExt ? byName : undefined;
+    };
+
+    const readParentFolderExt = (o: Obj): string | undefined => {
+      for (const field of NOMENCLATURE_PARENT_FIELDS) {
+        const raw = readNamed(o.refs, [field]) ?? readNamed(o.props, [field]);
+        const ext = resolveFolderExt(raw, o.ext);
+        if (ext) return ext;
+      }
+      return undefined;
+    };
+
     // 8a. папки
     const folderRows = groups.map(o => ({
       ...base, ext_1c_id: o.ext,
@@ -597,15 +641,14 @@ export async function importAll(
     await batchUpsert("product_folders", folderRows);
     // parent
     const fmap = await loadExtMap("product_folders", wsId);
-    const groupExtSet = new Set(groups.map(g => g.ext!).filter(Boolean));
     const findParentForGroup = (o: Obj): string | undefined => {
       // 1) явное поле «Родитель/Владелец/…»
-      const explicit = readRef(o, NOMENCLATURE_PARENT_FIELDS);
-      if (explicit && explicit !== o.ext && groupExtSet.has(explicit)) return explicit;
+      const explicit = readParentFolderExt(o);
+      if (explicit) return explicit;
       // 2) любая ссылка, ведущая на другую известную папку
       for (const v of Object.values(o.refs)) {
-        const norm = normalizeExtId(v);
-        if (norm && norm !== o.ext && groupExtSet.has(norm)) return norm;
+        const norm = resolveFolderExt(v, o.ext);
+        if (norm) return norm;
       }
       return undefined;
     };
@@ -623,7 +666,10 @@ export async function importAll(
       const parent = f.parentExt ? fmap.get(f.parentExt) : null;
       if (id) await (supabase as any).from("product_folders").update({ parent_id: parent }).eq("id", id);
     }
-    onProgress("Папки номенклатуры", folderRows.length, folderRows.length, `из объектов: ${groups.length}, из путей: ${syntheticFolders.size}`);
+    const foldersWithParent = groups.filter(o => findParentForGroup(o) || pathFolderExtByObject.get(o.ext!)).length
+      + Array.from(syntheticFolders.values()).filter(f => f.parentExt).length;
+    const rootFolders = Math.max(0, folderRows.length - foldersWithParent);
+    onProgress("Папки номенклатуры", folderRows.length, folderRows.length, `из объектов: ${groups.length}, из путей: ${syntheticFolders.size}, с родителем: ${foldersWithParent}, верхний уровень: ${rootFolders}`);
 
     // 8b. товары
     const ptMap = await loadExtMap("product_types", wsId);
@@ -639,7 +685,7 @@ export async function importAll(
         const ptId = ptExt ? ptMap.get(ptExt) : null;
         const name = readProp(o, ["Наименование", "НаименованиеПолное"]) || "Товар";
         const isService = /услуг/i.test(name);
-        const parentExt = readRef(o, NOMENCLATURE_PARENT_FIELDS);
+        const parentExt = readParentFolderExt(o);
         const pathExt = pathFolderExtByObject.get(o.ext!);
         const folderId = parentExt && fmap.has(parentExt)
           ? fmap.get(parentExt)!
