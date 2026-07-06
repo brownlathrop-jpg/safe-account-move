@@ -18,6 +18,10 @@ export function AppShell({ children }: { children: ReactNode }) {
   const qc = useQueryClient();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
+  const flushInvoiceDraft = () => {
+    if (typeof window !== "undefined") window.dispatchEvent(new Event("crm:flush-invoice-draft"));
+  };
+
   const signOut = async () => {
     await qc.cancelQueries();
     qc.clear();
@@ -39,6 +43,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <Link
                 key={to}
                 to={to}
+                onClick={flushInvoiceDraft}
                 className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
                   active ? "bg-primary text-primary-foreground" : "text-sidebar-foreground hover:bg-sidebar-accent"
                 }`}
@@ -50,7 +55,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           })}
         </nav>
         <div className="p-3 border-t">
-          <Link to="/invoices/new" className="block mb-2">
+          <Link to="/invoices/new" className="block mb-2" onClick={flushInvoiceDraft}>
             <Button className="w-full" size="sm"><Plus className="h-4 w-4 mr-1" /> Новая заявка</Button>
           </Link>
           <Button variant="ghost" size="sm" className="w-full justify-start" onClick={signOut}>

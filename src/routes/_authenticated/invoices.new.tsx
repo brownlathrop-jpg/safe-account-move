@@ -81,6 +81,32 @@ function NewInvoice() {
   const [items, setItems] = useState<Item[]>([]);
   const [pickRow, setPickRow] = useState<number | null>(null);
   const [draftReady, setDraftReady] = useState(false);
+  const draftReadyRef = useRef(false);
+  const draftDeletedRef = useRef(false);
+  const latestDraftRef = useRef<Draft>({
+    kind,
+    number,
+    date,
+    partnerId,
+    note,
+    items,
+    numberTouched: numberTouched.current,
+  });
+  const persistDraftNowRef = useRef<() => void>(() => {});
+
+  latestDraftRef.current = {
+    kind,
+    number,
+    date,
+    partnerId,
+    note,
+    items,
+    numberTouched: numberTouched.current,
+  };
+  persistDraftNowRef.current = () => {
+    if (!draftReadyRef.current || draftDeletedRef.current || typeof window === "undefined") return;
+    try { localStorage.setItem(DRAFT_KEY, JSON.stringify(latestDraftRef.current)); } catch {}
+  };
 
   // Load draft from localStorage on mount
   useEffect(() => {
@@ -101,13 +127,30 @@ function NewInvoice() {
 
   // Persist draft on every change (after initial load)
   useEffect(() => {
-    if (!draftReady) return;
-    if (typeof window === "undefined") return;
-    const d: Draft = { kind, number, date, partnerId, note, items, numberTouched: numberTouched.current };
-    try { localStorage.setItem(DRAFT_KEY, JSON.stringify(d)); } catch {}
+    draftReadyRef.current = draftReady;
+    persistDraftNowRef.current();
   }, [draftReady, kind, number, date, partnerId, note, items]);
 
+  useEffect(() => {
+    const flushDraft = () => persistDraftNowRef.current();
+    const flushWhenHidden = () => {
+      if (document.visibilityState === "hidden") flushDraft();
+    };
+
+    window.addEventListener("crm:flush-invoice-draft", flushDraft);
+    window.addEventListener("pagehide", flushDraft);
+    document.addEventListener("visibilitychange", flushWhenHidden);
+
+    return () => {
+      flushDraft();
+      window.removeEventListener("crm:flush-invoice-draft", flushDraft);
+      window.removeEventListener("pagehide", flushDraft);
+      document.removeEventListener("visibilitychange", flushWhenHidden);
+    };
+  }, []);
+
   const clearDraft = () => {
+    draftDeletedRef.current = true;
     try { localStorage.removeItem(DRAFT_KEY); } catch {}
   };
 
