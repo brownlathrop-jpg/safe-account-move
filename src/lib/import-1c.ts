@@ -135,6 +135,15 @@ function extIdOfRef(ref: Element | null): string | null {
   }
   return normalizeExtId(textOf(ref) || ref.textContent || "");
 }
+function parentObjectRef(el: Element): { ext: string; type: string } | null {
+  for (let p = el.parentElement; p; p = p.parentElement) {
+    if (p.localName !== "Объект" && p.tagName !== "Объект") continue;
+    const ext = extIdOfRef(firstChildByTag(p, "Ссылка"));
+    const type = p.getAttribute("Тип") || "";
+    if (ext) return { ext, type };
+  }
+  return null;
+}
 function readProps(scope: Element): Pick<Obj, "props" | "refs" | "num" | "bool"> {
   const props: Record<string, string> = {};
   const refs: Record<string, string> = {};
@@ -223,11 +232,18 @@ export function parseAllObjects(xml: string): Obj[] {
     // <Ссылка><Свойство Имя="ЭтоГруппа">true</Свойство>...</Ссылка>.
     const fromRef = ref ? readProps(ref) : { props: {}, refs: {}, num: {}, bool: {} };
     const fromObj = readProps(el);
+    const xmlParent = parentObjectRef(el);
+    const refs = { ...fromRef.refs, ...fromObj.refs };
+    // Если в выгрузке 1С папка была раскрыта деревом, дочерние папки/товары
+    // могут лежать физически внутри родительского <Объект>, без поля «Родитель».
+    if (xmlParent && isNomenclatureType(type) && isNomenclatureType(xmlParent.type) && xmlParent.ext !== ext) {
+      refs.__xmlParent = xmlParent.ext;
+    }
     out.push({
       type,
       ext,
       props: { ...fromRef.props, ...fromObj.props },
-      refs: { ...fromRef.refs, ...fromObj.refs },
+      refs,
       num: { ...fromRef.num, ...fromObj.num },
       bool: { ...fromRef.bool, ...fromObj.bool },
       tables: readTables(el),
@@ -272,7 +288,7 @@ async function loadExtMap(table: string, wsId: string): Promise<Map<string, stri
 }
 
 const NOMENCLATURE_PARENT_FIELDS = [
-  "Родитель", "Parent", "Владелец", "Owner", "Хозяин",
+  "__xmlParent", "Родитель", "Parent", "Владелец", "Owner", "Хозяин",
   "Группа", "Папка", "Folder", "Категория", "Раздел",
   "РодительНоменклатуры", "ГруппаНоменклатуры", "НоменклатурнаяГруппа", "КатегорияНоменклатуры",
 ];
