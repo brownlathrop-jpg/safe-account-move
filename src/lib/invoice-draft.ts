@@ -14,6 +14,7 @@ export type InvoiceDraft = {
   number: string;
   date: string;
   partnerId: string;
+  statusId: string;
   note: string;
   items: DraftItem[];
   numberTouched: boolean;
@@ -26,6 +27,7 @@ const empty = (): InvoiceDraft => ({
   number: "",
   date: new Date().toISOString().slice(0, 10),
   partnerId: "",
+  statusId: "",
   note: "",
   items: [],
   numberTouched: false,
