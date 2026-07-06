@@ -127,40 +127,40 @@ export function ProductPicker({
                   toggle(p.id);
                 }}
                 className={cn(
-                  "flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-muted/50 transition-colors",
+                  "flex items-center gap-2 px-2 py-1 text-sm cursor-pointer hover:bg-muted/50 transition-colors",
                   isPicked && "bg-primary/5"
                 )}
               >
                 <div className={cn(
-                  "h-6 w-6 rounded-md border flex items-center justify-center shrink-0",
+                  "h-4 w-4 rounded-sm border flex items-center justify-center shrink-0",
                   isPicked ? "bg-primary border-primary text-primary-foreground" : "border-muted-foreground/30"
                 )}>
-                  {isPicked && <Check className="h-4 w-4" />}
+                  {isPicked && <Check className="h-3 w-3" />}
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium truncate">{p.name}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {fmt.format(price)} · остаток {Number(p.stock ?? 0)} {p.unit ?? "шт"}
-                  </div>
+                <div className="flex-1 min-w-0 truncate">{p.name}</div>
+                <div className="w-20 text-right text-xs text-muted-foreground tabular-nums shrink-0">
+                  {Number(p.stock ?? 0)} {p.unit ?? "шт"}
                 </div>
+                <div className="w-24 text-right tabular-nums shrink-0">{fmt.format(price)}</div>
                 {isPicked && (
-                  <div data-qty className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
-                    <Button type="button" size="icon" variant="outline" className="h-8 w-8" onClick={() => bump(p.id, -1)}>
-                      <Minus className="h-4 w-4" />
+                  <div data-qty className="flex items-center gap-0.5 shrink-0" onClick={e => e.stopPropagation()}>
+                    <Button type="button" size="icon" variant="ghost" className="h-6 w-6" onClick={() => bump(p.id, -1)}>
+                      <Minus className="h-3 w-3" />
                     </Button>
                     <Input
                       type="number"
                       step="0.001"
-                      className="text-center h-8 w-20"
+                      className="text-center h-6 w-14 px-1 text-sm"
                       value={qty}
                       onChange={e => setQty(p.id, Number(e.target.value))}
                       onFocus={e => e.currentTarget.select()}
                     />
-                    <Button type="button" size="icon" variant="outline" className="h-8 w-8" onClick={() => bump(p.id, 1)}>
-                      <Plus className="h-4 w-4" />
+                    <Button type="button" size="icon" variant="ghost" className="h-6 w-6" onClick={() => bump(p.id, 1)}>
+                      <Plus className="h-3 w-3" />
                     </Button>
                   </div>
                 )}
+                {!isPicked && <div className="w-[86px] shrink-0" />}
               </div>
             );
           })}
