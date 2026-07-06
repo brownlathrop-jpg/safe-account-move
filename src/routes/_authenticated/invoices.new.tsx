@@ -23,6 +23,17 @@ const fmt = new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB" 
 
 type Item = { product_id: string | null; name: string; quantity: number; price: number; kind: "product" | "service" };
 
+const DRAFT_KEY = "invoice-new-draft-v1";
+type Draft = {
+  kind: "outgoing" | "incoming";
+  number: string;
+  date: string;
+  partnerId: string;
+  note: string;
+  items: Item[];
+  numberTouched: boolean;
+};
+
 function applyNumberMask(mask: string, d: Date, seq: number): string {
   const pad = (n: number, w: number) => String(n).padStart(w, "0");
   return mask
@@ -69,6 +80,36 @@ function NewInvoice() {
   const [note, setNote] = useState("");
   const [items, setItems] = useState<Item[]>([]);
   const [pickRow, setPickRow] = useState<number | null>(null);
+  const draftLoaded = useRef(false);
+
+  // Load draft from localStorage on mount
+  useEffect(() => {
+    if (draftLoaded.current) return;
+    draftLoaded.current = true;
+    try {
+      const raw = typeof window !== "undefined" ? localStorage.getItem(DRAFT_KEY) : null;
+      if (!raw) return;
+      const d = JSON.parse(raw) as Draft;
+      if (d.kind) setKind(d.kind);
+      if (d.number) { setNumber(d.number); numberTouched.current = !!d.numberTouched; }
+      if (d.date) setDate(d.date);
+      if (d.partnerId) setPartnerId(d.partnerId);
+      if (d.note) setNote(d.note);
+      if (Array.isArray(d.items)) setItems(d.items);
+    } catch {}
+  }, []);
+
+  // Persist draft on every change (after initial load)
+  useEffect(() => {
+    if (!draftLoaded.current) return;
+    if (typeof window === "undefined") return;
+    const d: Draft = { kind, number, date, partnerId, note, items, numberTouched: numberTouched.current };
+    try { localStorage.setItem(DRAFT_KEY, JSON.stringify(d)); } catch {}
+  }, [kind, number, date, partnerId, note, items]);
+
+  const clearDraft = () => {
+    try { localStorage.removeItem(DRAFT_KEY); } catch {}
+  };
 
   const { data: products = [] } = useQuery({
     queryKey: ["products"],
@@ -140,7 +181,7 @@ function NewInvoice() {
 
       return inv.id as string;
     },
-    onSuccess: (id) => { toast.success("Заявка создана"); navigate({ to: "/invoices/$id", params: { id } }); },
+    onSuccess: (id) => { clearDraft(); toast.success("Заявка сохранена"); navigate({ to: "/invoices/$id", params: { id } }); },
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -150,11 +191,12 @@ function NewInvoice() {
         <h1 className="text-xl font-semibold">Новая заявка</h1>
         <div className="flex gap-2">
           <Button variant="ghost" onClick={() => {
-            if (confirm("Отменить создание заявки? Введённые данные не сохранятся.")) {
+            if (confirm("Отменить создание заявки? Черновик будет удалён.")) {
+              clearDraft();
               navigate({ to: "/invoices" });
             }
           }}>Отменить</Button>
-          <Button onClick={() => save.mutate()} disabled={save.isPending}>Создать заявку</Button>
+          <Button onClick={() => save.mutate()} disabled={save.isPending}>Сохранить заявку</Button>
         </div>
       </div>
 
