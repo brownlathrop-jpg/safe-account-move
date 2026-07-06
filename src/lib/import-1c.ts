@@ -33,7 +33,7 @@ function firstChildByTag(el: Element, tag: string): Element | null {
 function textOf(el: Element | null): string {
   if (!el) return "";
   const v = firstChildByTag(el, "Значение");
-  return (v?.textContent ?? "").trim();
+  return (v?.textContent ?? el.textContent ?? "").trim();
 }
 function firstDescendantByTag(el: Element, tag: string): Element | null {
   for (let c = el.firstElementChild; c; c = c.nextElementSibling) {
