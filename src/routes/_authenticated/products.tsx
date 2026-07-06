@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Plus, Pencil, Trash2, Search, Folder, FolderPlus, FolderOpen, ChevronRight, ChevronDown, Upload, X, ImageIcon } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useActiveWorkspaceId } from "@/lib/workspace";
 
 export const Route = createFileRoute("/_authenticated/products")({
   head: () => ({ meta: [{ title: "Товары и услуги — КабинетCRM" }] }),
@@ -38,6 +39,7 @@ const SERVICE_ROOT_NAME = "Услуги";
 
 function ProductsPage() {
   const qc = useQueryClient();
+  const wsId = useActiveWorkspaceId();
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<Partial<Product> | null>(null);
   const [open, setOpen] = useState(false);
@@ -50,27 +52,30 @@ function ProductsPage() {
   const [folderName, setFolderName] = useState("");
 
   const { data: products = [] } = useQuery({
-    queryKey: ["products"],
+    queryKey: ["products", wsId],
+    enabled: !!wsId,
     queryFn: async () => {
-      const { data, error } = await supabase.from("products").select("*").order("name");
+      const { data, error } = await (supabase as any).from("products").select("*").eq("workspace_id", wsId).order("name");
       if (error) throw error;
       return (data ?? []) as unknown as Product[];
     },
   });
 
   const { data: folders = [] } = useQuery({
-    queryKey: ["product_folders"],
+    queryKey: ["product_folders", wsId],
+    enabled: !!wsId,
     queryFn: async () => {
-      const { data, error } = await supabase.from("product_folders").select("id,name,parent_id").order("name");
+      const { data, error } = await (supabase as any).from("product_folders").select("id,name,parent_id").eq("workspace_id", wsId).order("name");
       if (error) throw error;
       return data as FolderRow[];
     },
   });
 
   const { data: units = [] } = useQuery({
-    queryKey: ["units"],
+    queryKey: ["units", wsId],
+    enabled: !!wsId,
     queryFn: async () => {
-      const { data, error } = await supabase.from("units").select("id,short_name").order("short_name");
+      const { data, error } = await (supabase as any).from("units").select("id,short_name").eq("workspace_id", wsId).order("short_name");
       if (error) throw error;
       return (data ?? []) as { id: string; short_name: string }[];
     },
@@ -121,8 +126,10 @@ function ProductsPage() {
     mutationFn: async (p: Partial<Product>) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Нет сессии");
+      if (!wsId) throw new Error("Не выбрана база данных");
       const payload = {
         user_id: user.id,
+        workspace_id: wsId,
         sku: p.sku || null,
         name: p.name!,
         unit: p.unit || "шт",
@@ -165,6 +172,7 @@ function ProductsPage() {
       if (!name) throw new Error("Введите название");
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Нет сессии");
+      if (!wsId) throw new Error("Не выбрана база данных");
       if (folderDialog.editing) {
         const { error } = await supabase.from("product_folders").update({ name }).eq("id", folderDialog.editing.id);
         if (error) throw error;
@@ -176,17 +184,17 @@ function ProductsPage() {
           if (existingRoot) {
             parent_id = existingRoot.id;
           } else {
-            const { data: rootFolder, error: rootError } = await supabase
+            const { data: rootFolder, error: rootError } = await (supabase as any)
               .from("product_folders")
-              .insert({ user_id: user.id, name: rootName, parent_id: null })
+              .insert({ user_id: user.id, workspace_id: wsId, name: rootName, parent_id: null })
               .select("id,name,parent_id")
               .single();
             if (rootError) throw rootError;
             parent_id = rootFolder.id;
           }
         }
-        const { error } = await supabase.from("product_folders").insert({
-          user_id: user.id, name, parent_id,
+        const { error } = await (supabase as any).from("product_folders").insert({
+          user_id: user.id, workspace_id: wsId, name, parent_id,
         });
         if (error) throw error;
       }

@@ -10,11 +10,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Save, Search, Loader2, Plus, Trash2 } from "lucide-react";
+import { Save, Search, Loader2, Plus, Trash2, Database, Check, Pencil } from "lucide-react";
 import { lookupOrgByInn, lookupBankByBik } from "@/lib/dadata.functions";
+import { useActiveWorkspaceId, activeWorkspace } from "@/lib/workspace";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({ meta: [{ title: "Настройки — КабинетCRM" }] }),
+  validateSearch: (s: Record<string, unknown>) => ({ tab: typeof s.tab === "string" ? s.tab : undefined }),
   component: SettingsPage,
 });
 
@@ -50,11 +52,15 @@ const empty: Org = {
 
 function SettingsPage() {
   const qc = useQueryClient();
+  const wsId = useActiveWorkspaceId();
+  const { tab } = Route.useSearch();
   const { data: org } = useQuery({
-    queryKey: ["my-organization"],
+    queryKey: ["my-organization", wsId],
+    enabled: !!wsId,
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("organizations").select("*")
+        .eq("workspace_id", wsId)
         .order("is_primary", { ascending: false })
         .limit(1).maybeSingle();
       if (error) throw error;
@@ -94,13 +100,14 @@ function SettingsPage() {
     mutationFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Нет сессии");
+      if (!wsId) throw new Error("Не выбрана база данных");
       if (!form.name.trim()) throw new Error("Укажите название организации");
-      const payload = { ...form, user_id: user.id, is_primary: true };
+      const payload = { ...form, user_id: user.id, workspace_id: wsId, is_primary: true };
       if (form.id) {
-        const { error } = await supabase.from("organizations").update(payload).eq("id", form.id);
+        const { error } = await (supabase as any).from("organizations").update(payload).eq("id", form.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from("organizations").insert(payload);
+        const { error } = await (supabase as any).from("organizations").insert(payload);
         if (error) throw error;
       }
     },
@@ -115,11 +122,16 @@ function SettingsPage() {
         <p className="text-sm text-muted-foreground">Реквизиты организации и справочники</p>
       </div>
 
-      <Tabs defaultValue="org">
+      <Tabs defaultValue={tab || "org"}>
         <TabsList>
+          <TabsTrigger value="workspaces">База данных</TabsTrigger>
           <TabsTrigger value="org">Организация</TabsTrigger>
           <TabsTrigger value="refs">Справочники</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="workspaces" className="mt-5">
+          <WorkspacesRef />
+        </TabsContent>
 
         <TabsContent value="org" className="mt-5">
       <Card className="p-5 space-y-5">
@@ -223,13 +235,15 @@ type Unit = { id: string; short_name: string; full_name: string | null };
 
 function UnitsRef() {
   const qc = useQueryClient();
+  const wsId = useActiveWorkspaceId();
   const [short, setShort] = useState("");
   const [full, setFull] = useState("");
 
   const { data: units = [] } = useQuery({
-    queryKey: ["units"],
+    queryKey: ["units", wsId],
+    enabled: !!wsId,
     queryFn: async () => {
-      const { data, error } = await supabase.from("units").select("id,short_name,full_name").order("short_name");
+      const { data, error } = await (supabase as any).from("units").select("id,short_name,full_name").eq("workspace_id", wsId).order("short_name");
       if (error) throw error;
       return data as Unit[];
     },
@@ -241,8 +255,9 @@ function UnitsRef() {
       if (!s) throw new Error("Введите краткое название");
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Нет сессии");
-      const { error } = await supabase.from("units").insert({
-        user_id: user.id, short_name: s, full_name: full.trim() || null,
+      if (!wsId) throw new Error("Не выбрана база данных");
+      const { error } = await (supabase as any).from("units").insert({
+        user_id: user.id, workspace_id: wsId, short_name: s, full_name: full.trim() || null,
       });
       if (error) throw error;
     },
@@ -296,24 +311,26 @@ type InvStatus = { id: string; name: string; color: string; sort_order: number }
 
 function InvoiceStatusesRef() {
   const qc = useQueryClient();
+  const wsId = useActiveWorkspaceId();
   const [name, setName] = useState("");
   const [color, setColor] = useState("#64748b");
 
   const { data: statuses = [] } = useQuery({
-    queryKey: ["invoice_statuses"],
+    queryKey: ["invoice_statuses", wsId],
+    enabled: !!wsId,
     queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return [];
-      let { data } = await supabase.from("invoice_statuses").select("id,name,color,sort_order").order("sort_order");
+      let { data } = await (supabase as any).from("invoice_statuses").select("id,name,color,sort_order").eq("workspace_id", wsId).order("sort_order");
       if (!data || data.length === 0) {
         const defaults = [
           { name: "Новый", color: "#64748b", sort_order: 0 },
           { name: "Предоплата", color: "#eab308", sort_order: 1 },
           { name: "Оплачен", color: "#3b82f6", sort_order: 2 },
           { name: "Выполнен", color: "#22c55e", sort_order: 3 },
-        ].map(s => ({ ...s, user_id: user.id }));
-        await supabase.from("invoice_statuses").insert(defaults);
-        ({ data } = await supabase.from("invoice_statuses").select("id,name,color,sort_order").order("sort_order"));
+        ].map(s => ({ ...s, user_id: user.id, workspace_id: wsId }));
+        await (supabase as any).from("invoice_statuses").insert(defaults);
+        ({ data } = await (supabase as any).from("invoice_statuses").select("id,name,color,sort_order").eq("workspace_id", wsId).order("sort_order"));
       }
       return (data ?? []) as InvStatus[];
     },
@@ -325,9 +342,10 @@ function InvoiceStatusesRef() {
       if (!n) throw new Error("Введите название статуса");
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Нет сессии");
+      if (!wsId) throw new Error("Не выбрана база данных");
       const maxOrder = statuses.reduce((m, s) => Math.max(m, s.sort_order), -1);
-      const { error } = await supabase.from("invoice_statuses").insert({
-        user_id: user.id, name: n, color, sort_order: maxOrder + 1,
+      const { error } = await (supabase as any).from("invoice_statuses").insert({
+        user_id: user.id, workspace_id: wsId, name: n, color, sort_order: maxOrder + 1,
       });
       if (error) throw error;
     },

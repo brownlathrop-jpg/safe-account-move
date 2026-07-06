@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useActiveWorkspaceId } from "@/lib/workspace";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -38,6 +39,7 @@ function toKey(d: Date) {
 }
 
 function Dashboard() {
+  const wsId = useActiveWorkspaceId();
   const [period, setPeriod] = useState<Period>("month");
   const [customFrom, setCustomFrom] = useState<Date | undefined>();
   const [customTo, setCustomTo] = useState<Date | undefined>();
@@ -45,19 +47,21 @@ function Dashboard() {
   const { from, to } = useMemo(() => rangeFor(period, customFrom, customTo), [period, customFrom, customTo]);
 
   const { data: stats } = useQuery({
-    queryKey: ["dashboard-stats", toKey(from), toKey(to)],
+    queryKey: ["dashboard-stats", wsId, toKey(from), toKey(to)],
+    enabled: !!wsId,
     queryFn: async () => {
       const [invoicesRes, productsRes] = await Promise.all([
-        supabase
+        (supabase as any)
           .from("invoices")
           .select("kind,status,total,issue_date,created_at")
           .eq("status", "posted")
+          .eq("workspace_id", wsId)
           .gte("issue_date", toKey(from))
           .lte("issue_date", toKey(to)),
-        supabase.from("products").select("id,stock,price"),
+        (supabase as any).from("products").select("id,stock,price").eq("workspace_id", wsId),
       ]);
-      const invoices = invoicesRes.data ?? [];
-      const products = productsRes.data ?? [];
+      const invoices = (invoicesRes.data ?? []) as any[];
+      const products = (productsRes.data ?? []) as any[];
       const sales = invoices.filter(i => i.kind === "outgoing").reduce((s, i) => s + Number(i.total), 0);
       const purchases = invoices.filter(i => i.kind === "incoming").reduce((s, i) => s + Number(i.total), 0);
       const stockValue = products.reduce((s, p) => s + Number(p.stock) * Number(p.price), 0);
