@@ -421,9 +421,11 @@ function StatusRow({ status, onSave, onDelete }: { status: InvStatus; onSave: (p
 
 function NumberingRef() {
   const qc = useQueryClient();
+  const wsId = useActiveWorkspaceId();
   const { data: org } = useQuery({
-    queryKey: ["my-organization"],
-    queryFn: async () => (await supabase.from("organizations").select("id,invoice_number_mask,invoice_number_start,name").order("is_primary", { ascending: false }).limit(1).maybeSingle()).data,
+    queryKey: ["my-organization", wsId],
+    enabled: !!wsId,
+    queryFn: async () => (await (supabase as any).from("organizations").select("id,invoice_number_mask,invoice_number_start,name").eq("workspace_id", wsId).order("is_primary", { ascending: false }).limit(1).maybeSingle()).data,
   });
   const [mask, setMask] = useState("");
   const [start, setStart] = useState<number>(1);
@@ -438,12 +440,13 @@ function NumberingRef() {
     mutationFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Нет сессии");
+      if (!wsId) throw new Error("Не выбрана база данных");
       const payload = { invoice_number_mask: mask, invoice_number_start: Math.max(1, Math.floor(Number(start) || 1)) };
       if (org && (org as any).id) {
-        const { error } = await supabase.from("organizations").update(payload).eq("id", (org as any).id);
+        const { error } = await (supabase as any).from("organizations").update(payload).eq("id", (org as any).id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from("organizations").insert({ user_id: user.id, name: "Моя организация", is_primary: true, ...payload });
+        const { error } = await (supabase as any).from("organizations").insert({ user_id: user.id, workspace_id: wsId, name: "Моя организация", is_primary: true, ...payload });
         if (error) throw error;
       }
     },
