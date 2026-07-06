@@ -178,6 +178,11 @@ function NewInvoice() {
   const total = useMemo(() => items.reduce((s, i) => s + i.quantity * i.price, 0), [items]);
 
   const addItem = () => setItems([...items, { product_id: null, name: "", quantity: 1, price: 0, kind: "product" }]);
+  const addItemAndPick = () => {
+    const newIdx = items.length;
+    setItems([...items, { product_id: null, name: "", quantity: 1, price: 0, kind: "product" }]);
+    setTimeout(() => setPickRow(newIdx), 0);
+  };
   const updateItem = (idx: number, patch: Partial<Item>) =>
     setItems(items.map((it, i) => i === idx ? { ...it, ...patch } : it));
   const removeItem = (idx: number) => setItems(items.filter((_, i) => i !== idx));
@@ -285,7 +290,6 @@ function NewInvoice() {
               kind={kind}
               onAdd={(picked: PickedItem[]) => setItems((prev) => [...prev, ...picked])}
             />
-            <Button size="sm" variant="outline" onClick={addItem}><Plus className="h-4 w-4 mr-1" /> Строка</Button>
           </div>
         </div>
         <Table className="xls-table">
@@ -300,7 +304,17 @@ function NewInvoice() {
           </TableHeader>
           <TableBody>
             {items.length === 0 && (
-              <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-6">Добавьте позицию</TableCell></TableRow>
+              <TableRow>
+                <TableCell colSpan={5} className="p-0">
+                  <button
+                    type="button"
+                    onClick={addItemAndPick}
+                    className="w-full text-center text-muted-foreground py-6 hover:bg-accent hover:text-foreground transition-colors"
+                  >
+                    + Добавьте позицию
+                  </button>
+                </TableCell>
+              </TableRow>
             )}
             {items.map((it, idx) => (
               <TableRow key={idx}>
