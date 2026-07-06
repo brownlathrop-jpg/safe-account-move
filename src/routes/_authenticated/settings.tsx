@@ -15,6 +15,7 @@ import { lookupOrgByInn, lookupBankByBik } from "@/lib/dadata.functions";
 import { useActiveWorkspaceId, activeWorkspace } from "@/lib/workspace";
 import { WarehousesRef, ProductTypesRef, PriceTypesRef, CashflowItemsRef, BanksRef } from "@/components/settings-simple-refs";
 import { BankAccountsEditor } from "@/components/bank-accounts-editor";
+import { Import1CPanel } from "@/components/import-1c-panel";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({ meta: [{ title: "Настройки — КабинетCRM" }] }),
@@ -129,6 +130,7 @@ function SettingsPage() {
           <TabsTrigger value="workspaces">База данных</TabsTrigger>
           <TabsTrigger value="org">Организация</TabsTrigger>
           <TabsTrigger value="refs">Справочники</TabsTrigger>
+          <TabsTrigger value="import">Импорт из 1С</TabsTrigger>
         </TabsList>
 
         <TabsContent value="workspaces" className="mt-5">
@@ -238,6 +240,10 @@ function SettingsPage() {
           <BanksRef />
           <CashflowItemsRef />
           <InvoiceStatusesRef />
+        </TabsContent>
+
+        <TabsContent value="import" className="mt-5">
+          <Import1CPanel />
         </TabsContent>
       </Tabs>
     </div>
