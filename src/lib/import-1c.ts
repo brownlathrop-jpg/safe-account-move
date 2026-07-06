@@ -33,14 +33,58 @@ function firstChildByTag(el: Element, tag: string): Element | null {
 function textOf(el: Element | null): string {
   if (!el) return "";
   const v = firstChildByTag(el, "Значение");
-  return (v?.textContent ?? "").trim();
+  return (v?.textContent ?? el.textContent ?? "").trim();
+}
+function firstDescendantByTag(el: Element, tag: string): Element | null {
+  for (let c = el.firstElementChild; c; c = c.nextElementSibling) {
+    if (c.localName === tag || c.tagName === tag) return c;
+    const nested = firstDescendantByTag(c, tag);
+    if (nested) return nested;
+  }
+  return null;
+}
+function normalizeExtId(value: string | null | undefined): string | null {
+  const raw = (value ?? "").trim();
+  if (!raw) return null;
+  const uuid = raw.match(/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/);
+  if (uuid) return uuid[0];
+  const compact = raw.match(/[0-9a-fA-F]{32}/);
+  return compact ? compact[0] : raw;
+}
+function boolOf(value: string): boolean {
+  const v = value.trim().toLowerCase();
+  return v === "true" || v === "истина" || v === "да" || v === "1";
+}
+function keyOf(name: string): string {
+  return name.replace(/[{}\s_-]/g, "").toLowerCase();
+}
+function readNamed(record: Record<string, string>, names: string[]): string | undefined {
+  for (const name of names) {
+    if (record[name]) return record[name];
+  }
+  const aliases = names.map(keyOf);
+  for (const [key, value] of Object.entries(record)) {
+    const normalized = keyOf(key);
+    if (aliases.some(alias => normalized === alias || normalized.includes(alias))) return value;
+  }
+  return undefined;
+}
+function readRef(o: Obj, names: string[]): string | undefined {
+  return readNamed(o.refs, names) ?? readNamed(o.props, names);
+}
+function readProp(o: Obj, names: string[]): string | undefined {
+  return readNamed(o.props, names) ?? readNamed(o.refs, names);
 }
 function extIdOfRef(ref: Element | null): string | null {
   if (!ref) return null;
   for (const p of childrenByTag(ref, "Свойство")) {
-    if (p.getAttribute("Имя") === "{УникальныйИдентификатор}") return textOf(p);
+    if (p.getAttribute("Имя") === "{УникальныйИдентификатор}") return normalizeExtId(textOf(p));
   }
-  return null;
+  const nestedUid = Array.from(ref.getElementsByTagName("Свойство")).find(
+    p => p.getAttribute("Имя") === "{УникальныйИдентификатор}",
+  );
+  if (nestedUid) return normalizeExtId(textOf(nestedUid));
+  return normalizeExtId(textOf(ref) || ref.textContent || "");
 }
 function readProps(scope: Element): Pick<Obj, "props" | "refs" | "num" | "bool"> {
   const props: Record<string, string> = {};
@@ -51,14 +95,19 @@ function readProps(scope: Element): Pick<Obj, "props" | "refs" | "num" | "bool">
     const name = p.getAttribute("Имя") || "";
     const type = p.getAttribute("Тип") || "";
     if (!name) continue;
-    const link = firstChildByTag(p, "Ссылка");
+    const link = firstChildByTag(p, "Ссылка") ?? firstDescendantByTag(p, "Ссылка");
+    const val = textOf(p);
     if (link) {
       const id = extIdOfRef(link);
       if (id) refs[name] = id;
       continue;
     }
-    const val = textOf(p);
-    if (type === "Булево") bool[name] = val === "true";
+    if (/Ссылка/i.test(type)) {
+      const id = normalizeExtId(val || p.textContent || "");
+      if (id) refs[name] = id;
+      continue;
+    }
+    if (type === "Булево" || name === "ЭтоГруппа") bool[name] = boolOf(val);
     else if (type === "Число") num[name] = Number(val.replace(",", ".")) || 0;
     else props[name] = val;
   }
@@ -286,13 +335,13 @@ export async function importAll(
     onProgress("Папки номенклатуры", 0, groups.length);
     const folderRows = groups.map(o => ({
       ...base, ext_1c_id: o.ext,
-      name: o.props["Наименование"] || "Папка",
+      name: readProp(o, ["Наименование", "НаименованиеПолное"]) || "Папка",
     }));
     await batchUpsert("product_folders", folderRows);
     // parent
     const fmap = await loadExtMap("product_folders", wsId);
     for (const o of groups) {
-      const pExt = o.refs["Родитель"];
+      const pExt = readRef(o, ["Родитель", "Группа", "Папка", "РодительНоменклатуры"]);
       const id = fmap.get(o.ext!);
       const parent = pExt ? fmap.get(pExt) : null;
       if (id && parent) await (supabase as any).from("product_folders").update({ parent_id: parent }).eq("id", id);
@@ -304,17 +353,22 @@ export async function importAll(
     onProgress("Товары", 0, items.length);
     const total = items.length;
     let done = 0;
+    let withParent = 0;
+    let withFolder = 0;
     const chunk = 200;
     for (let i = 0; i < total; i += chunk) {
       const part = items.slice(i, i + chunk).map(o => {
-        const ptExt = o.refs["ВидНоменклатуры"];
+        const ptExt = readRef(o, ["ВидНоменклатуры"]);
         const ptId = ptExt ? ptMap.get(ptExt) : null;
-        const isService = /услуг/i.test(o.props["Наименование"] || "");
-        const parentExt = o.refs["Родитель"];
+        const name = readProp(o, ["Наименование", "НаименованиеПолное"]) || "Товар";
+        const isService = /услуг/i.test(name);
+        const parentExt = readRef(o, ["Родитель", "Группа", "Папка", "РодительНоменклатуры"]);
         const folderId = parentExt ? fmap.get(parentExt) ?? null : null;
+        if (parentExt) withParent += 1;
+        if (folderId) withFolder += 1;
         return {
           ...base, ext_1c_id: o.ext,
-          name: o.props["Наименование"] || o.props["НаименованиеПолное"] || "Товар",
+          name,
           unit: o.props["ЕдиницаХраненияОстатков"] || "шт",
           price: 0, cost: 0,
           kind: isService ? "service" : "product",
@@ -326,7 +380,7 @@ export async function importAll(
       const { error } = await (supabase as any).from("products").upsert(part, { onConflict: "workspace_id,ext_1c_id" });
       if (error) throw new Error("products: " + error.message);
       done += part.length;
-      onProgress("Товары", done, total);
+      onProgress("Товары", done, total, `с родителем: ${withParent}, с папкой: ${withFolder}`);
     }
   }
 
