@@ -17,14 +17,27 @@ type Obj = {
 type Row = { props: Record<string, string>; refs: Record<string, string>; num: Record<string, number>; bool: Record<string, boolean> };
 
 // ---------------------------------------------------------------- парсер
+function childrenByTag(el: Element, tag: string): Element[] {
+  const out: Element[] = [];
+  for (let c = el.firstElementChild; c; c = c.nextElementSibling) {
+    if (c.localName === tag || c.tagName === tag) out.push(c);
+  }
+  return out;
+}
+function firstChildByTag(el: Element, tag: string): Element | null {
+  for (let c = el.firstElementChild; c; c = c.nextElementSibling) {
+    if (c.localName === tag || c.tagName === tag) return c;
+  }
+  return null;
+}
 function textOf(el: Element | null): string {
   if (!el) return "";
-  const v = el.querySelector(":scope > Значение");
+  const v = firstChildByTag(el, "Значение");
   return (v?.textContent ?? "").trim();
 }
 function extIdOfRef(ref: Element | null): string | null {
   if (!ref) return null;
-  for (const p of Array.from(ref.querySelectorAll(":scope > Свойство"))) {
+  for (const p of childrenByTag(ref, "Свойство")) {
     if (p.getAttribute("Имя") === "{УникальныйИдентификатор}") return textOf(p);
   }
   return null;
@@ -34,11 +47,11 @@ function readProps(scope: Element): Pick<Obj, "props" | "refs" | "num" | "bool">
   const refs: Record<string, string> = {};
   const num: Record<string, number> = {};
   const bool: Record<string, boolean> = {};
-  for (const p of Array.from(scope.querySelectorAll(":scope > Свойство"))) {
+  for (const p of childrenByTag(scope, "Свойство")) {
     const name = p.getAttribute("Имя") || "";
     const type = p.getAttribute("Тип") || "";
     if (!name) continue;
-    const link = p.querySelector(":scope > Ссылка");
+    const link = firstChildByTag(p, "Ссылка");
     if (link) {
       const id = extIdOfRef(link);
       if (id) refs[name] = id;
@@ -53,10 +66,10 @@ function readProps(scope: Element): Pick<Obj, "props" | "refs" | "num" | "bool">
 }
 function readTables(objEl: Element): Record<string, Row[]> {
   const out: Record<string, Row[]> = {};
-  for (const t of Array.from(objEl.querySelectorAll(":scope > ТабличнаяЧасть"))) {
+  for (const t of childrenByTag(objEl, "ТабличнаяЧасть")) {
     const name = t.getAttribute("Имя") || "";
     const rows: Row[] = [];
-    for (const r of Array.from(t.querySelectorAll(":scope > Запись"))) {
+    for (const r of childrenByTag(t, "Запись")) {
       rows.push(readProps(r));
     }
     out[name] = rows;
@@ -71,7 +84,7 @@ export function parseAllObjects(xml: string): Obj[] {
   const out: Obj[] = [];
   for (const el of Array.from(doc.getElementsByTagName("Объект"))) {
     const type = el.getAttribute("Тип") || "";
-    const ref = el.querySelector(":scope > Ссылка");
+    const ref = firstChildByTag(el, "Ссылка");
     const ext = extIdOfRef(ref);
     const { props, refs, num, bool } = readProps(el);
     out.push({ type, ext, props, refs, num, bool, tables: readTables(el) });
