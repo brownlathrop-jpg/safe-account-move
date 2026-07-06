@@ -107,6 +107,17 @@ function propertyElements(scope: Element): Element[] {
   });
   return [...direct, ...nested];
 }
+function isKnownStructuralTag(name: string): boolean {
+  return ["Ссылка", "Свойство", "ТабличнаяЧасть", "Запись", "Значение"].includes(name);
+}
+function firstIdText(el: Element): string {
+  for (const tag of ["Ид", "ID", "Id", "Код", "Идентификатор", "УникальныйИдентификатор"]) {
+    const found = firstDescendantByTag(el, tag);
+    const value = found?.textContent?.trim();
+    if (value) return value;
+  }
+  return "";
+}
 function extIdOfRef(ref: Element | null): string | null {
   if (!ref) return null;
   for (const p of childrenByTag(ref, "Свойство")) {
@@ -142,6 +153,20 @@ function readProps(scope: Element): Pick<Obj, "props" | "refs" | "num" | "bool">
     if (/Булево|Boolean/i.test(type) || /это\s*(группа|папка)|is\s*(group|folder)/i.test(name)) bool[name] = boolOf(val);
     else if (type === "Число") num[name] = Number(val.replace(",", ".")) || 0;
     else props[name] = val;
+  }
+  for (let c = scope.firstElementChild; c; c = c.nextElementSibling) {
+    const name = c.localName || c.tagName;
+    if (!name || isKnownStructuralTag(name)) continue;
+    if ((scope.localName !== "Запись" && scope.tagName !== "Запись") && name === "ТабличныеЧасти") continue;
+
+    const link = firstChildByTag(c, "Ссылка") ?? firstDescendantByTag(c, "Ссылка");
+    const idText = firstIdText(c);
+    const val = textOf(c) || c.textContent?.trim() || "";
+    const refValue = link ? extIdOfRef(link) : normalizeExtId(idText || val);
+
+    if (refValue && /родител|групп|папк|folder|parent|категор|раздел/i.test(name)) refs[name] = refValue;
+    if (/булево|boolean/i.test(c.getAttribute("Тип") || "") || /это\s*(группа|папка)|is\s*(group|folder)/i.test(name)) bool[name] = boolOf(val);
+    else if (val && !(name in props)) props[name] = val;
   }
   return { props, refs, num, bool };
 }
