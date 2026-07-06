@@ -58,9 +58,20 @@ function ProductsPage() {
     queryKey: ["products", wsId],
     enabled: !!wsId,
     queryFn: async () => {
-      const { data, error } = await (supabase as any).from("products").select("*").eq("workspace_id", wsId).order("name");
-      if (error) throw error;
-      return (data ?? []) as unknown as Product[];
+      const all: Product[] = [];
+      const step = 1000;
+      let from = 0;
+      for (;;) {
+        const { data, error } = await (supabase as any)
+          .from("products").select("*").eq("workspace_id", wsId)
+          .order("name").range(from, from + step - 1);
+        if (error) throw error;
+        const chunk = (data ?? []) as unknown as Product[];
+        all.push(...chunk);
+        if (chunk.length < step) break;
+        from += step;
+      }
+      return all;
     },
   });
 
@@ -68,9 +79,20 @@ function ProductsPage() {
     queryKey: ["product_folders", wsId],
     enabled: !!wsId,
     queryFn: async () => {
-      const { data, error } = await (supabase as any).from("product_folders").select("id,name,parent_id").eq("workspace_id", wsId).order("name");
-      if (error) throw error;
-      return data as FolderRow[];
+      const all: FolderRow[] = [];
+      const step = 1000;
+      let from = 0;
+      for (;;) {
+        const { data, error } = await (supabase as any)
+          .from("product_folders").select("id,name,parent_id").eq("workspace_id", wsId)
+          .order("name").range(from, from + step - 1);
+        if (error) throw error;
+        const chunk = (data ?? []) as FolderRow[];
+        all.push(...chunk);
+        if (chunk.length < step) break;
+        from += step;
+      }
+      return all;
     },
   });
 
