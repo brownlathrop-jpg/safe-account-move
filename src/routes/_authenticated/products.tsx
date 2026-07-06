@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Pencil, Trash2, Search, Folder, FolderPlus, FolderOpen, ChevronRight, ChevronDown } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, Folder, FolderPlus, FolderOpen, ChevronRight, ChevronDown, Upload, X, ImageIcon } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -21,7 +21,7 @@ export const Route = createFileRoute("/_authenticated/products")({
 type Product = {
   id: string; sku: string | null; name: string; unit: string;
   price: number; cost: number; stock: number; description: string | null;
-  folder_id: string | null; kind: "product" | "service";
+  folder_id: string | null; kind: "product" | "service"; image_url: string | null;
 };
 
 type FolderRow = { id: string; name: string; parent_id: string | null };
@@ -41,6 +41,7 @@ function ProductsPage() {
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<Partial<Product> | null>(null);
   const [open, setOpen] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [selectedFolder, setSelectedFolder] = useState<string>(ALL);
   const selectedFolderRef = useRef<string>(ALL);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -52,7 +53,7 @@ function ProductsPage() {
     queryFn: async () => {
       const { data, error } = await supabase.from("products").select("*").order("name");
       if (error) throw error;
-      return data as Product[];
+      return (data ?? []) as unknown as Product[];
     },
   });
 
@@ -130,12 +131,13 @@ function ProductsPage() {
         description: p.description || null,
         folder_id: p.folder_id ?? null,
         kind: (p.kind ?? "product") as "product" | "service",
+        image_url: p.image_url ?? null,
       };
       if (p.id) {
-        const { error } = await supabase.from("products").update(payload).eq("id", p.id);
+        const { error } = await supabase.from("products").update(payload as never).eq("id", p.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from("products").insert(payload);
+        const { error } = await supabase.from("products").insert(payload as never);
         if (error) throw error;
       }
     },
@@ -242,7 +244,7 @@ function ProductsPage() {
   const openNew = () => {
     const folder_id = getSelectedRealFolderId();
     const kind: "product" | "service" = selectedFolder === KIND_SERVICE ? "service" : "product";
-    setEditing({ name: "", unit: kind === "service" ? "усл" : "шт", price: 0, cost: 0, stock: 0, folder_id, kind });
+    setEditing({ name: "", unit: kind === "service" ? "усл" : "шт", price: 0, cost: 0, stock: 0, folder_id, kind, image_url: null });
     setOpen(true);
   };
   const openEdit = (p: Product) => { setEditing(p); setOpen(true); };
@@ -447,6 +449,59 @@ function ProductsPage() {
               <div className="space-y-2">
                 <Label>Название *</Label>
                 <Input required value={editing.name ?? ""} onChange={e => setEditing({ ...editing, name: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>Фото</Label>
+                <div className="flex items-center gap-3">
+                  <div className="h-20 w-20 rounded-md border bg-muted/40 flex items-center justify-center overflow-hidden shrink-0">
+                    {editing.image_url ? (
+                      <img src={editing.image_url} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      <ImageIcon className="h-6 w-6 text-muted-foreground" />
+                    )}
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <label className="inline-flex items-center gap-2 text-sm cursor-pointer px-3 h-8 rounded-md border hover:bg-accent">
+                      <Upload className="h-4 w-4" />
+                      {uploadingImage ? "Загрузка…" : "Загрузить"}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        disabled={uploadingImage}
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          e.target.value = "";
+                          if (!file) return;
+                          try {
+                            setUploadingImage(true);
+                            const { data: { user } } = await supabase.auth.getUser();
+                            if (!user) throw new Error("Нет сессии");
+                            const ext = file.name.split(".").pop() || "jpg";
+                            const path = `${user.id}/${crypto.randomUUID()}.${ext}`;
+                            const { error: upErr } = await supabase.storage.from("product-images").upload(path, file, { upsert: false, contentType: file.type });
+                            if (upErr) throw upErr;
+                            const { data: pub } = supabase.storage.from("product-images").getPublicUrl(path);
+                            setEditing(cur => cur ? { ...cur, image_url: pub.publicUrl } : cur);
+                          } catch (err) {
+                            toast.error(err instanceof Error ? err.message : "Ошибка загрузки");
+                          } finally {
+                            setUploadingImage(false);
+                          }
+                        }}
+                      />
+                    </label>
+                    {editing.image_url && (
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-destructive"
+                        onClick={() => setEditing({ ...editing, image_url: null })}
+                      >
+                        <X className="h-3 w-3" /> Убрать фото
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
               <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2">

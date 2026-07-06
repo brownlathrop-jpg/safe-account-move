@@ -105,7 +105,13 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <Outlet />
-      <Toaster richColors position="top-right" />
+      <Toaster
+        richColors
+        position="bottom-right"
+        duration={2500}
+        closeButton
+        toastOptions={{ style: { fontSize: "13px", padding: "8px 12px", minHeight: "auto" } }}
+      />
     </QueryClientProvider>
   );
 }
