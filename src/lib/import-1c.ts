@@ -58,6 +58,10 @@ function boolOf(value: string): boolean {
 function keyOf(name: string): string {
   return name.replace(/[{}\s_-]/g, "").toLowerCase();
 }
+function hasUuidLike(value: string | null | undefined): boolean {
+  const raw = (value ?? "").trim();
+  return /[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/.test(raw) || /[0-9a-fA-F]{32}/.test(raw);
+}
 function readNamed(record: Record<string, string>, names: string[]): string | undefined {
   for (const name of names) {
     if (record[name]) return record[name];
@@ -79,8 +83,40 @@ function readProp(o: Obj, names: string[]): string | undefined {
 }
 function readBool(o: Obj, names: string[]): boolean {
   for (const n of names) if (n in o.bool) return o.bool[n];
+  const aliases = names.map(keyOf);
+  for (const [key, value] of Object.entries(o.bool)) {
+    const normalized = keyOf(key);
+    if (aliases.some(alias => normalized === alias || normalized.includes(alias))) return value;
+  }
   const v = readNamed(o.props, names);
   return v !== undefined ? boolOf(v) : false;
+}
+function isInsideTag(el: Element, scope: Element, tag: string): boolean {
+  for (let p = el.parentElement; p && p !== scope; p = p.parentElement) {
+    if (p.localName === tag || p.tagName === tag) return true;
+  }
+  return false;
+}
+function propertyElements(scope: Element): Element[] {
+  const direct = childrenByTag(scope, "Свойство");
+  const nested = Array.from(scope.getElementsByTagName("Свойство")).filter(p => {
+    if (p.parentElement === scope) return false;
+    if (isInsideTag(p, scope, "Ссылка")) return false;
+    if ((scope.localName !== "Запись" && scope.tagName !== "Запись") && isInsideTag(p, scope, "ТабличнаяЧасть")) return false;
+    return true;
+  });
+  return [...direct, ...nested];
+}
+function isKnownStructuralTag(name: string): boolean {
+  return ["Ссылка", "Свойство", "ТабличнаяЧасть", "Запись", "Значение"].includes(name);
+}
+function firstIdText(el: Element): string {
+  for (const tag of ["Ид", "ID", "Id", "Код", "Идентификатор", "УникальныйИдентификатор"]) {
+    const found = firstDescendantByTag(el, tag);
+    const value = found?.textContent?.trim();
+    if (value) return value;
+  }
+  return "";
 }
 function extIdOfRef(ref: Element | null): string | null {
   if (!ref) return null;
@@ -98,7 +134,7 @@ function readProps(scope: Element): Pick<Obj, "props" | "refs" | "num" | "bool">
   const refs: Record<string, string> = {};
   const num: Record<string, number> = {};
   const bool: Record<string, boolean> = {};
-  for (const p of childrenByTag(scope, "Свойство")) {
+  for (const p of propertyElements(scope)) {
     const name = p.getAttribute("Имя") || "";
     const type = p.getAttribute("Тип") || "";
     if (!name) continue;
@@ -114,9 +150,23 @@ function readProps(scope: Element): Pick<Obj, "props" | "refs" | "num" | "bool">
       if (id) refs[name] = id;
       continue;
     }
-    if (type === "Булево" || name === "ЭтоГруппа") bool[name] = boolOf(val);
+    if (/Булево|Boolean/i.test(type) || /это\s*(группа|папка)|is\s*(group|folder)/i.test(name)) bool[name] = boolOf(val);
     else if (type === "Число") num[name] = Number(val.replace(",", ".")) || 0;
     else props[name] = val;
+  }
+  for (let c = scope.firstElementChild; c; c = c.nextElementSibling) {
+    const name = c.localName || c.tagName;
+    if (!name || isKnownStructuralTag(name)) continue;
+    if ((scope.localName !== "Запись" && scope.tagName !== "Запись") && name === "ТабличныеЧасти") continue;
+
+    const link = firstChildByTag(c, "Ссылка") ?? firstDescendantByTag(c, "Ссылка");
+    const idText = firstIdText(c);
+    const val = textOf(c) || c.textContent?.trim() || "";
+    const refValue = link ? extIdOfRef(link) : normalizeExtId(idText || val);
+
+    if (refValue && /родител|групп|папк|folder|parent|категор|раздел/i.test(name)) refs[name] = refValue;
+    if (/булево|boolean/i.test(c.getAttribute("Тип") || "") || /это\s*(группа|папка)|is\s*(group|folder)/i.test(name)) bool[name] = boolOf(val);
+    else if (val && !(name in props)) props[name] = val;
   }
   return { props, refs, num, bool };
 }
@@ -181,6 +231,77 @@ async function loadExtMap(table: string, wsId: string): Promise<Map<string, stri
     from += step;
   }
   return map;
+}
+
+const NOMENCLATURE_PARENT_FIELDS = [
+  "Родитель", "Parent", "Группа", "Папка", "Folder", "Категория", "Раздел",
+  "РодительНоменклатуры", "ГруппаНоменклатуры", "НоменклатурнаяГруппа", "КатегорияНоменклатуры",
+];
+const NOMENCLATURE_GROUP_FLAGS = ["ЭтоГруппа", "Это группа", "IsGroup", "IsFolder", "ЭтоПапка", "Это папка"];
+const NOMENCLATURE_PATH_FIELDS = [
+  "ПолныйПуть", "Полный путь", "Путь", "Иерархия", "ПутьКПапке", "ПутьКГруппе",
+  "ПутьККатегории", "ПутьНоменклатуры", "РодительНаименование", "РодительПредставление",
+];
+
+function isNomenclatureType(type: string): boolean {
+  return /(^|[.\s])Номенклатура($|[.\s])/i.test(type);
+}
+function typeLooksLikeGroup(type: string): boolean {
+  return /(^|[.\s])(Группа|Folder)($|[.\s])/i.test(type) || /Номенклатура.*(Группа|Folder)/i.test(type);
+}
+function cleanFolderText(value: string): string {
+  return value.replace(/\s+/g, " ").replace(/^\s*[\\/>|»→:]+\s*|\s*[\\/>|»→:]+\s*$/g, "").trim();
+}
+function sameText(a: string, b: string): boolean {
+  return keyOf(a) === keyOf(b);
+}
+function splitFolderPath(value: string, itemName?: string): string[] {
+  const clean = cleanFolderText(value);
+  if (!clean || hasUuidLike(clean)) return [];
+  const parts = clean
+    .split(/\s*(?:\\|\/|>|»|→|\||::)\s*/g)
+    .map(cleanFolderText)
+    .filter(Boolean);
+  if (parts.length === 0) return [];
+  if (itemName && parts.length > 0 && sameText(parts[parts.length - 1], itemName)) parts.pop();
+  if (parts.length === 1 && itemName && sameText(parts[0], itemName)) return [];
+  return parts;
+}
+function readFolderPathParts(o: Obj, itemName?: string): string[] {
+  for (const field of NOMENCLATURE_PATH_FIELDS) {
+    const value = readNamed(o.props, [field]);
+    if (!value) continue;
+    const parts = splitFolderPath(value, itemName);
+    if (parts.length > 0) return parts;
+  }
+  for (const [key, value] of Object.entries(o.props)) {
+    const k = keyOf(key);
+    if (!k.includes("путь") && !k.includes("иерарх")) continue;
+    const parts = splitFolderPath(value, itemName);
+    if (parts.length > 0) return parts;
+  }
+  for (const field of ["ГруппаНоменклатуры", "НоменклатурнаяГруппа", "КатегорияНоменклатуры", "Категория", "Раздел", "Папка", "Группа"]) {
+    const value = readNamed(o.props, [field]);
+    if (!value) continue;
+    const parts = splitFolderPath(value, itemName);
+    if (parts.length > 0) return parts;
+  }
+  return [];
+}
+function hashText(value: string): string {
+  let hash = 2166136261;
+  for (let i = 0; i < value.length; i++) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+}
+function folderPathKey(parts: string[]): string {
+  return parts.map(p => keyOf(p)).join("/");
+}
+function folderPathExt(parts: string[]): string {
+  const key = folderPathKey(parts);
+  return `path:${hashText(key)}:${key.slice(-42)}`;
 }
 
 export async function importAll(
@@ -343,35 +464,69 @@ export async function importAll(
 
   // 8. Номенклатура: сначала все папки, потом товары
   {
-    const src = byType.get("СправочникСсылка.Номенклатура") ?? [];
+    const src = objs.filter(o => o.ext && isNomenclatureType(o.type));
     // Определяем группы: явный флаг ЭтоГруппа/IsFolder ИЛИ ext, на который ссылается
     // хотя бы один другой объект номенклатуры как на родителя.
     const parentRefs = new Set<string>();
     for (const o of src) {
-      const p = readRef(o, ["Родитель", "Группа", "Папка", "РодительНоменклатуры"]);
+      const p = readRef(o, NOMENCLATURE_PARENT_FIELDS);
       if (p) parentRefs.add(p);
     }
     const isGroup = (o: Obj) =>
-      readBool(o, ["ЭтоГруппа", "IsFolder", "ЭтоПапка"]) || (o.ext ? parentRefs.has(o.ext) : false);
+      typeLooksLikeGroup(o.type) || readBool(o, NOMENCLATURE_GROUP_FLAGS) || (o.ext ? parentRefs.has(o.ext) : false);
     const groups = src.filter(isGroup);
     const items  = src.filter(o => !isGroup(o));
 
+    const syntheticFolders = new Map<string, { ext: string; name: string; parentExt: string | null }>();
+    const pathFolderExtByObject = new Map<string, string>();
+    const addPathFolders = (parts: string[]): string | null => {
+      if (parts.length === 0) return null;
+      for (let i = 1; i <= parts.length; i++) {
+        const current = parts.slice(0, i);
+        const ext = folderPathExt(current);
+        if (!syntheticFolders.has(ext)) {
+          syntheticFolders.set(ext, {
+            ext,
+            name: parts[i - 1],
+            parentExt: i > 1 ? folderPathExt(parts.slice(0, i - 1)) : null,
+          });
+        }
+      }
+      return folderPathExt(parts);
+    };
+
+    for (const o of src) {
+      const name = readProp(o, ["Наименование", "НаименованиеПолное"]) || "";
+      const parts = readFolderPathParts(o, name);
+      const ext = addPathFolders(parts);
+      if (o.ext && ext) pathFolderExtByObject.set(o.ext, ext);
+    }
+
     // 8a. папки
-    onProgress("Папки номенклатуры", 0, groups.length);
     const folderRows = groups.map(o => ({
       ...base, ext_1c_id: o.ext,
       name: readProp(o, ["Наименование", "НаименованиеПолное"]) || "Папка",
-    }));
+    })).concat(Array.from(syntheticFolders.values()).map(f => ({
+      ...base, ext_1c_id: f.ext,
+      name: f.name || "Папка",
+    })));
+    onProgress("Папки номенклатуры", 0, folderRows.length, `из объектов: ${groups.length}, из путей: ${syntheticFolders.size}`);
     await batchUpsert("product_folders", folderRows);
     // parent
     const fmap = await loadExtMap("product_folders", wsId);
     for (const o of groups) {
-      const pExt = readRef(o, ["Родитель", "Группа", "Папка", "РодительНоменклатуры"]);
+      const pathExt = pathFolderExtByObject.get(o.ext!);
+      const pExt = readRef(o, NOMENCLATURE_PARENT_FIELDS) ?? (pathExt ? syntheticFolders.get(pathExt)?.parentExt ?? undefined : undefined);
       const id = fmap.get(o.ext!);
       const parent = pExt ? fmap.get(pExt) : null;
       if (id && parent) await (supabase as any).from("product_folders").update({ parent_id: parent }).eq("id", id);
     }
-    onProgress("Папки номенклатуры", groups.length, groups.length);
+    for (const f of syntheticFolders.values()) {
+      const id = fmap.get(f.ext);
+      const parent = f.parentExt ? fmap.get(f.parentExt) : null;
+      if (id) await (supabase as any).from("product_folders").update({ parent_id: parent }).eq("id", id);
+    }
+    onProgress("Папки номенклатуры", folderRows.length, folderRows.length, `из объектов: ${groups.length}, из путей: ${syntheticFolders.size}`);
 
     // 8b. товары
     const ptMap = await loadExtMap("product_types", wsId);
@@ -387,8 +542,13 @@ export async function importAll(
         const ptId = ptExt ? ptMap.get(ptExt) : null;
         const name = readProp(o, ["Наименование", "НаименованиеПолное"]) || "Товар";
         const isService = /услуг/i.test(name);
-        const parentExt = readRef(o, ["Родитель", "Группа", "Папка", "РодительНоменклатуры"]);
-        const folderId = parentExt ? fmap.get(parentExt) ?? null : null;
+        const parentExt = readRef(o, NOMENCLATURE_PARENT_FIELDS);
+        const pathExt = pathFolderExtByObject.get(o.ext!);
+        const folderId = parentExt && fmap.has(parentExt)
+          ? fmap.get(parentExt)!
+          : pathExt && fmap.has(pathExt)
+            ? fmap.get(pathExt)!
+            : null;
         if (parentExt) withParent += 1;
         if (folderId) withFolder += 1;
         return {
