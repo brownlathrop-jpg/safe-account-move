@@ -14,6 +14,7 @@ import { Save, Search, Loader2, Plus, Trash2, Database, Check, Pencil } from "lu
 import { lookupOrgByInn, lookupBankByBik } from "@/lib/dadata.functions";
 import { useActiveWorkspaceId, activeWorkspace } from "@/lib/workspace";
 import { WarehousesRef, ProductTypesRef, PriceTypesRef, CashflowItemsRef, BanksRef } from "@/components/settings-simple-refs";
+import { BankAccountsEditor } from "@/components/bank-accounts-editor";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({ meta: [{ title: "Настройки — КабинетCRM" }] }),
@@ -204,6 +205,12 @@ function SettingsPage() {
             <div className="space-y-2 md:col-span-2"><Label>Расчётный счёт</Label><Input value={form.bank_account} onChange={e => upd("bank_account", e.target.value)} /></div>
           </div>
         </div>
+
+        {form.id && (
+          <div className="border-t pt-4">
+            <BankAccountsEditor ownerType="organization" ownerId={form.id} />
+          </div>
+        )}
 
         <div>
           <h2 className="font-medium mb-3">Ответственные лица</h2>
