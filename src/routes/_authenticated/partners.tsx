@@ -15,6 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Plus, Pencil, Trash2, Search, Loader2 } from "lucide-react";
+import { BankAccountsEditor } from "@/components/bank-accounts-editor";
 
 export const Route = createFileRoute("/_authenticated/partners")({
   head: () => ({ meta: [{ title: "Контрагенты — КабинетCRM" }] }),
@@ -212,6 +213,16 @@ function PartnersPage() {
                 <Label>Комментарий</Label>
                 <Input value={editing.comment ?? ""} onChange={e => setEditing({ ...editing, comment: e.target.value })} />
               </div>
+              {editing.id && (
+                <div className="border-t pt-4">
+                  <BankAccountsEditor ownerType="partner" ownerId={editing.id} />
+                </div>
+              )}
+              {!editing.id && (
+                <div className="text-xs text-muted-foreground border-t pt-3">
+                  Банковские счета можно будет добавить после сохранения карточки.
+                </div>
+              )}
               <DialogFooter>
                 <Button type="button" variant="ghost" onClick={() => setOpen(false)}>Отмена</Button>
                 <Button type="submit">Сохранить</Button>
