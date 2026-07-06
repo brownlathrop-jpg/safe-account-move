@@ -389,9 +389,10 @@ function mergeObjectsByExt(src: Obj[]): Obj[] {
       continue;
     }
 
-    const existing = byExt.get(o.ext);
+    const mapKey = `${o.type}||${o.ext}`;
+    const existing = byExt.get(mapKey);
     if (!existing) {
-      byExt.set(o.ext, copyObj(o));
+      byExt.set(mapKey, copyObj(o));
       continue;
     }
 
