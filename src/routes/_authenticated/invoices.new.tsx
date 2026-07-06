@@ -11,6 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Trash2, Plus } from "lucide-react";
+import { ProductPicker, type PickedItem } from "@/components/ProductPicker";
+import { ProductPickerSingle } from "@/components/ProductPickerSingle";
 
 export const Route = createFileRoute("/_authenticated/invoices/new")({
   head: () => ({ meta: [{ title: "Новая заявка — КабинетCRM" }] }),
@@ -66,6 +68,7 @@ function NewInvoice() {
   const [partnerId, setPartnerId] = useState<string>("");
   const [note, setNote] = useState("");
   const [items, setItems] = useState<Item[]>([]);
+  const [pickRow, setPickRow] = useState<number | null>(null);
 
   const { data: products = [] } = useQuery({
     queryKey: ["products"],
@@ -191,7 +194,14 @@ function NewInvoice() {
       <Card className="p-0 overflow-hidden">
         <div className="p-4 border-b flex items-center justify-between">
           <h3 className="font-medium">Позиции</h3>
-          <Button size="sm" variant="outline" onClick={addItem}><Plus className="h-4 w-4 mr-1" /> Добавить</Button>
+          <div className="flex gap-2">
+            <ProductPicker
+              products={products as any}
+              kind={kind}
+              onAdd={(picked: PickedItem[]) => setItems((prev) => [...prev, ...picked])}
+            />
+            <Button size="sm" variant="outline" onClick={addItem}><Plus className="h-4 w-4 mr-1" /> Строка</Button>
+          </div>
         </div>
         <Table>
           <TableHeader>
@@ -210,12 +220,13 @@ function NewInvoice() {
             {items.map((it, idx) => (
               <TableRow key={idx}>
                 <TableCell>
-                  <Select value={it.product_id ?? ""} onValueChange={(v) => pickProduct(idx, v)}>
-                    <SelectTrigger><SelectValue placeholder="Выберите товар" /></SelectTrigger>
-                    <SelectContent>
-                      {products.map((p: any) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <button
+                    type="button"
+                    className="text-left w-full px-3 py-2 rounded-md border border-input bg-background hover:bg-accent transition-colors text-sm min-h-9"
+                    onClick={() => setPickRow(idx)}
+                  >
+                    {it.name || <span className="text-muted-foreground">Выберите товар</span>}
+                  </button>
                 </TableCell>
                 <TableCell><Input type="number" step="0.001" className="text-right" value={it.quantity} onChange={e => updateItem(idx, { quantity: Number(e.target.value) })} /></TableCell>
                 <TableCell><Input type="number" step="0.01" className="text-right" value={it.price} onChange={e => updateItem(idx, { price: Number(e.target.value) })} /></TableCell>
@@ -230,6 +241,13 @@ function NewInvoice() {
           <span className="text-xl font-semibold">{fmt.format(total)}</span>
         </div>
       </Card>
+
+      <ProductPickerSingle
+        open={pickRow !== null}
+        onOpenChange={(v) => { if (!v) setPickRow(null); }}
+        products={products as any}
+        onPick={(productId) => { if (pickRow !== null) pickProduct(pickRow, productId); }}
+      />
 
       <Card className="p-5">
         <Label>Комментарий</Label>
