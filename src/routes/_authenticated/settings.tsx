@@ -477,3 +477,163 @@ function NumberingRef() {
     </Card>
   );
 }
+
+// ============ БАЗЫ ДАННЫХ ============
+// Каждая "база данных" — это независимый набор данных: свои контрагенты,
+// товары, накладные, справочники и организация. Пользователь может создавать
+// несколько баз (например «Тестовая» и «Основная») и переключаться между ними.
+
+type WS = { id: string; name: string; created_at: string };
+
+function WorkspacesRef() {
+  const qc = useQueryClient();
+  const activeId = useActiveWorkspaceId();
+  const [newName, setNewName] = useState("");
+  const [renameId, setRenameId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+
+  const { data: list = [] } = useQuery({
+    queryKey: ["workspaces"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("workspaces")
+        .select("id,name,created_at")
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as WS[];
+    },
+  });
+
+  const create = useMutation({
+    mutationFn: async () => {
+      const n = newName.trim();
+      if (!n) throw new Error("Введите название базы");
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Нет сессии");
+      const { error } = await (supabase as any).from("workspaces").insert({ user_id: user.id, name: n });
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["workspaces"] }); setNewName(""); toast.success("База создана"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const rename = useMutation({
+    mutationFn: async () => {
+      const n = renameValue.trim();
+      if (!n || !renameId) throw new Error("Введите название");
+      const { error } = await (supabase as any).from("workspaces").update({ name: n }).eq("id", renameId);
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["workspaces"] }); setRenameId(null); setRenameValue(""); toast.success("Переименовано"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  // Удаление возможно только у ПУСТОЙ базы (без контрагентов, товаров,
+  // накладных, единиц, статусов, папок и организаций).
+  const remove = useMutation({
+    mutationFn: async (id: string) => {
+      if (id === activeId) throw new Error("Нельзя удалить активную базу. Сначала переключитесь на другую.");
+      if (list.length <= 1) throw new Error("Нельзя удалить единственную базу");
+      const tables = ["partners", "products", "product_folders", "invoices", "invoice_statuses", "units", "organizations"] as const;
+      for (const t of tables) {
+        const { count, error } = await (supabase as any)
+          .from(t).select("id", { count: "exact", head: true }).eq("workspace_id", id);
+        if (error) throw error;
+        if ((count ?? 0) > 0) throw new Error("Нельзя удалить непустую базу. Сначала очистите её данные.");
+      }
+      const { error } = await (supabase as any).from("workspaces").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["workspaces"] }); toast.success("База удалена"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const switchTo = (id: string) => {
+    if (id === activeId) return;
+    activeWorkspace.set(id);
+    qc.invalidateQueries();
+  };
+
+  return (
+    <Card className="p-5 space-y-4">
+      <div>
+        <h2 className="font-medium mb-1 flex items-center gap-2"><Database className="h-4 w-4" /> Мои базы данных</h2>
+        <p className="text-sm text-muted-foreground">У каждой базы свой список контрагентов, товаров, накладных и настроек. Переключайтесь между базами, чтобы вести разные организации или проекты отдельно.</p>
+      </div>
+
+      <div className="border rounded-md divide-y">
+        {list.length === 0 && (
+          <div className="p-4 text-sm text-muted-foreground">Пока нет баз</div>
+        )}
+        {list.map((w) => {
+          const isActive = w.id === activeId;
+          const isRenaming = renameId === w.id;
+          return (
+            <div key={w.id} className="flex items-center gap-2 p-3">
+              <button
+                onClick={() => switchTo(w.id)}
+                className={`h-7 w-7 rounded-full border flex items-center justify-center shrink-0 ${isActive ? "bg-primary text-primary-foreground border-primary" : "hover:bg-accent"}`}
+                title={isActive ? "Активная" : "Сделать активной"}
+              >
+                {isActive && <Check className="h-4 w-4" />}
+              </button>
+              {isRenaming ? (
+                <>
+                  <Input
+                    value={renameValue}
+                    onChange={(e) => setRenameValue(e.target.value)}
+                    className="flex-1"
+                    autoFocus
+                    onKeyDown={(e) => { if (e.key === "Enter") rename.mutate(); if (e.key === "Escape") setRenameId(null); }}
+                  />
+                  <Button size="sm" onClick={() => rename.mutate()} disabled={rename.isPending}>Сохранить</Button>
+                  <Button size="sm" variant="ghost" onClick={() => setRenameId(null)}>Отмена</Button>
+                </>
+              ) : (
+                <>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium truncate">
+                      {w.name}
+                      {isActive && <span className="ml-2 text-xs text-primary">активная</span>}
+                    </div>
+                  </div>
+                  <Button size="icon" variant="ghost" onClick={() => { setRenameId(w.id); setRenameValue(w.name); }} title="Переименовать">
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => { if (confirm(`Удалить базу "${w.name}"?`)) remove.mutate(w.id); }}
+                    title="Удалить"
+                    disabled={isActive || list.length <= 1}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="flex gap-2 items-end pt-2">
+        <div className="flex-1 space-y-2">
+          <Label>Новая база</Label>
+          <Input
+            placeholder="Например: Основная"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") create.mutate(); }}
+          />
+        </div>
+        <Button onClick={() => create.mutate()} disabled={create.isPending || !newName.trim()}>
+          <Plus className="h-4 w-4 mr-1" /> Создать
+        </Button>
+      </div>
+
+      <p className="text-xs text-muted-foreground">
+        Удалить можно только пустую базу — сначала очистите её данные. Активную базу нельзя удалить, переключитесь на другую.
+      </p>
+    </Card>
+  );
+}
