@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Upload, FileWarning } from "lucide-react";
+import { Upload, FileWarning, Loader2, CheckCircle2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useActiveWorkspaceId } from "@/lib/workspace";
 import { importAll } from "@/lib/import-1c";
@@ -17,20 +17,37 @@ export function Import1CPanel() {
   const [done, setDone] = useState(0);
   const [total, setTotal] = useState(0);
   const [note, setNote] = useState("");
-  const [log, setLog] = useState<string[]>([]);
+  const [log, setLog] = useState<{ stage: string; done: number; total: number; note: string; finished: boolean }[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [elapsed, setElapsed] = useState(0);
+  const startedAtRef = useRef<number>(0);
+
+  useEffect(() => {
+    if (!busy) return;
+    const id = setInterval(() => setElapsed(Math.floor((Date.now() - startedAtRef.current) / 1000)), 250);
+    return () => clearInterval(id);
+  }, [busy]);
 
   const onFile = async (file: File) => {
     if (!wsId) { toast.error("Не выбрана база данных"); return; }
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { toast.error("Нет сессии"); return; }
-    setBusy(true); setError(null); setLog([]);
+    setBusy(true); setError(null); setLog([]); setStage(""); setDone(0); setTotal(0); setNote("");
+    startedAtRef.current = Date.now(); setElapsed(0);
     try {
       const xml = await file.text();
       await importAll(xml, wsId, user.id, (s, d, t, n) => {
         setStage(s); setDone(d); setTotal(t); setNote(n || "");
-        setLog(prev => (prev[prev.length - 1]?.startsWith(s) ? [...prev.slice(0, -1), `${s}: ${d}/${t}${n ? " — " + n : ""}`] : [...prev, `${s}: ${d}/${t}${n ? " — " + n : ""}`]));
+        setLog(prev => {
+          const entry = { stage: s, done: d, total: t, note: n || "", finished: t > 0 && d >= t };
+          const last = prev[prev.length - 1];
+          if (last && last.stage === s) return [...prev.slice(0, -1), entry];
+          // помечаем предыдущий этап завершённым
+          const withPrevDone = last ? [...prev.slice(0, -1), { ...last, finished: true }] : [];
+          return [...withPrevDone, entry];
+        });
       });
+      setLog(prev => prev.map((l, i) => i === prev.length - 1 ? { ...l, finished: true } : l));
       toast.success("Импорт справочников завершён");
       qc.invalidateQueries();
     } catch (e: any) {
@@ -42,6 +59,7 @@ export function Import1CPanel() {
   };
 
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+  const fmtTime = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 
   return (
     <Card className="p-5 space-y-4">
@@ -58,15 +76,33 @@ export function Import1CPanel() {
         <label className="inline-flex items-center gap-2 cursor-pointer">
           <input type="file" accept=".xml,application/xml" hidden disabled={busy}
             onChange={e => { const f = e.target.files?.[0]; if (f) onFile(f); e.target.value = ""; }} />
-          <Button asChild disabled={busy}><span><Upload className="h-4 w-4 mr-1" />{busy ? "Импортирую…" : "Выбрать файл XML"}</span></Button>
+          <Button asChild disabled={busy}><span>
+            {busy ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Upload className="h-4 w-4 mr-1" />}
+            {busy ? "Импортирую…" : "Выбрать файл XML"}
+          </span></Button>
         </label>
-        {busy && <span className="text-sm text-muted-foreground">{stage}: {done}/{total} {note && `— ${note}`}</span>}
       </div>
 
       {busy && (
-        <div className="space-y-2">
+        <div className="space-y-2 rounded-md border bg-primary/5 p-3">
+          <div className="flex items-center justify-between text-sm">
+            <div className="flex items-center gap-2 font-medium">
+              <Loader2 className="h-4 w-4 animate-spin text-primary" />
+              Идёт импорт: {stage || "подготовка…"}
+            </div>
+            <div className="tabular-nums text-muted-foreground">
+              {done}/{total} · {pct}% · {fmtTime(elapsed)}
+            </div>
+          </div>
           <Progress value={pct} />
+          {note && <div className="text-xs text-muted-foreground">{note}</div>}
           <p className="text-xs text-muted-foreground">Не закрывайте вкладку — обработка идёт в браузере.</p>
+        </div>
+      )}
+
+      {!busy && log.length > 0 && !error && (
+        <div className="flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400 font-medium">
+          <CheckCircle2 className="h-4 w-4" /> Импорт завершён за {fmtTime(elapsed)}
         </div>
       )}
 
@@ -79,7 +115,15 @@ export function Import1CPanel() {
 
       {log.length > 0 && (
         <div className="border rounded p-3 bg-muted/30 max-h-64 overflow-y-auto font-mono text-xs space-y-0.5">
-          {log.map((l, i) => <div key={i}>{l}</div>)}
+          {log.map((l, i) => {
+            const isCurrent = busy && i === log.length - 1 && !l.finished;
+            const icon = isCurrent ? "⏳" : l.finished ? "✓" : "•";
+            return (
+              <div key={i} className={isCurrent ? "text-foreground" : l.finished ? "text-emerald-600 dark:text-emerald-400" : ""}>
+                {icon} {l.stage}: {l.done}/{l.total}{l.note ? ` — ${l.note}` : ""}
+              </div>
+            );
+          })}
         </div>
       )}
     </Card>
