@@ -80,32 +80,32 @@ function NewInvoice() {
   const [note, setNote] = useState("");
   const [items, setItems] = useState<Item[]>([]);
   const [pickRow, setPickRow] = useState<number | null>(null);
-  const draftLoaded = useRef(false);
+  const [draftReady, setDraftReady] = useState(false);
 
   // Load draft from localStorage on mount
   useEffect(() => {
-    if (draftLoaded.current) return;
-    draftLoaded.current = true;
     try {
       const raw = typeof window !== "undefined" ? localStorage.getItem(DRAFT_KEY) : null;
-      if (!raw) return;
-      const d = JSON.parse(raw) as Draft;
-      if (d.kind) setKind(d.kind);
-      if (d.number) { setNumber(d.number); numberTouched.current = !!d.numberTouched; }
-      if (d.date) setDate(d.date);
-      if (d.partnerId) setPartnerId(d.partnerId);
-      if (d.note) setNote(d.note);
-      if (Array.isArray(d.items)) setItems(d.items);
+      if (raw) {
+        const d = JSON.parse(raw) as Draft;
+        if (d.kind) setKind(d.kind);
+        if (d.number) { setNumber(d.number); numberTouched.current = !!d.numberTouched; }
+        if (d.date) setDate(d.date);
+        if (d.partnerId) setPartnerId(d.partnerId);
+        if (d.note) setNote(d.note);
+        if (Array.isArray(d.items)) setItems(d.items);
+      }
     } catch {}
+    setDraftReady(true);
   }, []);
 
   // Persist draft on every change (after initial load)
   useEffect(() => {
-    if (!draftLoaded.current) return;
+    if (!draftReady) return;
     if (typeof window === "undefined") return;
     const d: Draft = { kind, number, date, partnerId, note, items, numberTouched: numberTouched.current };
     try { localStorage.setItem(DRAFT_KEY, JSON.stringify(d)); } catch {}
-  }, [kind, number, date, partnerId, note, items]);
+  }, [draftReady, kind, number, date, partnerId, note, items]);
 
   const clearDraft = () => {
     try { localStorage.removeItem(DRAFT_KEY); } catch {}
