@@ -130,6 +130,7 @@ function SettingsPage() {
           <TabsTrigger value="workspaces">База данных</TabsTrigger>
           <TabsTrigger value="org">Организация</TabsTrigger>
           <TabsTrigger value="refs">Справочники</TabsTrigger>
+          <TabsTrigger value="import">Импорт из 1С</TabsTrigger>
         </TabsList>
 
         <TabsContent value="workspaces" className="mt-5">
