@@ -2,9 +2,8 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, ArrowDownToLine, ArrowUpFromLine, Receipt, Truck } from "lucide-react";
+import { ArrowDownToLine, ArrowUpFromLine, Receipt, Truck } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/invoices/")({
   head: () => ({ meta: [{ title: "Заявки — КабинетCRM" }] }),
@@ -30,12 +29,9 @@ function InvoicesPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">Заявки</h1>
-          <p className="text-sm text-muted-foreground">Заявки покупателей и поставщикам. Накладные и ПКО создаются на их основании.</p>
-        </div>
-        <Link to="/invoices/new"><Button><Plus className="h-4 w-4 mr-1" /> Новая заявка</Button></Link>
+      <div>
+        <h1 className="text-2xl font-semibold">Заявки</h1>
+        <p className="text-sm text-muted-foreground">Заявки покупателей и поставщикам. Накладные и ПКО создаются на их основании.</p>
       </div>
 
       <Card className="p-0 overflow-hidden">
