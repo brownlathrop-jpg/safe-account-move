@@ -519,6 +519,21 @@ function InvoiceView() {
               </Select>
             </div>
           </div>
+          {isShipment && (
+            <div className="mt-3 max-w-xs space-y-1">
+              <Label className="text-xs">Склад {inv.status === "posted" ? "" : "*"}</Label>
+              <Select value={warehouseId || undefined} onValueChange={setWarehouseId} disabled={!editable || inv.status === "posted"}>
+                <SelectTrigger className="h-8"><SelectValue placeholder="Выберите склад" /></SelectTrigger>
+                <SelectContent>
+                  {warehouses.length === 0 && <div className="px-2 py-1.5 text-sm text-muted-foreground">Нет складов — добавьте в Настройках</div>}
+                  {warehouses.map(w => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                При проведении накладной {kind === "outgoing" ? "товар спишется с этого склада" : "товар придёт на этот склад"}.
+              </p>
+            </div>
+          )}
         </Card>
 
         {isPKO ? (
