@@ -16,6 +16,7 @@ import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuIte
 import { amountInWords } from "@/lib/amount-in-words";
 import { ProductPicker, type PickedItem } from "@/components/ProductPicker";
 import { ProductPickerSingle } from "@/components/ProductPickerSingle";
+import { useActiveWorkspaceId } from "@/lib/workspace";
 
 export const Route = createFileRoute("/_authenticated/invoices/$id")({
   head: () => ({ meta: [{ title: "Накладная — КабинетCRM" }] }),
@@ -39,6 +40,7 @@ function InvoiceView() {
   const { id } = Route.useParams();
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const wsId = useActiveWorkspaceId();
 
   const { data: inv, isLoading, error } = useQuery({
     queryKey: ["invoice", id],
@@ -53,32 +55,36 @@ function InvoiceView() {
   });
 
   const { data: products = [] } = useQuery({
-    queryKey: ["products"],
-    queryFn: async () => (await supabase.from("products").select("id,name,price,cost,unit,kind").order("name")).data ?? [],
+    queryKey: ["products", wsId],
+    enabled: !!wsId,
+    queryFn: async () => (await (supabase as any).from("products").select("id,name,price,cost,unit,kind").eq("workspace_id", wsId).order("name")).data ?? [],
   });
   const { data: partners = [] } = useQuery({
-    queryKey: ["partners"],
-    queryFn: async () => (await supabase.from("partners").select("id,name,kind").order("name")).data ?? [],
+    queryKey: ["partners", wsId],
+    enabled: !!wsId,
+    queryFn: async () => (await (supabase as any).from("partners").select("id,name,kind").eq("workspace_id", wsId).order("name")).data ?? [],
   });
   const { data: myOrg } = useQuery({
-    queryKey: ["my-organization"],
-    queryFn: async () => (await supabase.from("organizations").select("*").order("is_primary", { ascending: false }).limit(1).maybeSingle()).data,
+    queryKey: ["my-organization", wsId],
+    enabled: !!wsId,
+    queryFn: async () => (await (supabase as any).from("organizations").select("*").eq("workspace_id", wsId).order("is_primary", { ascending: false }).limit(1).maybeSingle()).data,
   });
   const { data: statuses = [] } = useQuery({
-    queryKey: ["invoice_statuses"],
+    queryKey: ["invoice_statuses", wsId],
+    enabled: !!wsId,
     queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return [];
-      let { data } = await supabase.from("invoice_statuses").select("id,name,color,sort_order").order("sort_order");
+      let { data } = await (supabase as any).from("invoice_statuses").select("id,name,color,sort_order").eq("workspace_id", wsId).order("sort_order");
       if (!data || data.length === 0) {
         const defaults = [
           { name: "Новый", color: "#64748b", sort_order: 0 },
           { name: "Предоплата", color: "#eab308", sort_order: 1 },
           { name: "Оплачен", color: "#3b82f6", sort_order: 2 },
           { name: "Выполнен", color: "#22c55e", sort_order: 3 },
-        ].map(s => ({ ...s, user_id: user.id }));
-        await supabase.from("invoice_statuses").insert(defaults);
-        ({ data } = await supabase.from("invoice_statuses").select("id,name,color,sort_order").order("sort_order"));
+        ].map(s => ({ ...s, user_id: user.id, workspace_id: wsId }));
+        await (supabase as any).from("invoice_statuses").insert(defaults);
+        ({ data } = await (supabase as any).from("invoice_statuses").select("id,name,color,sort_order").eq("workspace_id", wsId).order("sort_order"));
       }
       return (data ?? []) as { id: string; name: string; color: string; sort_order: number }[];
     },
@@ -241,6 +247,7 @@ function InvoiceView() {
       const cleanNum = String(inv!.number).replace(/^№\s*/, "");
       const { data: ship, error } = await (supabase as any).from("invoices").insert({
         user_id: user.id,
+        workspace_id: inv!.workspace_id ?? wsId,
         number: `Н-${cleanNum}`,
         kind: inv!.kind,
         partner_id: inv!.partner_id,
@@ -278,6 +285,7 @@ function InvoiceView() {
       const cleanNum = String(inv!.number).replace(/^№\s*/, "");
       const { data: pko, error } = await (supabase as any).from("invoices").insert({
         user_id: user.id,
+        workspace_id: inv!.workspace_id ?? wsId,
         number: `ПКО-${cleanNum}`,
         kind: inv!.kind,
         partner_id: inv!.partner_id,

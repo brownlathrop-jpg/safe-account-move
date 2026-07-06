@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useActiveWorkspaceId } from "@/lib/workspace";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ArrowDownToLine, ArrowUpFromLine, Receipt, Truck } from "lucide-react";
@@ -14,13 +15,16 @@ const fmt = new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB" 
 const dfmt = new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" });
 
 function InvoicesPage() {
+  const wsId = useActiveWorkspaceId();
   const { data: invoices = [] } = useQuery({
-    queryKey: ["invoices", "orders"],
+    queryKey: ["invoices", "orders", wsId],
+    enabled: !!wsId,
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("invoices")
         .select("id,number,kind,status,status_id,total,issue_date,partner:partners(name),status_ref:invoice_statuses(name,color),children:invoices!parent_id(id,doc_type)")
         .eq("doc_type", "order")
+        .eq("workspace_id", wsId)
         .order("issue_date", { ascending: false });
       if (error) throw error;
       return data as any[];

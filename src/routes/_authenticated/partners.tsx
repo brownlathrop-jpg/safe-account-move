@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { lookupOrgByInn } from "@/lib/dadata.functions";
+import { useActiveWorkspaceId } from "@/lib/workspace";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,6 +25,7 @@ type Partner = { id: string; kind: "customer" | "supplier"; name: string; inn: s
 
 function PartnersPage() {
   const qc = useQueryClient();
+  const wsId = useActiveWorkspaceId();
   const [editing, setEditing] = useState<Partial<Partner> | null>(null);
   const [open, setOpen] = useState(false);
   const lookupOrg = useServerFn(lookupOrgByInn);
@@ -38,9 +40,10 @@ function PartnersPage() {
   });
 
   const { data: partners = [] } = useQuery({
-    queryKey: ["partners-list"],
+    queryKey: ["partners-list", wsId],
+    enabled: !!wsId,
     queryFn: async () => {
-      const { data, error } = await supabase.from("partners").select("*").order("name");
+      const { data, error } = await (supabase as any).from("partners").select("*").eq("workspace_id", wsId).order("name");
       if (error) throw error;
       return data as Partner[];
     },
@@ -50,18 +53,20 @@ function PartnersPage() {
     mutationFn: async (p: Partial<Partner>) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Нет сессии");
+      if (!wsId) throw new Error("Не выбрана база данных");
       const payload = {
         user_id: user.id,
+        workspace_id: wsId,
         kind: p.kind || "customer",
         name: p.name!,
         inn: p.inn || null, phone: p.phone || null,
         email: p.email || null, address: p.address || null,
       };
       if (p.id) {
-        const { error } = await supabase.from("partners").update(payload).eq("id", p.id);
+        const { error } = await (supabase as any).from("partners").update(payload).eq("id", p.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from("partners").insert(payload);
+        const { error } = await (supabase as any).from("partners").insert(payload);
         if (error) throw error;
       }
     },

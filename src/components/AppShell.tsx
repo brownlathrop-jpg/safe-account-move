@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { useQueryClient } from "@tanstack/react-query";
+import { WorkspaceSwitcher } from "@/components/WorkspaceSwitcher";
 
 const nav = [
   { to: "/dashboard", label: "Аналитика", icon: LayoutDashboard },
@@ -55,6 +56,9 @@ export function AppShell({ children }: { children: ReactNode }) {
           })}
         </nav>
         <div className="p-3 border-t">
+          <div className="mb-2">
+            <WorkspaceSwitcher />
+          </div>
           <Link to="/invoices/new" className="block mb-2" onClick={flushInvoiceDraft}>
             <Button className="w-full" size="sm"><Plus className="h-4 w-4 mr-1" /> Новая заявка</Button>
           </Link>

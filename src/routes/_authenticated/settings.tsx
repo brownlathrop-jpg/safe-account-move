@@ -10,11 +10,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Save, Search, Loader2, Plus, Trash2 } from "lucide-react";
+import { Save, Search, Loader2, Plus, Trash2, Database, Check, Pencil } from "lucide-react";
 import { lookupOrgByInn, lookupBankByBik } from "@/lib/dadata.functions";
+import { useActiveWorkspaceId, activeWorkspace } from "@/lib/workspace";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({ meta: [{ title: "Настройки — КабинетCRM" }] }),
+  validateSearch: (s: Record<string, unknown>) => ({ tab: typeof s.tab === "string" ? s.tab : undefined }),
   component: SettingsPage,
 });
 
@@ -50,11 +52,15 @@ const empty: Org = {
 
 function SettingsPage() {
   const qc = useQueryClient();
+  const wsId = useActiveWorkspaceId();
+  const { tab } = Route.useSearch();
   const { data: org } = useQuery({
-    queryKey: ["my-organization"],
+    queryKey: ["my-organization", wsId],
+    enabled: !!wsId,
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("organizations").select("*")
+        .eq("workspace_id", wsId)
         .order("is_primary", { ascending: false })
         .limit(1).maybeSingle();
       if (error) throw error;
@@ -94,13 +100,14 @@ function SettingsPage() {
     mutationFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Нет сессии");
+      if (!wsId) throw new Error("Не выбрана база данных");
       if (!form.name.trim()) throw new Error("Укажите название организации");
-      const payload = { ...form, user_id: user.id, is_primary: true };
+      const payload = { ...form, user_id: user.id, workspace_id: wsId, is_primary: true };
       if (form.id) {
-        const { error } = await supabase.from("organizations").update(payload).eq("id", form.id);
+        const { error } = await (supabase as any).from("organizations").update(payload).eq("id", form.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from("organizations").insert(payload);
+        const { error } = await (supabase as any).from("organizations").insert(payload);
         if (error) throw error;
       }
     },
@@ -115,11 +122,16 @@ function SettingsPage() {
         <p className="text-sm text-muted-foreground">Реквизиты организации и справочники</p>
       </div>
 
-      <Tabs defaultValue="org">
+      <Tabs defaultValue={tab || "org"}>
         <TabsList>
+          <TabsTrigger value="workspaces">База данных</TabsTrigger>
           <TabsTrigger value="org">Организация</TabsTrigger>
           <TabsTrigger value="refs">Справочники</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="workspaces" className="mt-5">
+          <WorkspacesRef />
+        </TabsContent>
 
         <TabsContent value="org" className="mt-5">
       <Card className="p-5 space-y-5">
@@ -223,13 +235,15 @@ type Unit = { id: string; short_name: string; full_name: string | null };
 
 function UnitsRef() {
   const qc = useQueryClient();
+  const wsId = useActiveWorkspaceId();
   const [short, setShort] = useState("");
   const [full, setFull] = useState("");
 
   const { data: units = [] } = useQuery({
-    queryKey: ["units"],
+    queryKey: ["units", wsId],
+    enabled: !!wsId,
     queryFn: async () => {
-      const { data, error } = await supabase.from("units").select("id,short_name,full_name").order("short_name");
+      const { data, error } = await (supabase as any).from("units").select("id,short_name,full_name").eq("workspace_id", wsId).order("short_name");
       if (error) throw error;
       return data as Unit[];
     },
@@ -241,8 +255,9 @@ function UnitsRef() {
       if (!s) throw new Error("Введите краткое название");
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Нет сессии");
-      const { error } = await supabase.from("units").insert({
-        user_id: user.id, short_name: s, full_name: full.trim() || null,
+      if (!wsId) throw new Error("Не выбрана база данных");
+      const { error } = await (supabase as any).from("units").insert({
+        user_id: user.id, workspace_id: wsId, short_name: s, full_name: full.trim() || null,
       });
       if (error) throw error;
     },
@@ -296,24 +311,26 @@ type InvStatus = { id: string; name: string; color: string; sort_order: number }
 
 function InvoiceStatusesRef() {
   const qc = useQueryClient();
+  const wsId = useActiveWorkspaceId();
   const [name, setName] = useState("");
   const [color, setColor] = useState("#64748b");
 
   const { data: statuses = [] } = useQuery({
-    queryKey: ["invoice_statuses"],
+    queryKey: ["invoice_statuses", wsId],
+    enabled: !!wsId,
     queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return [];
-      let { data } = await supabase.from("invoice_statuses").select("id,name,color,sort_order").order("sort_order");
+      let { data } = await (supabase as any).from("invoice_statuses").select("id,name,color,sort_order").eq("workspace_id", wsId).order("sort_order");
       if (!data || data.length === 0) {
         const defaults = [
           { name: "Новый", color: "#64748b", sort_order: 0 },
           { name: "Предоплата", color: "#eab308", sort_order: 1 },
           { name: "Оплачен", color: "#3b82f6", sort_order: 2 },
           { name: "Выполнен", color: "#22c55e", sort_order: 3 },
-        ].map(s => ({ ...s, user_id: user.id }));
-        await supabase.from("invoice_statuses").insert(defaults);
-        ({ data } = await supabase.from("invoice_statuses").select("id,name,color,sort_order").order("sort_order"));
+        ].map(s => ({ ...s, user_id: user.id, workspace_id: wsId }));
+        await (supabase as any).from("invoice_statuses").insert(defaults);
+        ({ data } = await (supabase as any).from("invoice_statuses").select("id,name,color,sort_order").eq("workspace_id", wsId).order("sort_order"));
       }
       return (data ?? []) as InvStatus[];
     },
@@ -325,9 +342,10 @@ function InvoiceStatusesRef() {
       if (!n) throw new Error("Введите название статуса");
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Нет сессии");
+      if (!wsId) throw new Error("Не выбрана база данных");
       const maxOrder = statuses.reduce((m, s) => Math.max(m, s.sort_order), -1);
-      const { error } = await supabase.from("invoice_statuses").insert({
-        user_id: user.id, name: n, color, sort_order: maxOrder + 1,
+      const { error } = await (supabase as any).from("invoice_statuses").insert({
+        user_id: user.id, workspace_id: wsId, name: n, color, sort_order: maxOrder + 1,
       });
       if (error) throw error;
     },
@@ -403,9 +421,11 @@ function StatusRow({ status, onSave, onDelete }: { status: InvStatus; onSave: (p
 
 function NumberingRef() {
   const qc = useQueryClient();
+  const wsId = useActiveWorkspaceId();
   const { data: org } = useQuery({
-    queryKey: ["my-organization"],
-    queryFn: async () => (await supabase.from("organizations").select("id,invoice_number_mask,invoice_number_start,name").order("is_primary", { ascending: false }).limit(1).maybeSingle()).data,
+    queryKey: ["my-organization", wsId],
+    enabled: !!wsId,
+    queryFn: async () => (await (supabase as any).from("organizations").select("id,invoice_number_mask,invoice_number_start,name").eq("workspace_id", wsId).order("is_primary", { ascending: false }).limit(1).maybeSingle()).data,
   });
   const [mask, setMask] = useState("");
   const [start, setStart] = useState<number>(1);
@@ -420,12 +440,13 @@ function NumberingRef() {
     mutationFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Нет сессии");
+      if (!wsId) throw new Error("Не выбрана база данных");
       const payload = { invoice_number_mask: mask, invoice_number_start: Math.max(1, Math.floor(Number(start) || 1)) };
       if (org && (org as any).id) {
-        const { error } = await supabase.from("organizations").update(payload).eq("id", (org as any).id);
+        const { error } = await (supabase as any).from("organizations").update(payload).eq("id", (org as any).id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from("organizations").insert({ user_id: user.id, name: "Моя организация", is_primary: true, ...payload });
+        const { error } = await (supabase as any).from("organizations").insert({ user_id: user.id, workspace_id: wsId, name: "Моя организация", is_primary: true, ...payload });
         if (error) throw error;
       }
     },
@@ -452,6 +473,166 @@ function NumberingRef() {
       </div>
       <p className="text-xs text-muted-foreground">
         Подстановки: <code>{"{YYYY}"}</code>, <code>{"{YY}"}</code>, <code>{"{MM}"}</code>, <code>{"{DD}"}</code>, <code>{"{N}"}</code>, <code>{"{NN}"}</code>, <code>{"{NNN}"}</code>, <code>{"{NNNN}"}</code>
+      </p>
+    </Card>
+  );
+}
+
+// ============ БАЗЫ ДАННЫХ ============
+// Каждая "база данных" — это независимый набор данных: свои контрагенты,
+// товары, накладные, справочники и организация. Пользователь может создавать
+// несколько баз (например «Тестовая» и «Основная») и переключаться между ними.
+
+type WS = { id: string; name: string; created_at: string };
+
+function WorkspacesRef() {
+  const qc = useQueryClient();
+  const activeId = useActiveWorkspaceId();
+  const [newName, setNewName] = useState("");
+  const [renameId, setRenameId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+
+  const { data: list = [] } = useQuery({
+    queryKey: ["workspaces"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("workspaces")
+        .select("id,name,created_at")
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as WS[];
+    },
+  });
+
+  const create = useMutation({
+    mutationFn: async () => {
+      const n = newName.trim();
+      if (!n) throw new Error("Введите название базы");
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Нет сессии");
+      const { error } = await (supabase as any).from("workspaces").insert({ user_id: user.id, name: n });
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["workspaces"] }); setNewName(""); toast.success("База создана"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const rename = useMutation({
+    mutationFn: async () => {
+      const n = renameValue.trim();
+      if (!n || !renameId) throw new Error("Введите название");
+      const { error } = await (supabase as any).from("workspaces").update({ name: n }).eq("id", renameId);
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["workspaces"] }); setRenameId(null); setRenameValue(""); toast.success("Переименовано"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  // Удаление возможно только у ПУСТОЙ базы (без контрагентов, товаров,
+  // накладных, единиц, статусов, папок и организаций).
+  const remove = useMutation({
+    mutationFn: async (id: string) => {
+      if (id === activeId) throw new Error("Нельзя удалить активную базу. Сначала переключитесь на другую.");
+      if (list.length <= 1) throw new Error("Нельзя удалить единственную базу");
+      const tables = ["partners", "products", "product_folders", "invoices", "invoice_statuses", "units", "organizations"] as const;
+      for (const t of tables) {
+        const { count, error } = await (supabase as any)
+          .from(t).select("id", { count: "exact", head: true }).eq("workspace_id", id);
+        if (error) throw error;
+        if ((count ?? 0) > 0) throw new Error("Нельзя удалить непустую базу. Сначала очистите её данные.");
+      }
+      const { error } = await (supabase as any).from("workspaces").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["workspaces"] }); toast.success("База удалена"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const switchTo = (id: string) => {
+    if (id === activeId) return;
+    activeWorkspace.set(id);
+    qc.invalidateQueries();
+  };
+
+  return (
+    <Card className="p-5 space-y-4">
+      <div>
+        <h2 className="font-medium mb-1 flex items-center gap-2"><Database className="h-4 w-4" /> Мои базы данных</h2>
+        <p className="text-sm text-muted-foreground">У каждой базы свой список контрагентов, товаров, накладных и настроек. Переключайтесь между базами, чтобы вести разные организации или проекты отдельно.</p>
+      </div>
+
+      <div className="border rounded-md divide-y">
+        {list.length === 0 && (
+          <div className="p-4 text-sm text-muted-foreground">Пока нет баз</div>
+        )}
+        {list.map((w) => {
+          const isActive = w.id === activeId;
+          const isRenaming = renameId === w.id;
+          return (
+            <div key={w.id} className="flex items-center gap-2 p-3">
+              <button
+                onClick={() => switchTo(w.id)}
+                className={`h-7 w-7 rounded-full border flex items-center justify-center shrink-0 ${isActive ? "bg-primary text-primary-foreground border-primary" : "hover:bg-accent"}`}
+                title={isActive ? "Активная" : "Сделать активной"}
+              >
+                {isActive && <Check className="h-4 w-4" />}
+              </button>
+              {isRenaming ? (
+                <>
+                  <Input
+                    value={renameValue}
+                    onChange={(e) => setRenameValue(e.target.value)}
+                    className="flex-1"
+                    autoFocus
+                    onKeyDown={(e) => { if (e.key === "Enter") rename.mutate(); if (e.key === "Escape") setRenameId(null); }}
+                  />
+                  <Button size="sm" onClick={() => rename.mutate()} disabled={rename.isPending}>Сохранить</Button>
+                  <Button size="sm" variant="ghost" onClick={() => setRenameId(null)}>Отмена</Button>
+                </>
+              ) : (
+                <>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium truncate">
+                      {w.name}
+                      {isActive && <span className="ml-2 text-xs text-primary">активная</span>}
+                    </div>
+                  </div>
+                  <Button size="icon" variant="ghost" onClick={() => { setRenameId(w.id); setRenameValue(w.name); }} title="Переименовать">
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => { if (confirm(`Удалить базу "${w.name}"?`)) remove.mutate(w.id); }}
+                    title="Удалить"
+                    disabled={isActive || list.length <= 1}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="flex gap-2 items-end pt-2">
+        <div className="flex-1 space-y-2">
+          <Label>Новая база</Label>
+          <Input
+            placeholder="Например: Основная"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") create.mutate(); }}
+          />
+        </div>
+        <Button onClick={() => create.mutate()} disabled={create.isPending || !newName.trim()}>
+          <Plus className="h-4 w-4 mr-1" /> Создать
+        </Button>
+      </div>
+
+      <p className="text-xs text-muted-foreground">
+        Удалить можно только пустую базу — сначала очистите её данные. Активную базу нельзя удалить, переключитесь на другую.
       </p>
     </Card>
   );

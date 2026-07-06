@@ -14,6 +14,7 @@ import { Trash2 } from "lucide-react";
 import { ProductPicker, type PickedItem } from "@/components/ProductPicker";
 import { ProductPickerSingle } from "@/components/ProductPickerSingle";
 import { invoiceDraft, type DraftItem } from "@/lib/invoice-draft";
+import { useActiveWorkspaceId } from "@/lib/workspace";
 
 export const Route = createFileRoute("/_authenticated/invoices/new")({
   head: () => ({ meta: [{ title: "Новая заявка — КабинетCRM" }] }),
@@ -45,20 +46,23 @@ function useDraft() {
 
 function NewInvoice() {
   const navigate = useNavigate();
+  const wsId = useActiveWorkspaceId();
   const draft = useDraft();
   const { kind, number, date, partnerId, statusId, note, items, numberTouched } = draft;
 
   const { data: org } = useQuery({
-    queryKey: ["my-organization-mask"],
+    queryKey: ["my-organization-mask", wsId],
+    enabled: !!wsId,
     queryFn: async () => {
-      const { data } = await supabase.from("organizations").select("invoice_number_mask,invoice_number_start").order("is_primary", { ascending: false }).limit(1).maybeSingle();
+      const { data } = await (supabase as any).from("organizations").select("invoice_number_mask,invoice_number_start").eq("workspace_id", wsId).order("is_primary", { ascending: false }).limit(1).maybeSingle();
       return data as { invoice_number_mask: string; invoice_number_start: number } | null;
     },
   });
   const { data: invoiceCount } = useQuery({
-    queryKey: ["invoices-count"],
+    queryKey: ["invoices-count", wsId],
+    enabled: !!wsId,
     queryFn: async () => {
-      const { count } = await supabase.from("invoices").select("id", { count: "exact", head: true });
+      const { count } = await (supabase as any).from("invoices").select("id", { count: "exact", head: true }).eq("workspace_id", wsId);
       return count ?? 0;
     },
   });
@@ -70,24 +74,27 @@ function NewInvoice() {
     if (org === undefined || invoiceCount === undefined) return;
     const start = Math.max(1, Math.floor(Number(org?.invoice_number_start ?? 1)));
     if (seqRef.current === null) seqRef.current = start + (invoiceCount ?? 0);
-    const auto = applyNumberMask(mask, new Date(), seqRef.current);
+    const auto = applyNumberMask(mask, new Date(), seqRef.current ?? 1);
     if (auto !== number) invoiceDraft.set({ number: auto });
   }, [org, invoiceCount, mask, numberTouched, number]);
 
   const [pickRow, setPickRow] = useState<number | null>(null);
 
   const { data: products = [] } = useQuery({
-    queryKey: ["products"],
-    queryFn: async () => (await supabase.from("products").select("id,name,price,cost,unit,kind").order("name")).data ?? [],
+    queryKey: ["products", wsId],
+    enabled: !!wsId,
+    queryFn: async () => (await (supabase as any).from("products").select("id,name,price,cost,unit,kind").eq("workspace_id", wsId).order("name")).data ?? [],
   });
   const { data: partners = [] } = useQuery({
-    queryKey: ["partners"],
-    queryFn: async () => (await supabase.from("partners").select("id,name,kind").order("name")).data ?? [],
+    queryKey: ["partners", wsId],
+    enabled: !!wsId,
+    queryFn: async () => (await (supabase as any).from("partners").select("id,name,kind").eq("workspace_id", wsId).order("name")).data ?? [],
   });
 
   const { data: statuses = [] } = useQuery({
-    queryKey: ["invoice_statuses"],
-    queryFn: async () => (await supabase.from("invoice_statuses").select("id,name,color,sort_order").order("sort_order")).data ?? [],
+    queryKey: ["invoice_statuses", wsId],
+    enabled: !!wsId,
+    queryFn: async () => (await (supabase as any).from("invoice_statuses").select("id,name,color,sort_order").eq("workspace_id", wsId).order("sort_order")).data ?? [],
   });
 
   // Автовыбор первого статуса, если ещё не выбран
@@ -127,11 +134,13 @@ function NewInvoice() {
   const save = useMutation({
     mutationFn: async () => {
       if (items.length === 0) throw new Error("Добавьте хотя бы одну позицию");
+      if (!wsId) throw new Error("Не выбрана база данных");
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Нет сессии");
 
       const { data: inv, error } = await (supabase as any).from("invoices").insert({
         user_id: user.id,
+        workspace_id: wsId,
         number, kind,
         partner_id: partnerId || null,
         status_id: statusId || null,
