@@ -46,7 +46,7 @@ function useDraft() {
 function NewInvoice() {
   const navigate = useNavigate();
   const draft = useDraft();
-  const { kind, number, date, partnerId, note, items, numberTouched } = draft;
+  const { kind, number, date, partnerId, statusId, note, items, numberTouched } = draft;
 
   const { data: org } = useQuery({
     queryKey: ["my-organization-mask"],
@@ -85,6 +85,18 @@ function NewInvoice() {
     queryFn: async () => (await supabase.from("partners").select("id,name,kind").order("name")).data ?? [],
   });
 
+  const { data: statuses = [] } = useQuery({
+    queryKey: ["invoice_statuses"],
+    queryFn: async () => (await supabase.from("invoice_statuses").select("id,name,color,sort_order").order("sort_order")).data ?? [],
+  });
+
+  // Автовыбор первого статуса, если ещё не выбран
+  useEffect(() => {
+    if (!statusId && statuses.length > 0) {
+      invoiceDraft.set({ statusId: (statuses[0] as any).id });
+    }
+  }, [statusId, statuses]);
+
   const filteredPartners = partners.filter((p: any) =>
     kind === "outgoing" ? p.kind === "customer" : p.kind === "supplier"
   );
@@ -122,6 +134,7 @@ function NewInvoice() {
         user_id: user.id,
         number, kind,
         partner_id: partnerId || null,
+        status_id: statusId || null,
         issue_date: date,
         status: "draft",
         doc_type: "order",
@@ -197,6 +210,33 @@ function NewInvoice() {
             </Select>
           </div>
         </div>
+        {statuses.length > 0 && (
+          <div className="mt-3 space-y-1 max-w-xs">
+            <Label className="text-xs">Статус</Label>
+            <Select value={statusId || undefined} onValueChange={(v) => invoiceDraft.set({ statusId: v })}>
+              <SelectTrigger className="h-8">
+                <SelectValue>
+                  {statusId && (
+                    <div className="flex items-center gap-2">
+                      <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: (statuses.find((s: any) => s.id === statusId) as any)?.color ?? "#cbd5e1" }} />
+                      {(statuses.find((s: any) => s.id === statusId) as any)?.name}
+                    </div>
+                  )}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {statuses.map((s: any) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    <div className="flex items-center gap-2">
+                      <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: s.color }} />
+                      {s.name}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </Card>
 
       <Card className="p-0 overflow-hidden">
