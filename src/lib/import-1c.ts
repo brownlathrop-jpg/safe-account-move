@@ -134,6 +134,11 @@ function readProps(scope: Element): Pick<Obj, "props" | "refs" | "num" | "bool">
   const refs: Record<string, string> = {};
   const num: Record<string, number> = {};
   const bool: Record<string, boolean> = {};
+  for (const attr of Array.from(scope.attributes)) {
+    if (/булево|boolean/i.test(attr.name) || /это\s*(группа|папка)|is\s*(group|folder)/i.test(attr.name)) {
+      bool[attr.name] = boolOf(attr.value);
+    }
+  }
   for (const p of propertyElements(scope)) {
     const name = p.getAttribute("Имя") || "";
     const type = p.getAttribute("Тип") || "";
@@ -192,8 +197,21 @@ export function parseAllObjects(xml: string): Obj[] {
     const type = el.getAttribute("Тип") || "";
     const ref = firstChildByTag(el, "Ссылка");
     const ext = extIdOfRef(ref);
-    const { props, refs, num, bool } = readProps(el);
-    out.push({ type, ext, props, refs, num, bool, tables: readTables(el) });
+    // В некоторых выгрузках 1С признак папки лежит не в самом объекте,
+    // а внутри его <Ссылка> рядом с уникальным идентификатором.
+    // Например, папка может выглядеть как обычная номенклатура, но иметь
+    // <Ссылка><Свойство Имя="ЭтоГруппа">true</Свойство>...</Ссылка>.
+    const fromRef = ref ? readProps(ref) : { props: {}, refs: {}, num: {}, bool: {} };
+    const fromObj = readProps(el);
+    out.push({
+      type,
+      ext,
+      props: { ...fromRef.props, ...fromObj.props },
+      refs: { ...fromRef.refs, ...fromObj.refs },
+      num: { ...fromRef.num, ...fromObj.num },
+      bool: { ...fromRef.bool, ...fromObj.bool },
+      tables: readTables(el),
+    });
   }
   return out;
 }
