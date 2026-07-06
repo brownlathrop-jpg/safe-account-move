@@ -425,8 +425,9 @@ export async function importAll(
   onProgress: ProgressCb,
 ) {
   onProgress("Разбор XML", 0, 1);
-  const objs = parseAllObjects(xml);
-  onProgress("Разбор XML", 1, 1, `объектов: ${objs.length}`);
+  const parsedObjs = parseAllObjects(xml);
+  const objs = mergeObjectsByExt(parsedObjs);
+  onProgress("Разбор XML", 1, 1, `объектов: ${objs.length}, дублей объединено: ${parsedObjs.length - objs.length}`);
 
   const byType = new Map<string, Obj[]>();
   for (const o of objs) {
