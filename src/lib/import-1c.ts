@@ -545,22 +545,37 @@ export async function importAll(
     const groups = src.filter(isGroup);
     const items  = src.filter(o => !isGroup(o));
 
-    const syntheticFolders = new Map<string, { ext: string; name: string; parentExt: string | null }>();
+    const realGroupExtByPathKey = new Map<string, string>();
+    for (const g of groups) {
+      const name = readProp(g, ["Наименование", "НаименованиеПолное"]) || "";
+      if (!g.ext || !name) continue;
+      const parentParts = readFolderPathParts(g, name);
+      realGroupExtByPathKey.set(folderPathKey([...parentParts, name]), g.ext);
+    }
+
+    const syntheticFolders = new Map<string, { ext: string; name: string; parentExt: string | null; pathKey: string }>();
     const pathFolderExtByObject = new Map<string, string>();
     const addPathFolders = (parts: string[]): string | null => {
       if (parts.length === 0) return null;
+      let parentExt: string | null = null;
+      let finalExt: string | null = null;
       for (let i = 1; i <= parts.length; i++) {
         const current = parts.slice(0, i);
-        const ext = folderPathExt(current);
-        if (!syntheticFolders.has(ext)) {
+        const pathKey = folderPathKey(current);
+        const realExt = realGroupExtByPathKey.get(pathKey) ?? null;
+        const ext = realExt ?? folderPathExt(current);
+        if (!realExt && !syntheticFolders.has(ext)) {
           syntheticFolders.set(ext, {
             ext,
             name: parts[i - 1],
-            parentExt: i > 1 ? folderPathExt(parts.slice(0, i - 1)) : null,
+            parentExt,
+            pathKey,
           });
         }
+        parentExt = ext;
+        finalExt = ext;
       }
-      return folderPathExt(parts);
+      return finalExt;
     };
 
     for (const o of src) {
@@ -597,7 +612,8 @@ export async function importAll(
     for (const o of groups) {
       const pathExt = pathFolderExtByObject.get(o.ext!);
       const pExt = findParentForGroup(o)
-        ?? (pathExt ? syntheticFolders.get(pathExt)?.parentExt ?? undefined : undefined);
+        ?? pathExt
+        ?? undefined;
       const id = fmap.get(o.ext!);
       const parent = pExt ? fmap.get(pExt) : null;
       if (id) await (supabase as any).from("product_folders").update({ parent_id: parent ?? null }).eq("id", id);
