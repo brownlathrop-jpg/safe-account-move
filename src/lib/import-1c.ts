@@ -920,7 +920,7 @@ async function linkDocParents(objs: Obj[], userId: string, wsId: string, onProgr
   const jobs = pairs
     .map(p => ({ childId: idByExt.get(p.childExt), parentId: idByExt.get(p.parentExt) }))
     .filter(x => x.childId && x.parentId);
-  const CONC = 20;
+  const CONC = 60;
   for (let i = 0; i < jobs.length; i += CONC) {
     const part = jobs.slice(i, i + CONC);
     const res = await Promise.all(part.map(j =>
