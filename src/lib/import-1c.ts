@@ -1047,7 +1047,7 @@ async function importShipments(
   const skipped: string[] = [];
   for (const type of byType.keys()) {
     if (!/^ДокументСсылка\./i.test(type)) continue;
-    if (/Реализация|Поступление/i.test(type)) continue;
+    if (/Реализация|Поступление|ЗаказПокупателя|ЗаказКлиента|ЗаказПоставщику|ЗаказНаряд/i.test(type)) continue;
     if (/ПриходныйКассовыйОрдер|РасходныйКассовыйОрдер|ПоступлениеНаРасчетныйСчет|СписаниеСРасчетногоСчета|ПоступлениеДенежныхСредств|ВыдачаДенежныхСредств|ПлатежноеПоручение/i.test(type)) continue;
     skipped.push(`${type} (${byType.get(type)!.length})`);
   }
