@@ -722,6 +722,92 @@ export async function importAll(
     const rootFolders = Math.max(0, folderRows.length - foldersWithParent);
     onProgress("Папки номенклатуры", folderRows.length, folderRows.length, `из объектов: ${groups.length}, из путей: ${syntheticFolders.size}, с родителем: ${foldersWithParent}, верхний уровень: ${rootFolders}`);
 
+    // --- Диагностика: список папок без родителя ---
+    const orphanReport: Array<{
+      name: string;
+      ext_1c_id: string | null | undefined;
+      причина: string;
+      поля_props: Record<string, string>;
+      поля_refs: Record<string, string>;
+      путь: string[];
+      источник: "объект" | "синтетическая (из пути)";
+    }> = [];
+    for (const o of groups) {
+      const pExt = findParentForGroup(o) ?? pathFolderExtByObject.get(o.ext!);
+      if (pExt) continue;
+      orphanReport.push({
+        name: readProp(o, ["Наименование", "НаименованиеПолное"]) || "(без имени)",
+        ext_1c_id: o.ext,
+        причина: Object.keys(o.refs).length === 0 && Object.keys(o.props).length <= 2
+          ? "в XML пришла только короткая ссылка, без свойств"
+          : "ни одно из полей не распозналось как родитель",
+        поля_props: o.props,
+        поля_refs: o.refs,
+        путь: readFolderPathParts(o, readProp(o, ["Наименование"]) || ""),
+        источник: "объект",
+      });
+    }
+    for (const f of syntheticFolders.values()) {
+      if (f.parentExt) continue;
+      orphanReport.push({
+        name: f.name,
+        ext_1c_id: f.ext,
+        причина: "верхний уровень в разобранном пути (или единственный элемент)",
+        поля_props: {},
+        поля_refs: {},
+        путь: [f.name],
+        источник: "синтетическая (из пути)",
+      });
+    }
+    // Кладём отчёт в window, чтобы можно было изучить в консоли браузера
+    if (typeof window !== "undefined") {
+      (window as any).__importDiag = {
+        всегоПапок: folderRows.length,
+        сРодителем: foldersWithParent,
+        безРодителя: orphanReport.length,
+        папкиБезРодителя: orphanReport,
+        сырыеОбъектыПапок: groups.map(g => ({
+          ext: g.ext,
+          name: readProp(g, ["Наименование"]),
+          props: g.props,
+          refs: g.refs,
+        })),
+      };
+    }
+    // Печатаем в консоль удобно раскрываемой группой
+    // eslint-disable-next-line no-console
+    console.group(`[Импорт 1С] Диагностика папок: всего ${folderRows.length}, без родителя ${orphanReport.length}`);
+    // eslint-disable-next-line no-console
+    console.log("Полный отчёт также доступен как window.__importDiag");
+    // eslint-disable-next-line no-console
+    console.table(orphanReport.map(r => ({
+      Имя: r.name,
+      Источник: r.источник,
+      Причина: r.причина,
+      GUID: r.ext_1c_id,
+      Поля: [...Object.keys(r.поля_props), ...Object.keys(r.поля_refs).map(k => `→${k}`)].join(", "),
+    })));
+    for (const r of orphanReport) {
+      // eslint-disable-next-line no-console
+      console.groupCollapsed(`↳ ${r.name}  (${r.ext_1c_id ?? "без GUID"})`);
+      // eslint-disable-next-line no-console
+      console.log("Свойства:", r.поля_props);
+      // eslint-disable-next-line no-console
+      console.log("Ссылки:", r.поля_refs);
+      // eslint-disable-next-line no-console
+      console.log("Разобранный путь:", r.путь);
+      // eslint-disable-next-line no-console
+      console.groupEnd();
+    }
+    // eslint-disable-next-line no-console
+    console.groupEnd();
+    onProgress(
+      "Диагностика папок",
+      orphanReport.length,
+      folderRows.length,
+      `без родителя: ${orphanReport.length}. Подробности — в консоли браузера (F12) и в window.__importDiag`,
+    );
+
     // 8b. товары
     const ptMap = await loadExtMap("product_types", wsId);
     onProgress("Товары", 0, items.length);
