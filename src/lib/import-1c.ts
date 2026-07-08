@@ -1016,7 +1016,7 @@ async function importShipments(
     for (const o of src) {
       const invId = o.ext ? idByExt.get(o.ext) : undefined;
       if (!invId) continue;
-      const rows = docItemRows(o, productsMap);
+      const rows = docItemRows(o, productsMap, productNameById);
       for (const r of rows) {
         if (r.product_id) withProduct += 1;
         itemsBuf.push({ invoice_id: invId, ...r });
