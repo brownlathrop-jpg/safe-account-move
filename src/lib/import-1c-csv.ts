@@ -129,15 +129,17 @@ export async function importProductsCsv(
     }
   }
 
-  // Апдейты — по одному, но батчами прогресса
-  for (let i = 0; i < updates.length; i++) {
-    const u = updates[i];
-    const { error } = await (supabase as any).from("products").update(u.patch).eq("id", u.id);
-    if (error) throw new Error(`products update: ${error.message}`);
-    if (i % 50 === 0 || i === updates.length - 1) {
-      onProgress("CSV: товары", i + 1, rows.length,
-        `обновлено: ${updated}, папок исправлено: ${folderFixed}, цен добавлено: ${priceFixed}`);
-    }
+  // Апдейты — параллельно, пачками по 25 запросов
+  const CONCURRENCY = 25;
+  for (let i = 0; i < updates.length; i += CONCURRENCY) {
+    const part = updates.slice(i, i + CONCURRENCY);
+    const results = await Promise.all(part.map(u =>
+      (supabase as any).from("products").update(u.patch).eq("id", u.id)
+    ));
+    const bad = results.find(r => r.error);
+    if (bad?.error) throw new Error(`products update: ${bad.error.message}`);
+    onProgress("CSV: товары", Math.min(i + CONCURRENCY, updates.length), rows.length,
+      `обновлено: ${updated}, папок исправлено: ${folderFixed}, цен добавлено: ${priceFixed}`);
   }
 
   // Вставки — батчами
