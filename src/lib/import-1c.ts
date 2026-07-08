@@ -880,7 +880,7 @@ function parseDate1C(raw: string | undefined): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-function docItemRows(o: Obj, productsMap: Map<string, string>): Array<{
+function docItemRows(o: Obj, productsMap: Map<string, string>, productNameById: Map<string, string>): Array<{
   product_id: string | null; name: string; quantity: number; price: number; sum: number; kind: string;
 }> {
   const out: Array<{ product_id: string | null; name: string; quantity: number; price: number; sum: number; kind: string }> = [];
@@ -892,7 +892,8 @@ function docItemRows(o: Obj, productsMap: Map<string, string>): Array<{
     for (const r of rows) {
       const prodExt = readNamed(r.refs, ["Номенклатура", "Товар", "Услуга"]);
       const prodId = prodExt ? (productsMap.get(normalizeExtId(prodExt) || "") ?? null) : null;
-      const name = readNamed(r.props, ["Наименование", "ПолноеНаименование"]) || "Позиция";
+      const nameFromRow = readNamed(r.props, ["Наименование", "ПолноеНаименование"]);
+      const name = nameFromRow || (prodId ? productNameById.get(prodId) : "") || "Позиция";
       const qty = Number(r.num["Количество"] ?? readNamed(r.props, ["Количество"]) ?? 1) || 1;
       const price = Number(r.num["Цена"] ?? readNamed(r.props, ["Цена"]) ?? 0) || 0;
       const sum = Number(r.num["Сумма"] ?? readNamed(r.props, ["Сумма"]) ?? qty * price) || qty * price;
