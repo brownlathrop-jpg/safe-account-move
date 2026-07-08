@@ -1034,3 +1034,71 @@ async function importShipments(
     (window as any).__importDiagDocs = { пропущенныеТипы: skipped };
   }
 }
+
+// Кассовые и банковские документы: ПКО/РКО + Поступление/Списание с расчётного счёта.
+// В таблице invoices это doc_type='cash_receipt'. Позиций нет — только шапка и сумма.
+async function importCashDocs(
+  byType: Map<string, Obj[]>,
+  userId: string,
+  partnersMap: Map<string, string>,
+  onProgress: ProgressCb,
+) {
+  const incomingTypes: string[] = []; // приход денег
+  const outgoingTypes: string[] = []; // расход денег
+  for (const type of byType.keys()) {
+    if (!/^ДокументСсылка\./i.test(type)) continue;
+    if (/ПриходныйКассовыйОрдер|ПоступлениеНаРасчетныйСчет|ПоступлениеДенежныхСредств/i.test(type)) incomingTypes.push(type);
+    else if (/РасходныйКассовыйОрдер|СписаниеСРасчетногоСчета|ВыдачаДенежныхСредств|ПлатежноеПоручение/i.test(type)) outgoingTypes.push(type);
+  }
+
+  const groups: Array<{ label: string; kind: "outgoing" | "incoming"; types: string[] }> = [
+    { label: "Приход денег", kind: "incoming", types: incomingTypes },
+    { label: "Расход денег", kind: "outgoing", types: outgoingTypes },
+  ];
+
+  for (const g of groups) {
+    const src: Obj[] = [];
+    for (const t of g.types) src.push(...(byType.get(t) ?? []));
+    if (src.length === 0) {
+      onProgress(g.label, 0, 0, "нет документов этого типа");
+      continue;
+    }
+    onProgress(g.label, 0, src.length);
+
+    const headers = src.map(o => {
+      const number = readProp(o, ["Номер"]) || (o.ext ?? "").slice(0, 8);
+      const dateRaw = readProp(o, ["Дата"]);
+      const partnerExt = readRef(o, ["Контрагент", "Партнер", "Партнёр", "Плательщик", "Получатель"]);
+      const partnerId = partnerExt ? (partnersMap.get(partnerExt) ?? null) : null;
+      const total = Number(o.num["СуммаДокумента"] ?? o.num["Сумма"] ?? readNamed(o.props, ["СуммаДокумента", "Сумма"]) ?? 0) || 0;
+      return {
+        user_id: userId,
+        ext_1c_id: o.ext,
+        number,
+        kind: g.kind,
+        doc_type: "cash_receipt",
+        issue_date: parseDate1C(dateRaw),
+        partner_id: partnerId,
+        status: "draft",
+        total,
+        cash_received: total,
+        note: `Импорт из 1С: ${o.type}`,
+      };
+    });
+
+    const seen = new Map<string, any>();
+    for (const h of headers) seen.set(`${h.user_id}|${h.ext_1c_id}`, h);
+    const dedup = Array.from(seen.values());
+
+    const chunk = 200;
+    for (let i = 0; i < dedup.length; i += chunk) {
+      const part = dedup.slice(i, i + chunk);
+      const { error } = await (supabase as any)
+        .from("invoices")
+        .upsert(part, { onConflict: "user_id,ext_1c_id" });
+      if (error) throw new Error(`invoices (${g.label}): ${error.message}`);
+      onProgress(g.label, Math.min(i + part.length, dedup.length), dedup.length);
+    }
+    onProgress(g.label, dedup.length, dedup.length, `документов: ${dedup.length}`);
+  }
+}
