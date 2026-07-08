@@ -9,9 +9,10 @@ import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Pencil, Trash2, Search, Folder, FolderPlus, FolderOpen, ChevronRight, ChevronDown, Upload, X, ImageIcon } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, Folder, FolderPlus, FolderOpen, ChevronRight, ChevronDown, Upload, X, ImageIcon, MoreHorizontal } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { useActiveWorkspaceId } from "@/lib/workspace";
 
 export const Route = createFileRoute("/_authenticated/products")({
@@ -315,33 +316,42 @@ function ProductsPage() {
       return (
         <div key={f.id}>
           <div
-            className={`group flex items-center gap-1 rounded-md text-sm cursor-pointer hover:bg-muted/60 ${active ? "bg-muted font-medium" : ""}`}
-            style={{ paddingLeft: 8 + depth * 14, paddingRight: 4, paddingTop: 4, paddingBottom: 4 }}
+            className={`group flex items-start gap-1 rounded-md text-sm cursor-pointer hover:bg-muted/60 ${active ? "bg-muted font-medium" : ""}`}
+            style={{ paddingLeft: 6 + depth * 12, paddingRight: 4, paddingTop: 4, paddingBottom: 4 }}
             onClick={() => selectFolder(f.id)}
+            title={f.name}
           >
             <button
               type="button"
-              className="h-4 w-4 flex items-center justify-center text-muted-foreground"
+              className="h-4 w-4 mt-0.5 shrink-0 flex items-center justify-center text-muted-foreground"
               onClick={(e) => { e.stopPropagation(); setExpanded({ ...expanded, [f.id]: !isOpen }); }}
             >
               {hasChildren ? (isOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />) : null}
             </button>
-            {active ? <FolderOpen className="h-4 w-4 text-primary" /> : <Folder className="h-4 w-4 text-muted-foreground" />}
-            <span className="truncate flex-1">{f.name}</span>
-            <div className="opacity-0 group-hover:opacity-100 flex gap-0.5">
-              <Button size="icon" variant="ghost" className="h-6 w-6" title="Подпапка"
-                onClick={(e) => { e.stopPropagation(); openFolderDialog(f.id); }}>
-                <FolderPlus className="h-3.5 w-3.5" />
-              </Button>
-              <Button size="icon" variant="ghost" className="h-6 w-6" title="Переименовать"
-                onClick={(e) => { e.stopPropagation(); openFolderDialog(f.parent_id, f); }}>
-                <Pencil className="h-3.5 w-3.5" />
-              </Button>
-              <Button size="icon" variant="ghost" className="h-6 w-6" title="Удалить"
-                onClick={(e) => { e.stopPropagation(); if (confirm(`Удалить папку "${f.name}"? Подпапки тоже будут удалены.`)) removeFolder.mutate(f.id); }}>
-                <Trash2 className="h-3.5 w-3.5" />
-              </Button>
-            </div>
+            {active ? <FolderOpen className="h-4 w-4 mt-0.5 shrink-0 text-primary" /> : <Folder className="h-4 w-4 mt-0.5 shrink-0 text-muted-foreground" />}
+            <span className={`flex-1 min-w-0 leading-snug ${active ? "whitespace-normal break-words" : "truncate"}`}>{f.name}</span>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                <Button size="icon" variant="ghost" className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100">
+                  <MoreHorizontal className="h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                <DropdownMenuItem onClick={() => openFolderDialog(f.id)}>
+                  <FolderPlus className="h-4 w-4 mr-2" /> Добавить подпапку
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => openFolderDialog(f.parent_id, f)}>
+                  <Pencil className="h-4 w-4 mr-2" /> Переименовать
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="text-destructive focus:text-destructive"
+                  onClick={() => { if (confirm(`Удалить папку "${f.name}"? Подпапки тоже будут удалены.`)) removeFolder.mutate(f.id); }}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" /> Удалить
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
           {hasChildren && isOpen && renderFolderTree(f.id, depth + 1)}
         </div>
@@ -361,14 +371,14 @@ function ProductsPage() {
         >
           <button
             type="button"
-            className="h-4 w-4 flex items-center justify-center text-muted-foreground"
+            className="h-4 w-4 shrink-0 flex items-center justify-center text-muted-foreground"
             onClick={(e) => { e.stopPropagation(); setExpanded({ ...expanded, [id]: !isOpen }); }}
           >
             {hasChildren ? (isOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />) : null}
           </button>
-          {active ? <FolderOpen className="h-4 w-4 text-primary" /> : <Folder className="h-4 w-4 text-muted-foreground" />}
-          <span className="truncate flex-1">{label}</span>
-          <span className="text-xs text-muted-foreground">{count}</span>
+          {active ? <FolderOpen className="h-4 w-4 shrink-0 text-primary" /> : <Folder className="h-4 w-4 shrink-0 text-muted-foreground" />}
+          <span className="flex-1 min-w-0 truncate">{label}</span>
+          <span className="text-xs text-muted-foreground shrink-0">{count}</span>
         </div>
         {hasChildren && isOpen && renderFolderTree(null, 1, list)}
       </div>
@@ -393,10 +403,10 @@ function ProductsPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-[260px_1fr] gap-5">
-        <Card className="p-3 h-fit">
-          <div className="text-sm font-medium mb-2">Папки</div>
-          <div className="space-y-0.5">
+      <div className="grid grid-cols-1 md:grid-cols-[minmax(280px,340px)_1fr] xl:grid-cols-[minmax(320px,380px)_1fr] gap-5">
+        <Card className="p-3 h-fit md:sticky md:top-4 md:max-h-[calc(100vh-6rem)] md:overflow-y-auto">
+          <div className="text-sm font-medium mb-2 px-1">Папки</div>
+          <div className="space-y-0.5 min-w-0">
             <div className={`px-2 py-1.5 text-sm rounded-md cursor-pointer hover:bg-muted/60 ${selectedFolder === ALL ? "bg-muted font-medium" : ""}`}
               onClick={() => selectFolder(ALL)}>Все</div>
             {renderKindRoot(KIND_PRODUCT, PRODUCT_ROOT_NAME, products.filter(p => p.kind === "product").length, productCategoryFolders)}
