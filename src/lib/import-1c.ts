@@ -1003,8 +1003,10 @@ async function importShipments(
     if (/^ДокументСсылка\./i.test(type)) {
       if (/Реализация/i.test(type) && /Товар|Услуг/i.test(type)) salesTypes.push(type);
       else if (/Поступление/i.test(type) && /Товар|Услуг/i.test(type)) purchaseTypes.push(type);
-      else if (/ЗаказПокупателя|ЗаказКлиента/i.test(type)) orderOutTypes.push(type);
-      else if (/ЗаказПоставщику|ЗаказНаряд/i.test(type)) orderInTypes.push(type);
+      else if (/ЗаказПокупателя|ЗаказКлиента|ЗаявкаПокупателя|ЗаявкаКлиента|СчетНаОплатуПокупателю|СчетЗаказ/i.test(type)) orderOutTypes.push(type);
+      else if (/ЗаказПоставщику|ЗаказНаряд|ЗаявкаПоставщику|ЗаявкаНаРасход/i.test(type)) orderInTypes.push(type);
+      // общий фолбэк: любые прочие «Заказ…»/«Заявка…» считаем исходящей заявкой
+      else if (/(^|\.)(Заказ|Заявка)/i.test(type)) orderOutTypes.push(type);
     }
   }
 
@@ -1107,7 +1109,7 @@ async function importShipments(
   const skipped: string[] = [];
   for (const type of byType.keys()) {
     if (!/^ДокументСсылка\./i.test(type)) continue;
-    if (/Реализация|Поступление|ЗаказПокупателя|ЗаказКлиента|ЗаказПоставщику|ЗаказНаряд/i.test(type)) continue;
+    if (/Реализация|Поступление|Заказ|Заявка|СчетНаОплату|СчетЗаказ/i.test(type)) continue;
     if (/ПриходныйКассовыйОрдер|РасходныйКассовыйОрдер|ПоступлениеНаРасчетныйСчет|СписаниеСРасчетногоСчета|ПоступлениеДенежныхСредств|ВыдачаДенежныхСредств|ПлатежноеПоручение/i.test(type)) continue;
     skipped.push(`${type} (${byType.get(type)!.length})`);
   }
