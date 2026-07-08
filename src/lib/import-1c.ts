@@ -854,6 +854,7 @@ export async function importAll(
     const partnersMap = await loadExtMap("partners", wsId);
     const productsMap = await loadExtMap("products", wsId);
     await importShipments(objs, byType, userId, wsId, partnersMap, productsMap, onProgress);
+    await importCashDocs(byType, userId, partnersMap, onProgress);
   }
 
   onProgress("Готово", 1, 1);
