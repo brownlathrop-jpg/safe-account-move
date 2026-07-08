@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Upload, FileWarning, Loader2, CheckCircle2 } from "lucide-react";
+import { Upload, FileWarning, Loader2, CheckCircle2, Download } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useActiveWorkspaceId } from "@/lib/workspace";
 import { importAll } from "@/lib/import-1c";
@@ -58,6 +58,18 @@ export function Import1CPanel() {
     }
   };
 
+  const downloadDiag = () => {
+    const diag = (window as any).__importDiag;
+    if (!diag) { toast.error("Диагностика ещё не сформирована. Сначала запустите импорт."); return; }
+    const blob = new Blob([JSON.stringify(diag, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `import-diag-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  };
+
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
   const fmtTime = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 
@@ -81,6 +93,11 @@ export function Import1CPanel() {
             {busy ? "Импортирую…" : "Выбрать файл XML"}
           </span></Button>
         </label>
+        {!busy && log.length > 0 && (
+          <Button variant="outline" onClick={downloadDiag} title="Сохранить отчёт о папках без родителя">
+            <Download className="h-4 w-4 mr-1" /> Скачать диагностику
+          </Button>
+        )}
       </div>
 
       {busy && (
