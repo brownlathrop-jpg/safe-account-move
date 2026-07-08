@@ -1042,6 +1042,7 @@ async function importShipments(
 async function importCashDocs(
   byType: Map<string, Obj[]>,
   userId: string,
+  wsId: string,
   partnersMap: Map<string, string>,
   onProgress: ProgressCb,
 ) {
