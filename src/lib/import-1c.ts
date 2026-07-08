@@ -869,9 +869,69 @@ export async function importAll(
     }
     await importShipments(objs, byType, userId, wsId, partnersMap, productsMap, productNameById, onProgress);
     await importCashDocs(byType, userId, wsId, partnersMap, onProgress);
+    await linkDocParents(objs, userId, wsId, onProgress);
   }
 
   onProgress("Готово", 1, 1);
+}
+
+// Связи «на основании»: накладная ← заявка, ПКО/РКО ← накладная и т.п.
+// В 1С это ссылки в свойствах документа: Сделка / ДокументОснование / Основание / Заказ …
+async function linkDocParents(objs: Obj[], userId: string, wsId: string, onProgress: ProgressCb) {
+  // 1) Собираем пары (ext_1c_id ребёнка → ext_1c_id родителя)
+  const parentFields = [
+    "Сделка", "ДокументОснование", "Основание",
+    "Заказ", "ЗаказПокупателя", "ЗаказКлиента", "ЗаказПоставщику",
+    "ДокументРеализации", "ДокументПоступления",
+    "СчетНаОплату",
+  ];
+  const pairs: Array<{ childExt: string; parentExt: string }> = [];
+  for (const o of objs) {
+    if (!/^ДокументСсылка\./i.test(o.type)) continue;
+    if (!o.ext) continue;
+    const parentExt = readRef(o, parentFields);
+    if (!parentExt) continue;
+    pairs.push({ childExt: o.ext, parentExt });
+  }
+  if (!pairs.length) {
+    onProgress("Связи документов", 0, 0, "оснований не найдено");
+    return;
+  }
+  onProgress("Связи документов", 0, pairs.length);
+
+  // 2) Тянем ext_1c_id → id всех invoices этой базы
+  const idByExt = new Map<string, string>();
+  {
+    let from = 0; const step = 1000;
+    for (;;) {
+      const { data, error } = await (supabase as any).from("invoices")
+        .select("id,ext_1c_id").eq("workspace_id", wsId).not("ext_1c_id", "is", null)
+        .range(from, from + step - 1);
+      if (error) throw new Error("invoices map: " + error.message);
+      if (!data?.length) break;
+      for (const r of data) if (r.ext_1c_id) idByExt.set(r.ext_1c_id, r.id);
+      if (data.length < step) break;
+      from += step;
+    }
+  }
+
+  // 3) Апдейтим parent_id батчами по 20 параллельно
+  let done = 0, linked = 0;
+  const jobs = pairs
+    .map(p => ({ childId: idByExt.get(p.childExt), parentId: idByExt.get(p.parentExt) }))
+    .filter(x => x.childId && x.parentId);
+  const CONC = 20;
+  for (let i = 0; i < jobs.length; i += CONC) {
+    const part = jobs.slice(i, i + CONC);
+    const res = await Promise.all(part.map(j =>
+      (supabase as any).from("invoices").update({ parent_id: j.parentId }).eq("id", j.childId)
+    ));
+    const bad = res.find(r => r.error);
+    if (bad?.error) throw new Error("invoices parent_id: " + bad.error.message);
+    done += part.length; linked += part.length;
+    onProgress("Связи документов", done, jobs.length, `связано: ${linked}`);
+  }
+  onProgress("Связи документов", jobs.length, jobs.length, `связано: ${linked} из ${pairs.length}`);
 }
 
 // ---------------------------------------------------------------- Документы
