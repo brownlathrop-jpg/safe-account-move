@@ -316,33 +316,42 @@ function ProductsPage() {
       return (
         <div key={f.id}>
           <div
-            className={`group flex items-center gap-1 rounded-md text-sm cursor-pointer hover:bg-muted/60 ${active ? "bg-muted font-medium" : ""}`}
-            style={{ paddingLeft: 8 + depth * 14, paddingRight: 4, paddingTop: 4, paddingBottom: 4 }}
+            className={`group flex items-start gap-1 rounded-md text-sm cursor-pointer hover:bg-muted/60 ${active ? "bg-muted font-medium" : ""}`}
+            style={{ paddingLeft: 6 + depth * 12, paddingRight: 4, paddingTop: 4, paddingBottom: 4 }}
             onClick={() => selectFolder(f.id)}
+            title={f.name}
           >
             <button
               type="button"
-              className="h-4 w-4 flex items-center justify-center text-muted-foreground"
+              className="h-4 w-4 mt-0.5 shrink-0 flex items-center justify-center text-muted-foreground"
               onClick={(e) => { e.stopPropagation(); setExpanded({ ...expanded, [f.id]: !isOpen }); }}
             >
               {hasChildren ? (isOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />) : null}
             </button>
-            {active ? <FolderOpen className="h-4 w-4 text-primary" /> : <Folder className="h-4 w-4 text-muted-foreground" />}
-            <span className="truncate flex-1">{f.name}</span>
-            <div className="opacity-0 group-hover:opacity-100 flex gap-0.5">
-              <Button size="icon" variant="ghost" className="h-6 w-6" title="Подпапка"
-                onClick={(e) => { e.stopPropagation(); openFolderDialog(f.id); }}>
-                <FolderPlus className="h-3.5 w-3.5" />
-              </Button>
-              <Button size="icon" variant="ghost" className="h-6 w-6" title="Переименовать"
-                onClick={(e) => { e.stopPropagation(); openFolderDialog(f.parent_id, f); }}>
-                <Pencil className="h-3.5 w-3.5" />
-              </Button>
-              <Button size="icon" variant="ghost" className="h-6 w-6" title="Удалить"
-                onClick={(e) => { e.stopPropagation(); if (confirm(`Удалить папку "${f.name}"? Подпапки тоже будут удалены.`)) removeFolder.mutate(f.id); }}>
-                <Trash2 className="h-3.5 w-3.5" />
-              </Button>
-            </div>
+            {active ? <FolderOpen className="h-4 w-4 mt-0.5 shrink-0 text-primary" /> : <Folder className="h-4 w-4 mt-0.5 shrink-0 text-muted-foreground" />}
+            <span className={`flex-1 min-w-0 leading-snug ${active ? "whitespace-normal break-words" : "truncate"}`}>{f.name}</span>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                <Button size="icon" variant="ghost" className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100">
+                  <MoreHorizontal className="h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                <DropdownMenuItem onClick={() => openFolderDialog(f.id)}>
+                  <FolderPlus className="h-4 w-4 mr-2" /> Добавить подпапку
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => openFolderDialog(f.parent_id, f)}>
+                  <Pencil className="h-4 w-4 mr-2" /> Переименовать
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="text-destructive focus:text-destructive"
+                  onClick={() => { if (confirm(`Удалить папку "${f.name}"? Подпапки тоже будут удалены.`)) removeFolder.mutate(f.id); }}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" /> Удалить
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
           {hasChildren && isOpen && renderFolderTree(f.id, depth + 1)}
         </div>
