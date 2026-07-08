@@ -849,6 +849,13 @@ export async function importAll(
     }
   }
 
+  // 9. Документы: реализации и поступления → invoices + invoice_items
+  {
+    const partnersMap = await loadExtMap("partners", wsId);
+    const productsMap = await loadExtMap("products", wsId);
+    await importShipments(objs, byType, userId, wsId, partnersMap, productsMap, onProgress);
+  }
+
   onProgress("Готово", 1, 1);
 }
 
