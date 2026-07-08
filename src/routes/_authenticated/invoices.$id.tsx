@@ -147,7 +147,20 @@ function InvoiceView() {
       if (error) throw error;
       return (data ?? []) as any[];
     },
-    enabled: isOrder,
+    // Показываем связанные для любого документа, не только для заявки
+  });
+
+  const { data: parent } = useQuery({
+    queryKey: ["invoice-parent", inv?.parent_id],
+    enabled: !!inv?.parent_id,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("invoices")
+        .select("id,number,doc_type,issue_date,kind")
+        .eq("id", inv!.parent_id).maybeSingle();
+      if (error) throw error;
+      return data as any;
+    },
   });
 
   const total = useMemo(() => items.reduce((s, i) => s + i.quantity * i.price, 0), [items]);
