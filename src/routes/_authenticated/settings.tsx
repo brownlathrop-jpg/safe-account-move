@@ -126,12 +126,14 @@ function SettingsPage() {
       </div>
 
       <Tabs defaultValue={tab || "org"}>
+        <div className="sticky top-0 z-20 -mx-2 px-2 py-1 bg-background/95 backdrop-blur border-b">
         <TabsList className="h-8">
           <TabsTrigger value="workspaces">База данных</TabsTrigger>
           <TabsTrigger value="org">Организация</TabsTrigger>
           <TabsTrigger value="refs">Справочники</TabsTrigger>
           <TabsTrigger value="import">Импорт из 1С</TabsTrigger>
         </TabsList>
+        </div>
 
         <TabsContent value="workspaces" className="mt-3">
           <WorkspacesRef />
@@ -231,7 +233,7 @@ function SettingsPage() {
       </Card>
         </TabsContent>
 
-        <TabsContent value="refs" className="mt-3 space-y-3">
+        <TabsContent value="refs" className="mt-3 space-y-2">
           <NumberingRef />
           <WarehousesRef />
           <ProductTypesRef />
