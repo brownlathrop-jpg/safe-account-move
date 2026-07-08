@@ -147,7 +147,20 @@ function InvoiceView() {
       if (error) throw error;
       return (data ?? []) as any[];
     },
-    enabled: isOrder,
+    // Показываем связанные для любого документа, не только для заявки
+  });
+
+  const { data: parent } = useQuery({
+    queryKey: ["invoice-parent", inv?.parent_id],
+    enabled: !!inv?.parent_id,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("invoices")
+        .select("id,number,doc_type,issue_date,kind")
+        .eq("id", inv!.parent_id).maybeSingle();
+      if (error) throw error;
+      return data as any;
+    },
   });
 
   const total = useMemo(() => items.reduce((s, i) => s + i.quantity * i.price, 0), [items]);
@@ -424,27 +437,30 @@ function InvoiceView() {
         </h1>
         {inv.parent_id && (
           <p className="text-sm text-muted-foreground mt-1">
-            На основании заявки —{" "}
+            На основании{" "}
+            {parent?.doc_type === "order" ? "заявки" : parent?.doc_type === "shipment" ? "накладной" : "документа"}
+            {" — "}
             <Link to="/invoices/$id" params={{ id: inv.parent_id }} className="text-primary hover:underline">
-              открыть исходную заявку
+              {parent?.number ? `№ ${parent.number}` : "открыть"}
+              {parent?.issue_date ? ` от ${dfmt.format(new Date(parent.issue_date))}` : ""}
             </Link>
           </p>
         )}
       </div>
 
-      {/* Related documents (только для заявки) */}
-      {isOrder && (
+      {/* Связанные документы: для заявки — с кнопками создания, для остальных — просто список */}
+      {(isOrder || children.length > 0) && (
         <Card className="p-5 print:hidden">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-medium">Связанные документы</h3>
-            <div className="flex gap-2">
+            {isOrder && <div className="flex gap-2">
               <Button size="sm" variant="outline" onClick={() => createShipment.mutate()} disabled={createShipment.isPending || items.length === 0}>
                 <Plus className="h-4 w-4 mr-1" /> Накладная
               </Button>
               <Button size="sm" variant="outline" onClick={() => createReceipt.mutate()} disabled={createReceipt.isPending}>
                 <Plus className="h-4 w-4 mr-1" /> ПКО
               </Button>
-            </div>
+            </div>}
           </div>
           {children.length === 0 ? (
             <p className="text-sm text-muted-foreground">
@@ -464,7 +480,7 @@ function InvoiceView() {
               <TableBody>
                 {children.map(c => (
                   <TableRow key={c.id}>
-                    <TableCell>{c.doc_type === "shipment" ? "Накладная" : "ПКО"}</TableCell>
+                    <TableCell>{c.doc_type === "shipment" ? "Накладная" : c.doc_type === "order" ? "Заявка" : "ПКО/РКО"}</TableCell>
                     <TableCell>
                       <Link to="/invoices/$id" params={{ id: c.id }} className="text-primary hover:underline">{c.number}</Link>
                     </TableCell>
