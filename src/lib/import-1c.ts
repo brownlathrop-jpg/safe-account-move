@@ -851,3 +851,178 @@ export async function importAll(
 
   onProgress("Готово", 1, 1);
 }
+
+// ---------------------------------------------------------------- Документы
+// Пока импортируем «Реализация товаров и услуг» (продажа) и
+// «Поступление товаров и услуг» (закупка) как накладные (doc_type='shipment').
+// В invoices нет workspace_id — привязка идёт к user_id.
+
+function pickFirst<T>(...vals: (T | null | undefined)[]): T | null {
+  for (const v of vals) if (v !== undefined && v !== null && v !== "") return v as T;
+  return null;
+}
+
+function parseDate1C(raw: string | undefined): string {
+  if (!raw) return new Date().toISOString().slice(0, 10);
+  // Форматы 1С: "2024-01-15T00:00:00", "2024-01-15", "15.01.2024"
+  const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+  const ru = raw.match(/^(\d{2})\.(\d{2})\.(\d{4})/);
+  if (ru) return `${ru[3]}-${ru[2]}-${ru[1]}`;
+  return new Date().toISOString().slice(0, 10);
+}
+
+function docItemRows(o: Obj, productsMap: Map<string, string>): Array<{
+  product_id: string | null; name: string; quantity: number; price: number; sum: number; kind: string;
+}> {
+  const out: Array<{ product_id: string | null; name: string; quantity: number; price: number; sum: number; kind: string }> = [];
+  const tables = ["Товары", "Услуги", "СоставНабора"];
+  for (const tName of tables) {
+    const rows = o.tables[tName];
+    if (!rows?.length) continue;
+    const isService = /услуг/i.test(tName);
+    for (const r of rows) {
+      const prodExt = readNamed(r.refs, ["Номенклатура", "Товар", "Услуга"]);
+      const prodId = prodExt ? (productsMap.get(normalizeExtId(prodExt) || "") ?? null) : null;
+      const name = readNamed(r.props, ["Наименование", "ПолноеНаименование"]) || "Позиция";
+      const qty = Number(r.num["Количество"] ?? readNamed(r.props, ["Количество"]) ?? 1) || 1;
+      const price = Number(r.num["Цена"] ?? readNamed(r.props, ["Цена"]) ?? 0) || 0;
+      const sum = Number(r.num["Сумма"] ?? readNamed(r.props, ["Сумма"]) ?? qty * price) || qty * price;
+      out.push({
+        product_id: prodId,
+        name,
+        quantity: qty,
+        price,
+        sum,
+        kind: isService ? "service" : "product",
+      });
+    }
+  }
+  return out;
+}
+
+async function importShipments(
+  objs: Obj[],
+  byType: Map<string, Obj[]>,
+  userId: string,
+  wsId: string,
+  partnersMap: Map<string, string>,
+  productsMap: Map<string, string>,
+  onProgress: ProgressCb,
+) {
+  // Собираем «Реализация…» (продажа) и «Поступление…» (закупка)
+  const salesTypes: string[] = [];
+  const purchaseTypes: string[] = [];
+  for (const type of byType.keys()) {
+    if (/^ДокументСсылка\./i.test(type)) {
+      if (/Реализация/i.test(type) && /Товар|Услуг/i.test(type)) salesTypes.push(type);
+      else if (/Поступление/i.test(type) && /Товар|Услуг/i.test(type)) purchaseTypes.push(type);
+    }
+  }
+
+  const groups: Array<{ label: string; kind: "outgoing" | "incoming"; types: string[] }> = [
+    { label: "Реализации", kind: "outgoing", types: salesTypes },
+    { label: "Поступления", kind: "incoming", types: purchaseTypes },
+  ];
+
+  for (const g of groups) {
+    const src: Obj[] = [];
+    for (const t of g.types) src.push(...(byType.get(t) ?? []));
+    if (src.length === 0) {
+      onProgress(g.label, 0, 0, "нет документов этого типа");
+      continue;
+    }
+    onProgress(g.label, 0, src.length);
+
+    // 1) Шапки: upsert по (user_id, ext_1c_id)
+    const headers = src.map(o => {
+      const number = readProp(o, ["Номер"]) || (o.ext ?? "").slice(0, 8);
+      const dateRaw = readProp(o, ["Дата"]);
+      const partnerExt = readRef(o, ["Контрагент", "Партнер", "Партнёр", "Покупатель", "Поставщик"]);
+      const partnerId = partnerExt ? (partnersMap.get(partnerExt) ?? null) : null;
+      const total = Number(readNamed(o.num as any, ["СуммаДокумента", "Сумма"]) ?? o.num["СуммаДокумента"] ?? o.num["Сумма"] ?? 0) || 0;
+      return {
+        user_id: userId,
+        ext_1c_id: o.ext,
+        number,
+        kind: g.kind,
+        doc_type: "shipment",
+        issue_date: parseDate1C(dateRaw),
+        partner_id: partnerId,
+        status: "draft",
+        total,
+        note: `Импорт из 1С: ${o.type}`,
+      };
+    });
+
+    // Дедуп по (user_id, ext_1c_id)
+    const seen = new Map<string, any>();
+    for (const h of headers) seen.set(`${h.user_id}|${h.ext_1c_id}`, h);
+    const dedupHeaders = Array.from(seen.values());
+
+    // Upsert порциями и получаем id
+    const idByExt = new Map<string, string>();
+    const chunk = 200;
+    for (let i = 0; i < dedupHeaders.length; i += chunk) {
+      const part = dedupHeaders.slice(i, i + chunk);
+      const { data, error } = await (supabase as any)
+        .from("invoices")
+        .upsert(part, { onConflict: "user_id,ext_1c_id" })
+        .select("id,ext_1c_id");
+      if (error) throw new Error(`invoices (${g.label}): ${error.message}`);
+      for (const r of data ?? []) if (r.ext_1c_id) idByExt.set(r.ext_1c_id, r.id);
+      onProgress(g.label, Math.min(i + part.length, dedupHeaders.length), dedupHeaders.length, "шапки");
+    }
+
+    // 2) Позиции: удаляем старые и вставляем новые
+    const invoiceIds = Array.from(idByExt.values());
+    if (invoiceIds.length) {
+      // удаляем порциями (IN-список ограничен)
+      for (let i = 0; i < invoiceIds.length; i += 200) {
+        const part = invoiceIds.slice(i, i + 200);
+        const { error } = await (supabase as any).from("invoice_items").delete().in("invoice_id", part);
+        if (error) throw new Error(`invoice_items delete: ${error.message}`);
+      }
+    }
+
+    let itemsDone = 0;
+    const itemsBuf: any[] = [];
+    let withProduct = 0;
+    for (const o of src) {
+      const invId = o.ext ? idByExt.get(o.ext) : undefined;
+      if (!invId) continue;
+      const rows = docItemRows(o, productsMap);
+      for (const r of rows) {
+        if (r.product_id) withProduct += 1;
+        itemsBuf.push({ invoice_id: invId, ...r });
+      }
+    }
+    for (let i = 0; i < itemsBuf.length; i += 500) {
+      const part = itemsBuf.slice(i, i + 500);
+      const { error } = await (supabase as any).from("invoice_items").insert(part);
+      if (error) throw new Error(`invoice_items insert: ${error.message}`);
+      itemsDone += part.length;
+    }
+    onProgress(
+      g.label,
+      dedupHeaders.length,
+      dedupHeaders.length,
+      `документов: ${dedupHeaders.length}, позиций: ${itemsDone}, с товаром: ${withProduct}`,
+    );
+  }
+
+  // Пометка неопознанных типов документов, чтобы было видно, что ещё импортировать
+  const skipped: string[] = [];
+  for (const type of byType.keys()) {
+    if (!/^ДокументСсылка\./i.test(type)) continue;
+    if (/Реализация|Поступление/i.test(type)) continue;
+    skipped.push(`${type} (${byType.get(type)!.length})`);
+  }
+  if (skipped.length) {
+    onProgress("Прочие документы", 0, skipped.length, `пока не импортируются: ${skipped.slice(0, 5).join(", ")}${skipped.length > 5 ? "…" : ""}`);
+  }
+  // Держим в window, чтобы можно было увидеть в консоли
+  if (typeof window !== "undefined") {
+    (window as any).__importDiagDocs = { пропущенныеТипы: skipped };
+  }
+}
