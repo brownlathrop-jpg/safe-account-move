@@ -934,19 +934,25 @@ async function importShipments(
   productNameById: Map<string, string>,
   onProgress: ProgressCb,
 ) {
-  // Собираем «Реализация…» (продажа) и «Поступление…» (закупка)
+  // Собираем «Реализация…» (продажа), «Поступление…» (закупка) и заявки (заказы)
   const salesTypes: string[] = [];
   const purchaseTypes: string[] = [];
+  const orderOutTypes: string[] = []; // заказы покупателей — исходящая заявка нам
+  const orderInTypes: string[] = [];  // заказы поставщикам — входящая заявка
   for (const type of byType.keys()) {
     if (/^ДокументСсылка\./i.test(type)) {
       if (/Реализация/i.test(type) && /Товар|Услуг/i.test(type)) salesTypes.push(type);
       else if (/Поступление/i.test(type) && /Товар|Услуг/i.test(type)) purchaseTypes.push(type);
+      else if (/ЗаказПокупателя|ЗаказКлиента/i.test(type)) orderOutTypes.push(type);
+      else if (/ЗаказПоставщику|ЗаказНаряд/i.test(type)) orderInTypes.push(type);
     }
   }
 
-  const groups: Array<{ label: string; kind: "outgoing" | "incoming"; types: string[] }> = [
-    { label: "Реализации", kind: "outgoing", types: salesTypes },
-    { label: "Поступления", kind: "incoming", types: purchaseTypes },
+  const groups: Array<{ label: string; kind: "outgoing" | "incoming"; types: string[]; doc_type: "shipment" | "order" }> = [
+    { label: "Реализации", kind: "outgoing", types: salesTypes, doc_type: "shipment" },
+    { label: "Поступления", kind: "incoming", types: purchaseTypes, doc_type: "shipment" },
+    { label: "Заявки покупателей", kind: "outgoing", types: orderOutTypes, doc_type: "order" },
+    { label: "Заявки поставщикам", kind: "incoming", types: orderInTypes, doc_type: "order" },
   ];
 
   for (const g of groups) {
@@ -972,7 +978,7 @@ async function importShipments(
         ext_1c_id: o.ext,
         number,
         kind: g.kind,
-        doc_type: "shipment",
+        doc_type: g.doc_type,
         issue_date: parseDate1C(dateRaw),
         partner_id: partnerId,
         status: "draft",
@@ -1041,7 +1047,7 @@ async function importShipments(
   const skipped: string[] = [];
   for (const type of byType.keys()) {
     if (!/^ДокументСсылка\./i.test(type)) continue;
-    if (/Реализация|Поступление/i.test(type)) continue;
+    if (/Реализация|Поступление|ЗаказПокупателя|ЗаказКлиента|ЗаказПоставщику|ЗаказНаряд/i.test(type)) continue;
     if (/ПриходныйКассовыйОрдер|РасходныйКассовыйОрдер|ПоступлениеНаРасчетныйСчет|СписаниеСРасчетногоСчета|ПоступлениеДенежныхСредств|ВыдачаДенежныхСредств|ПлатежноеПоручение/i.test(type)) continue;
     skipped.push(`${type} (${byType.get(type)!.length})`);
   }
