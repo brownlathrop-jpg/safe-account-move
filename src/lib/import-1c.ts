@@ -978,7 +978,7 @@ async function importShipments(
         ext_1c_id: o.ext,
         number,
         kind: g.kind,
-        doc_type: "shipment",
+        doc_type: g.doc_type,
         issue_date: parseDate1C(dateRaw),
         partner_id: partnerId,
         status: "draft",
