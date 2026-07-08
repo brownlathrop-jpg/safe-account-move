@@ -371,14 +371,14 @@ function ProductsPage() {
         >
           <button
             type="button"
-            className="h-4 w-4 flex items-center justify-center text-muted-foreground"
+            className="h-4 w-4 shrink-0 flex items-center justify-center text-muted-foreground"
             onClick={(e) => { e.stopPropagation(); setExpanded({ ...expanded, [id]: !isOpen }); }}
           >
             {hasChildren ? (isOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />) : null}
           </button>
-          {active ? <FolderOpen className="h-4 w-4 text-primary" /> : <Folder className="h-4 w-4 text-muted-foreground" />}
-          <span className="truncate flex-1">{label}</span>
-          <span className="text-xs text-muted-foreground">{count}</span>
+          {active ? <FolderOpen className="h-4 w-4 shrink-0 text-primary" /> : <Folder className="h-4 w-4 shrink-0 text-muted-foreground" />}
+          <span className="flex-1 min-w-0 truncate">{label}</span>
+          <span className="text-xs text-muted-foreground shrink-0">{count}</span>
         </div>
         {hasChildren && isOpen && renderFolderTree(null, 1, list)}
       </div>
