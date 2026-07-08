@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -83,8 +83,10 @@ function ShipmentsPage() {
               <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-10">Накладных пока нет</TableCell></TableRow>
             )}
             {rows.map(i => (
-              <TableRow key={i.id}>
-                <TableCell className="font-medium">{i.number}</TableCell>
+              <TableRow key={i.id} className="hover:bg-muted/40">
+                <TableCell>
+                  <Link to="/invoices/$id" params={{ id: i.id }} className="font-medium text-primary hover:underline">{i.number}</Link>
+                </TableCell>
                 <TableCell>{dfmt.format(new Date(i.issue_date))}</TableCell>
                 <TableCell>
                   {i.kind === "incoming" ? (
