@@ -854,7 +854,7 @@ export async function importAll(
     const partnersMap = await loadExtMap("partners", wsId);
     const productsMap = await loadExtMap("products", wsId);
     await importShipments(objs, byType, userId, wsId, partnersMap, productsMap, onProgress);
-    await importCashDocs(byType, userId, partnersMap, onProgress);
+    await importCashDocs(byType, userId, wsId, partnersMap, onProgress);
   }
 
   onProgress("Готово", 1, 1);
@@ -951,6 +951,7 @@ async function importShipments(
       const total = Number(readNamed(o.num as any, ["СуммаДокумента", "Сумма"]) ?? o.num["СуммаДокумента"] ?? o.num["Сумма"] ?? 0) || 0;
       return {
         user_id: userId,
+        workspace_id: wsId,
         ext_1c_id: o.ext,
         number,
         kind: g.kind,
@@ -1041,6 +1042,7 @@ async function importShipments(
 async function importCashDocs(
   byType: Map<string, Obj[]>,
   userId: string,
+  wsId: string,
   partnersMap: Map<string, string>,
   onProgress: ProgressCb,
 ) {
@@ -1074,6 +1076,7 @@ async function importCashDocs(
       const total = Number(o.num["СуммаДокумента"] ?? o.num["Сумма"] ?? readNamed(o.props, ["СуммаДокумента", "Сумма"]) ?? 0) || 0;
       return {
         user_id: userId,
+        workspace_id: wsId,
         ext_1c_id: o.ext,
         number,
         kind: g.kind,
