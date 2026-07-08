@@ -119,41 +119,41 @@ function SettingsPage() {
   });
 
   return (
-    <div className="space-y-5 max-w-4xl">
-      <div>
-        <h1 className="text-2xl font-semibold">Настройки</h1>
-        <p className="text-sm text-muted-foreground">Реквизиты организации и справочники</p>
+    <div className="space-y-3 max-w-5xl text-sm">
+      <div className="flex items-baseline gap-3">
+        <h1 className="text-lg font-semibold">Настройки</h1>
+        <p className="text-xs text-muted-foreground">Реквизиты организации и справочники</p>
       </div>
 
       <Tabs defaultValue={tab || "org"}>
-        <TabsList>
+        <TabsList className="h-8">
           <TabsTrigger value="workspaces">База данных</TabsTrigger>
           <TabsTrigger value="org">Организация</TabsTrigger>
           <TabsTrigger value="refs">Справочники</TabsTrigger>
           <TabsTrigger value="import">Импорт из 1С</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="workspaces" className="mt-5">
+        <TabsContent value="workspaces" className="mt-3">
           <WorkspacesRef />
         </TabsContent>
 
-        <TabsContent value="org" className="mt-5">
-      <Card className="p-5 space-y-5">
+        <TabsContent value="org" className="mt-3">
+      <Card className="p-3 space-y-3">
         <div>
-          <h2 className="font-medium mb-3">Основное</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
+          <h2 className="font-medium text-xs uppercase tracking-wide text-muted-foreground mb-2">Основное</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+            <div className="space-y-1">
               <Label>Краткое название *</Label>
-              <Input value={form.name} onChange={e => upd("name", e.target.value)} placeholder='ООО "Ромашка"' />
+              <Input className="h-8" value={form.name} onChange={e => upd("name", e.target.value)} placeholder='ООО "Ромашка"' />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-1">
               <Label>Полное наименование</Label>
-              <Input value={form.full_name} onChange={e => upd("full_name", e.target.value)} placeholder='Общество с ограниченной ответственностью "Ромашка"' />
+              <Input className="h-8" value={form.full_name} onChange={e => upd("full_name", e.target.value)} placeholder='Общество с ограниченной ответственностью "Ромашка"' />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-1">
               <Label>Система налогообложения</Label>
               <Select value={form.taxation_system} onValueChange={v => upd("taxation_system", v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="osn">ОСН (общая, с НДС)</SelectItem>
                   <SelectItem value="usn_6">УСН «Доходы» (6%)</SelectItem>
@@ -168,70 +168,70 @@ function SettingsPage() {
         </div>
 
         <div>
-          <h2 className="font-medium mb-3">Реквизиты</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-2">
+          <h2 className="font-medium text-xs uppercase tracking-wide text-muted-foreground mb-2">Реквизиты</h2>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+            <div className="space-y-1">
               <Label>ИНН</Label>
-              <div className="flex gap-2">
-                <Input value={form.inn} onChange={e => upd("inn", e.target.value)} />
-                <Button type="button" size="icon" variant="outline" title="Найти по ИНН"
+              <div className="flex gap-1">
+                <Input className="h-8" value={form.inn} onChange={e => upd("inn", e.target.value)} />
+                <Button type="button" size="icon" variant="outline" className="h-8 w-8 shrink-0" title="Найти по ИНН"
                   onClick={() => innLookup.mutate()} disabled={innLookup.isPending || !form.inn}>
                   {innLookup.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
                 </Button>
               </div>
             </div>
-            <div className="space-y-2"><Label>КПП</Label><Input value={form.kpp} onChange={e => upd("kpp", e.target.value)} /></div>
-            <div className="space-y-2"><Label>ОГРН / ОГРНИП</Label><Input value={form.ogrn} onChange={e => upd("ogrn", e.target.value)} /></div>
-            <div className="space-y-2"><Label>ОКПО</Label><Input value={form.okpo} onChange={e => upd("okpo", e.target.value)} /></div>
-            <div className="space-y-2 md:col-span-2"><Label>Юридический адрес</Label><Input value={form.legal_address} onChange={e => upd("legal_address", e.target.value)} /></div>
-            <div className="space-y-2"><Label>Телефон</Label><Input value={form.phone} onChange={e => upd("phone", e.target.value)} /></div>
-            <div className="space-y-2"><Label>Email</Label><Input value={form.email} onChange={e => upd("email", e.target.value)} /></div>
+            <div className="space-y-1"><Label>КПП</Label><Input className="h-8" value={form.kpp} onChange={e => upd("kpp", e.target.value)} /></div>
+            <div className="space-y-1"><Label>ОГРН / ОГРНИП</Label><Input className="h-8" value={form.ogrn} onChange={e => upd("ogrn", e.target.value)} /></div>
+            <div className="space-y-1"><Label>ОКПО</Label><Input className="h-8" value={form.okpo} onChange={e => upd("okpo", e.target.value)} /></div>
+            <div className="space-y-1 md:col-span-2"><Label>Юридический адрес</Label><Input className="h-8" value={form.legal_address} onChange={e => upd("legal_address", e.target.value)} /></div>
+            <div className="space-y-1"><Label>Телефон</Label><Input className="h-8" value={form.phone} onChange={e => upd("phone", e.target.value)} /></div>
+            <div className="space-y-1"><Label>Email</Label><Input className="h-8" value={form.email} onChange={e => upd("email", e.target.value)} /></div>
           </div>
         </div>
 
         <div>
-          <h2 className="font-medium mb-3">Банковские реквизиты</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2 md:col-span-2"><Label>Название банка</Label><Input value={form.bank_name} onChange={e => upd("bank_name", e.target.value)} /></div>
-            <div className="space-y-2">
+          <h2 className="font-medium text-xs uppercase tracking-wide text-muted-foreground mb-2">Банковские реквизиты</h2>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+            <div className="space-y-1 md:col-span-2"><Label>Название банка</Label><Input className="h-8" value={form.bank_name} onChange={e => upd("bank_name", e.target.value)} /></div>
+            <div className="space-y-1">
               <Label>БИК</Label>
-              <div className="flex gap-2">
-                <Input value={form.bank_bik} onChange={e => upd("bank_bik", e.target.value)} />
-                <Button type="button" size="icon" variant="outline" title="Найти по БИК"
+              <div className="flex gap-1">
+                <Input className="h-8" value={form.bank_bik} onChange={e => upd("bank_bik", e.target.value)} />
+                <Button type="button" size="icon" variant="outline" className="h-8 w-8 shrink-0" title="Найти по БИК"
                   onClick={() => bikLookup.mutate()} disabled={bikLookup.isPending || !form.bank_bik}>
                   {bikLookup.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
                 </Button>
               </div>
             </div>
-            <div className="space-y-2"><Label>Корр. счёт</Label><Input value={form.bank_corr_account} onChange={e => upd("bank_corr_account", e.target.value)} /></div>
-            <div className="space-y-2 md:col-span-2"><Label>Расчётный счёт</Label><Input value={form.bank_account} onChange={e => upd("bank_account", e.target.value)} /></div>
+            <div className="space-y-1"><Label>Корр. счёт</Label><Input className="h-8" value={form.bank_corr_account} onChange={e => upd("bank_corr_account", e.target.value)} /></div>
+            <div className="space-y-1 md:col-span-2"><Label>Расчётный счёт</Label><Input className="h-8" value={form.bank_account} onChange={e => upd("bank_account", e.target.value)} /></div>
           </div>
         </div>
 
         {form.id && (
-          <div className="border-t pt-4">
+          <div className="border-t pt-3">
             <BankAccountsEditor ownerType="organization" ownerId={form.id} />
           </div>
         )}
 
         <div>
-          <h2 className="font-medium mb-3">Ответственные лица</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2"><Label>Руководитель</Label><Input value={form.director_name} onChange={e => upd("director_name", e.target.value)} placeholder="Иванов И.И." /></div>
-            <div className="space-y-2"><Label>Главный бухгалтер</Label><Input value={form.accountant_name} onChange={e => upd("accountant_name", e.target.value)} placeholder="Петрова П.П." /></div>
+          <h2 className="font-medium text-xs uppercase tracking-wide text-muted-foreground mb-2">Ответственные лица</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            <div className="space-y-1"><Label>Руководитель</Label><Input className="h-8" value={form.director_name} onChange={e => upd("director_name", e.target.value)} placeholder="Иванов И.И." /></div>
+            <div className="space-y-1"><Label>Главный бухгалтер</Label><Input className="h-8" value={form.accountant_name} onChange={e => upd("accountant_name", e.target.value)} placeholder="Петрова П.П." /></div>
           </div>
         </div>
 
 
         <div className="flex justify-end">
-          <Button onClick={() => save.mutate()} disabled={save.isPending}>
+          <Button size="sm" onClick={() => save.mutate()} disabled={save.isPending}>
             <Save className="h-4 w-4 mr-1" /> Сохранить
           </Button>
         </div>
       </Card>
         </TabsContent>
 
-        <TabsContent value="refs" className="mt-5 space-y-5">
+        <TabsContent value="refs" className="mt-3 space-y-3">
           <NumberingRef />
           <WarehousesRef />
           <ProductTypesRef />
@@ -242,7 +242,7 @@ function SettingsPage() {
           <InvoiceStatusesRef />
         </TabsContent>
 
-        <TabsContent value="import" className="mt-5">
+        <TabsContent value="import" className="mt-3">
           <Import1CPanel />
         </TabsContent>
       </Tabs>
