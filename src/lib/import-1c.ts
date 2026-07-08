@@ -552,8 +552,13 @@ export async function importAll(
       const parentId = map.get(pExt);
       if (id && parentId) parentPatches.push({ id, parent_id: parentId });
     }
-    for (const p of parentPatches) {
-      await (supabase as any).from("partners").update({ parent_id: p.parent_id }).eq("id", p.id);
+    const PCONC = 40;
+    for (let i = 0; i < parentPatches.length; i += PCONC) {
+      const part = parentPatches.slice(i, i + PCONC);
+      await Promise.all(part.map(p =>
+        (supabase as any).from("partners").update({ parent_id: p.parent_id }).eq("id", p.id)
+      ));
+      onProgress("Контрагенты (родители)", Math.min(i + part.length, parentPatches.length), parentPatches.length);
     }
     onProgress("Контрагенты (родители)", parentPatches.length, parentPatches.length);
   }
