@@ -296,30 +296,21 @@ function UnitsRef() {
   });
 
   return (
-    <Card className="p-5 space-y-5">
-      <div>
-        <h2 className="font-medium mb-1">Единицы измерения</h2>
-        <p className="text-sm text-muted-foreground mb-4">Используются при создании товаров и услуг</p>
-        <form className="flex gap-2 items-end" onSubmit={(e) => { e.preventDefault(); add.mutate(); }}>
-          <div className="space-y-2 w-32">
-            <Label>Краткое</Label>
-            <Input placeholder="шт" value={short} onChange={e => setShort(e.target.value)} />
-          </div>
-          <div className="space-y-2 flex-1">
-            <Label>Полное (необязательно)</Label>
-            <Input placeholder="Штука" value={full} onChange={e => setFull(e.target.value)} />
-          </div>
-          <Button type="submit" disabled={add.isPending}><Plus className="h-4 w-4 mr-1" />Добавить</Button>
-        </form>
-      </div>
+    <Card className="p-3 space-y-2 text-sm">
+      <h2 className="font-medium text-xs uppercase tracking-wide text-muted-foreground">Единицы измерения</h2>
+      <form className="flex gap-1 items-end" onSubmit={(e) => { e.preventDefault(); add.mutate(); }}>
+        <div className="space-y-1 w-28"><Label className="text-xs">Краткое</Label><Input className="h-8" placeholder="шт" value={short} onChange={e => setShort(e.target.value)} /></div>
+        <div className="space-y-1 flex-1"><Label className="text-xs">Полное</Label><Input className="h-8" placeholder="Штука" value={full} onChange={e => setFull(e.target.value)} /></div>
+        <Button size="sm" type="submit" disabled={add.isPending}><Plus className="h-4 w-4" /></Button>
+      </form>
       <div className="divide-y border-t">
-        {units.length === 0 && <div className="py-6 text-center text-sm text-muted-foreground">Пока нет единиц</div>}
+        {units.length === 0 && <div className="py-2 text-center text-xs text-muted-foreground">Пока нет единиц</div>}
         {units.map(u => (
-          <div key={u.id} className="flex items-center py-2 gap-3">
-            <div className="w-32 font-medium">{u.short_name}</div>
-            <div className="flex-1 text-sm text-muted-foreground">{u.full_name || "—"}</div>
-            <Button size="icon" variant="ghost" onClick={() => { if (confirm(`Удалить "${u.short_name}"?`)) del.mutate(u.id); }}>
-              <Trash2 className="h-4 w-4" />
+          <div key={u.id} className="flex items-center py-1 gap-2">
+            <div className="w-28 font-medium">{u.short_name}</div>
+            <div className="flex-1 text-muted-foreground">{u.full_name || "—"}</div>
+            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { if (confirm(`Удалить "${u.short_name}"?`)) del.mutate(u.id); }}>
+              <Trash2 className="h-3.5 w-3.5" />
             </Button>
           </div>
         ))}
@@ -393,24 +384,15 @@ function InvoiceStatusesRef() {
   });
 
   return (
-    <Card className="p-5 space-y-5">
-      <div>
-        <h2 className="font-medium mb-1">Статусы накладных</h2>
-        <p className="text-sm text-muted-foreground mb-4">Используются для отметки состояния (новый, оплачен, выполнен…)</p>
-        <form className="flex gap-2 items-end" onSubmit={(e) => { e.preventDefault(); add.mutate(); }}>
-          <div className="space-y-2 flex-1">
-            <Label>Название</Label>
-            <Input placeholder="Новый" value={name} onChange={e => setName(e.target.value)} />
-          </div>
-          <div className="space-y-2 w-24">
-            <Label>Цвет</Label>
-            <Input type="color" value={color} onChange={e => setColor(e.target.value)} className="h-10 p-1" />
-          </div>
-          <Button type="submit" disabled={add.isPending}><Plus className="h-4 w-4 mr-1" />Добавить</Button>
-        </form>
-      </div>
+    <Card className="p-3 space-y-2 text-sm">
+      <h2 className="font-medium text-xs uppercase tracking-wide text-muted-foreground">Статусы накладных</h2>
+      <form className="flex gap-1 items-end" onSubmit={(e) => { e.preventDefault(); add.mutate(); }}>
+        <div className="space-y-1 flex-1"><Label className="text-xs">Название</Label><Input className="h-8" placeholder="Новый" value={name} onChange={e => setName(e.target.value)} /></div>
+        <div className="space-y-1 w-16"><Label className="text-xs">Цвет</Label><Input type="color" value={color} onChange={e => setColor(e.target.value)} className="h-8 p-0.5" /></div>
+        <Button size="sm" type="submit" disabled={add.isPending}><Plus className="h-4 w-4" /></Button>
+      </form>
       <div className="divide-y border-t">
-        {statuses.length === 0 && <div className="py-6 text-center text-sm text-muted-foreground">Пока нет статусов</div>}
+        {statuses.length === 0 && <div className="py-2 text-center text-xs text-muted-foreground">Пока нет статусов</div>}
         {statuses.map(s => (
           <StatusRow key={s.id} status={s} onSave={(patch) => upd.mutate({ id: s.id, patch })} onDelete={() => { if (confirm(`Удалить "${s.name}"?`)) del.mutate(s.id); }} />
         ))}
@@ -425,16 +407,16 @@ function StatusRow({ status, onSave, onDelete }: { status: InvStatus; onSave: (p
   useEffect(() => { setName(status.name); setColor(status.color); }, [status.id, status.name, status.color]);
   const dirty = name !== status.name || color !== status.color;
   return (
-    <div className="flex items-center py-2 gap-3">
-      <Input type="color" value={color} onChange={e => setColor(e.target.value)} className="h-9 w-12 p-1" />
-      <Input value={name} onChange={e => setName(e.target.value)} className="flex-1" />
+    <div className="flex items-center py-1 gap-2">
+      <Input type="color" value={color} onChange={e => setColor(e.target.value)} className="h-7 w-10 p-0.5" />
+      <Input value={name} onChange={e => setName(e.target.value)} className="h-8 flex-1" />
       {dirty && (
-        <Button size="sm" onClick={() => onSave({ name, color })}>
-          <Save className="h-4 w-4 mr-1" />Сохранить
+        <Button size="sm" className="h-7" onClick={() => onSave({ name, color })}>
+          <Save className="h-3.5 w-3.5" />
         </Button>
       )}
-      <Button size="icon" variant="ghost" onClick={onDelete}>
-        <Trash2 className="h-4 w-4" />
+      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={onDelete}>
+        <Trash2 className="h-3.5 w-3.5" />
       </Button>
     </div>
   );
@@ -476,21 +458,18 @@ function NumberingRef() {
   });
 
   return (
-    <Card className="p-5 space-y-3">
-      <div>
-        <h2 className="font-medium mb-1">Нумерация накладных</h2>
-        <p className="text-sm text-muted-foreground mb-4">Маска применяется к номеру новой накладной</p>
-      </div>
-      <div className="flex gap-2 items-end max-w-2xl flex-wrap">
-        <div className="space-y-2 flex-1 min-w-[240px]">
-          <Label>Маска номера</Label>
-          <Input value={mask} onChange={e => setMask(e.target.value)} placeholder="{YYYY}-{MM}-{DD}-{NNN}" />
+    <Card className="p-3 space-y-2 text-sm">
+      <h2 className="font-medium text-xs uppercase tracking-wide text-muted-foreground">Нумерация накладных</h2>
+      <div className="flex gap-1 items-end max-w-2xl flex-wrap">
+        <div className="space-y-1 flex-1 min-w-[240px]">
+          <Label className="text-xs">Маска номера</Label>
+          <Input className="h-8" value={mask} onChange={e => setMask(e.target.value)} placeholder="{YYYY}-{MM}-{DD}-{NNN}" />
         </div>
-        <div className="space-y-2 w-40">
-          <Label>Начинать с номера</Label>
-          <Input type="number" min={1} value={start} onChange={e => setStart(Number(e.target.value))} />
+        <div className="space-y-1 w-40">
+          <Label className="text-xs">Начинать с №</Label>
+          <Input className="h-8" type="number" min={1} value={start} onChange={e => setStart(Number(e.target.value))} />
         </div>
-        <Button onClick={() => save.mutate()} disabled={save.isPending}><Save className="h-4 w-4 mr-1" />Сохранить</Button>
+        <Button size="sm" onClick={() => save.mutate()} disabled={save.isPending}><Save className="h-4 w-4 mr-1" />Сохранить</Button>
       </div>
       <p className="text-xs text-muted-foreground">
         Подстановки: <code>{"{YYYY}"}</code>, <code>{"{YY}"}</code>, <code>{"{MM}"}</code>, <code>{"{DD}"}</code>, <code>{"{N}"}</code>, <code>{"{NN}"}</code>, <code>{"{NNN}"}</code>, <code>{"{NNNN}"}</code>
@@ -576,39 +555,37 @@ function WorkspacesRef() {
   };
 
   return (
-    <Card className="p-5 space-y-4">
-      <div>
-        <h2 className="font-medium mb-1 flex items-center gap-2"><Database className="h-4 w-4" /> Мои базы данных</h2>
-        <p className="text-sm text-muted-foreground">У каждой базы свой список контрагентов, товаров, накладных и настроек. Переключайтесь между базами, чтобы вести разные организации или проекты отдельно.</p>
-      </div>
+    <Card className="p-3 space-y-2 text-sm">
+      <h2 className="font-medium text-xs uppercase tracking-wide text-muted-foreground flex items-center gap-1"><Database className="h-3.5 w-3.5" /> Мои базы данных</h2>
+      <p className="text-xs text-muted-foreground">У каждой базы свои контрагенты, товары, накладные и настройки.</p>
 
       <div className="border rounded-md divide-y">
         {list.length === 0 && (
-          <div className="p-4 text-sm text-muted-foreground">Пока нет баз</div>
+          <div className="p-2 text-xs text-muted-foreground">Пока нет баз</div>
         )}
         {list.map((w) => {
           const isActive = w.id === activeId;
           const isRenaming = renameId === w.id;
           return (
-            <div key={w.id} className="flex items-center gap-2 p-3">
+            <div key={w.id} className="flex items-center gap-2 p-2">
               <button
                 onClick={() => switchTo(w.id)}
-                className={`h-7 w-7 rounded-full border flex items-center justify-center shrink-0 ${isActive ? "bg-primary text-primary-foreground border-primary" : "hover:bg-accent"}`}
+                className={`h-6 w-6 rounded-full border flex items-center justify-center shrink-0 ${isActive ? "bg-primary text-primary-foreground border-primary" : "hover:bg-accent"}`}
                 title={isActive ? "Активная" : "Сделать активной"}
               >
-                {isActive && <Check className="h-4 w-4" />}
+                {isActive && <Check className="h-3.5 w-3.5" />}
               </button>
               {isRenaming ? (
                 <>
                   <Input
                     value={renameValue}
                     onChange={(e) => setRenameValue(e.target.value)}
-                    className="flex-1"
+                    className="h-8 flex-1"
                     autoFocus
                     onKeyDown={(e) => { if (e.key === "Enter") rename.mutate(); if (e.key === "Escape") setRenameId(null); }}
                   />
-                  <Button size="sm" onClick={() => rename.mutate()} disabled={rename.isPending}>Сохранить</Button>
-                  <Button size="sm" variant="ghost" onClick={() => setRenameId(null)}>Отмена</Button>
+                  <Button size="sm" className="h-7" onClick={() => rename.mutate()} disabled={rename.isPending}>OK</Button>
+                  <Button size="sm" variant="ghost" className="h-7" onClick={() => setRenameId(null)}>Отмена</Button>
                 </>
               ) : (
                 <>
@@ -618,17 +595,18 @@ function WorkspacesRef() {
                       {isActive && <span className="ml-2 text-xs text-primary">активная</span>}
                     </div>
                   </div>
-                  <Button size="icon" variant="ghost" onClick={() => { setRenameId(w.id); setRenameValue(w.name); }} title="Переименовать">
-                    <Pencil className="h-4 w-4" />
+                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setRenameId(w.id); setRenameValue(w.name); }} title="Переименовать">
+                    <Pencil className="h-3.5 w-3.5" />
                   </Button>
                   <Button
                     size="icon"
                     variant="ghost"
+                    className="h-7 w-7"
                     onClick={() => { if (confirm(`Удалить базу "${w.name}"?`)) remove.mutate(w.id); }}
                     title="Удалить"
                     disabled={isActive || list.length <= 1}
                   >
-                    <Trash2 className="h-4 w-4" />
+                    <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 </>
               )}
@@ -637,17 +615,18 @@ function WorkspacesRef() {
         })}
       </div>
 
-      <div className="flex gap-2 items-end pt-2">
-        <div className="flex-1 space-y-2">
-          <Label>Новая база</Label>
+      <div className="flex gap-1 items-end">
+        <div className="flex-1 space-y-1">
+          <Label className="text-xs">Новая база</Label>
           <Input
+            className="h-8"
             placeholder="Например: Основная"
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") create.mutate(); }}
           />
         </div>
-        <Button onClick={() => create.mutate()} disabled={create.isPending || !newName.trim()}>
+        <Button size="sm" onClick={() => create.mutate()} disabled={create.isPending || !newName.trim()}>
           <Plus className="h-4 w-4 mr-1" /> Создать
         </Button>
       </div>
