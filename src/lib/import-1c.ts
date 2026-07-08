@@ -552,8 +552,13 @@ export async function importAll(
       const parentId = map.get(pExt);
       if (id && parentId) parentPatches.push({ id, parent_id: parentId });
     }
-    for (const p of parentPatches) {
-      await (supabase as any).from("partners").update({ parent_id: p.parent_id }).eq("id", p.id);
+    const PCONC = 40;
+    for (let i = 0; i < parentPatches.length; i += PCONC) {
+      const part = parentPatches.slice(i, i + PCONC);
+      await Promise.all(part.map(p =>
+        (supabase as any).from("partners").update({ parent_id: p.parent_id }).eq("id", p.id)
+      ));
+      onProgress("Контрагенты (родители)", Math.min(i + part.length, parentPatches.length), parentPatches.length);
     }
     onProgress("Контрагенты (родители)", parentPatches.length, parentPatches.length);
   }
@@ -703,19 +708,25 @@ export async function importAll(
       }
       return undefined;
     };
+    const folderPatches: Array<{ id: string; parent_id: string | null }> = [];
     for (const o of groups) {
       const pathExt = pathFolderExtByObject.get(o.ext!);
-      const pExt = findParentForGroup(o)
-        ?? pathExt
-        ?? undefined;
+      const pExt = findParentForGroup(o) ?? pathExt ?? undefined;
       const id = fmap.get(o.ext!);
       const parent = pExt ? fmap.get(pExt) : null;
-      if (id) await (supabase as any).from("product_folders").update({ parent_id: parent ?? null }).eq("id", id);
+      if (id) folderPatches.push({ id, parent_id: parent ?? null });
     }
     for (const f of syntheticFolders.values()) {
       const id = fmap.get(f.ext);
       const parent = f.parentExt ? fmap.get(f.parentExt) : null;
-      if (id) await (supabase as any).from("product_folders").update({ parent_id: parent }).eq("id", id);
+      if (id) folderPatches.push({ id, parent_id: parent ?? null });
+    }
+    const FCONC = 40;
+    for (let i = 0; i < folderPatches.length; i += FCONC) {
+      const part = folderPatches.slice(i, i + FCONC);
+      await Promise.all(part.map(p =>
+        (supabase as any).from("product_folders").update({ parent_id: p.parent_id }).eq("id", p.id)
+      ));
     }
     const foldersWithParent = groups.filter(o => findParentForGroup(o) || pathFolderExtByObject.get(o.ext!)).length
       + Array.from(syntheticFolders.values()).filter(f => f.parentExt).length;
@@ -920,7 +931,7 @@ async function linkDocParents(objs: Obj[], userId: string, wsId: string, onProgr
   const jobs = pairs
     .map(p => ({ childId: idByExt.get(p.childExt), parentId: idByExt.get(p.parentExt) }))
     .filter(x => x.childId && x.parentId);
-  const CONC = 20;
+  const CONC = 60;
   for (let i = 0; i < jobs.length; i += CONC) {
     const part = jobs.slice(i, i + CONC);
     const res = await Promise.all(part.map(j =>
