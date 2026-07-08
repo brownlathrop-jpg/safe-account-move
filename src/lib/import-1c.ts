@@ -853,7 +853,21 @@ export async function importAll(
   {
     const partnersMap = await loadExtMap("partners", wsId);
     const productsMap = await loadExtMap("products", wsId);
-    await importShipments(objs, byType, userId, wsId, partnersMap, productsMap, onProgress);
+    // Имена товаров по product.id — чтобы подставлять в позиции документов, где 1С не хранит наименование
+    const productNameById = new Map<string, string>();
+    {
+      let from = 0; const step = 1000;
+      for (;;) {
+        const { data, error } = await (supabase as any).from("products")
+          .select("id,name").eq("workspace_id", wsId).range(from, from + step - 1);
+        if (error) throw new Error("products name map: " + error.message);
+        if (!data?.length) break;
+        for (const p of data) productNameById.set(p.id, p.name);
+        if (data.length < step) break;
+        from += step;
+      }
+    }
+    await importShipments(objs, byType, userId, wsId, partnersMap, productsMap, productNameById, onProgress);
     await importCashDocs(byType, userId, wsId, partnersMap, onProgress);
   }
 
