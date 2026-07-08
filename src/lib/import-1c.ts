@@ -965,6 +965,7 @@ async function importShipments(
       const partnerExt = readRef(o, ["Контрагент", "Партнер", "Партнёр", "Покупатель", "Поставщик"]);
       const partnerId = partnerExt ? (partnersMap.get(partnerExt) ?? null) : null;
       const total = Number(readNamed(o.num as any, ["СуммаДокумента", "Сумма"]) ?? o.num["СуммаДокумента"] ?? o.num["Сумма"] ?? 0) || 0;
+      const comment = readProp(o, ["Комментарий", "КомментарийДокумента", "Примечание"]);
       return {
         user_id: userId,
         workspace_id: wsId,
@@ -976,7 +977,7 @@ async function importShipments(
         partner_id: partnerId,
         status: "draft",
         total,
-        note: `Импорт из 1С: ${o.type}`,
+        note: comment || `Импорт из 1С: ${o.type}`,
       };
     });
 
@@ -1090,6 +1091,7 @@ async function importCashDocs(
       const partnerExt = readRef(o, ["Контрагент", "Партнер", "Партнёр", "Плательщик", "Получатель"]);
       const partnerId = partnerExt ? (partnersMap.get(partnerExt) ?? null) : null;
       const total = Number(o.num["СуммаДокумента"] ?? o.num["Сумма"] ?? readNamed(o.props, ["СуммаДокумента", "Сумма"]) ?? 0) || 0;
+      const comment = readProp(o, ["Комментарий", "КомментарийДокумента", "НазначениеПлатежа", "Примечание"]);
       return {
         user_id: userId,
         workspace_id: wsId,
@@ -1102,7 +1104,7 @@ async function importCashDocs(
         status: "draft",
         total,
         cash_received: total,
-        note: `Импорт из 1С: ${o.type}`,
+        note: comment || `Импорт из 1С: ${o.type}`,
       };
     });
 
