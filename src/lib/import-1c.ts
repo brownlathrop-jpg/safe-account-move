@@ -931,6 +931,7 @@ async function importShipments(
   wsId: string,
   partnersMap: Map<string, string>,
   productsMap: Map<string, string>,
+  productNameById: Map<string, string>,
   onProgress: ProgressCb,
 ) {
   // Собираем «Реализация…» (продажа) и «Поступление…» (закупка)
