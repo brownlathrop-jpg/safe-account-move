@@ -403,10 +403,10 @@ function ProductsPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-[260px_1fr] gap-5">
-        <Card className="p-3 h-fit">
-          <div className="text-sm font-medium mb-2">Папки</div>
-          <div className="space-y-0.5">
+      <div className="grid grid-cols-1 md:grid-cols-[minmax(280px,340px)_1fr] xl:grid-cols-[minmax(320px,380px)_1fr] gap-5">
+        <Card className="p-3 h-fit md:sticky md:top-4 md:max-h-[calc(100vh-6rem)] md:overflow-y-auto">
+          <div className="text-sm font-medium mb-2 px-1">Папки</div>
+          <div className="space-y-0.5 min-w-0">
             <div className={`px-2 py-1.5 text-sm rounded-md cursor-pointer hover:bg-muted/60 ${selectedFolder === ALL ? "bg-muted font-medium" : ""}`}
               onClick={() => selectFolder(ALL)}>Все</div>
             {renderKindRoot(KIND_PRODUCT, PRODUCT_ROOT_NAME, products.filter(p => p.kind === "product").length, productCategoryFolders)}
