@@ -951,6 +951,7 @@ async function importShipments(
       const total = Number(readNamed(o.num as any, ["СуммаДокумента", "Сумма"]) ?? o.num["СуммаДокумента"] ?? o.num["Сумма"] ?? 0) || 0;
       return {
         user_id: userId,
+        workspace_id: wsId,
         ext_1c_id: o.ext,
         number,
         kind: g.kind,
@@ -1074,6 +1075,7 @@ async function importCashDocs(
       const total = Number(o.num["СуммаДокумента"] ?? o.num["Сумма"] ?? readNamed(o.props, ["СуммаДокумента", "Сумма"]) ?? 0) || 0;
       return {
         user_id: userId,
+        workspace_id: wsId,
         ext_1c_id: o.ext,
         number,
         kind: g.kind,
