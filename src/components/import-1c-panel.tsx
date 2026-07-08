@@ -7,6 +7,7 @@ import { Upload, FileWarning, Loader2, CheckCircle2, Download } from "lucide-rea
 import { supabase } from "@/integrations/supabase/client";
 import { useActiveWorkspaceId } from "@/lib/workspace";
 import { importAll } from "@/lib/import-1c";
+import { importProductsCsv } from "@/lib/import-1c-csv";
 import { useQueryClient } from "@tanstack/react-query";
 
 export function Import1CPanel() {
@@ -58,6 +59,35 @@ export function Import1CPanel() {
     }
   };
 
+  const onCsv = async (file: File) => {
+    if (!wsId) { toast.error("Не выбрана база данных"); return; }
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { toast.error("Нет сессии"); return; }
+    setBusy(true); setError(null); setLog([]); setStage(""); setDone(0); setTotal(0); setNote("");
+    startedAtRef.current = Date.now(); setElapsed(0);
+    try {
+      const text = await file.text();
+      await importProductsCsv(text, wsId, user.id, (s, d, t, n) => {
+        setStage(s); setDone(d); setTotal(t); setNote(n || "");
+        setLog(prev => {
+          const entry = { stage: s, done: d, total: t, note: n || "", finished: t > 0 && d >= t };
+          const last = prev[prev.length - 1];
+          if (last && last.stage === s) return [...prev.slice(0, -1), entry];
+          const withPrevDone = last ? [...prev.slice(0, -1), { ...last, finished: true }] : [];
+          return [...withPrevDone, entry];
+        });
+      });
+      setLog(prev => prev.map((l, i) => i === prev.length - 1 ? { ...l, finished: true } : l));
+      toast.success("CSV импортирован");
+      qc.invalidateQueries();
+    } catch (e: any) {
+      setError(e?.message || String(e));
+      toast.error("Ошибка импорта CSV");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const downloadDiag = () => {
     const diag = (window as any).__importDiag;
     if (!diag) { toast.error("Диагностика ещё не сформирована. Сначала запустите импорт."); return; }
@@ -91,6 +121,14 @@ export function Import1CPanel() {
           <Button asChild disabled={busy}><span>
             {busy ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Upload className="h-4 w-4 mr-1" />}
             {busy ? "Импортирую…" : "Выбрать файл XML"}
+          </span></Button>
+        </label>
+        <label className="inline-flex items-center gap-2 cursor-pointer">
+          <input type="file" accept=".csv,text/csv" hidden disabled={busy}
+            onChange={e => { const f = e.target.files?.[0]; if (f) onCsv(f); e.target.value = ""; }} />
+          <Button asChild disabled={busy} variant="secondary"><span>
+            <Upload className="h-4 w-4 mr-1" />
+            Догрузить product.csv
           </span></Button>
         </label>
         {!busy && log.length > 0 && (
