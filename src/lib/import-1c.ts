@@ -725,7 +725,7 @@ export async function importAll(
     // --- Диагностика: список папок без родителя ---
     const orphanReport: Array<{
       name: string;
-      ext_1c_id: string | undefined;
+      ext_1c_id: string | null | undefined;
       причина: string;
       поля_props: Record<string, string>;
       поля_refs: Record<string, string>;
