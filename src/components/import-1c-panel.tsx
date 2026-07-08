@@ -90,8 +90,10 @@ export function Import1CPanel() {
 
   const downloadDiag = () => {
     const diag = (window as any).__importDiag;
-    if (!diag) { toast.error("Диагностика ещё не сформирована. Сначала запустите импорт."); return; }
-    const blob = new Blob([JSON.stringify(diag, null, 2)], { type: "application/json" });
+    const diagDocs = (window as any).__importDiagDocs;
+    if (!diag && !diagDocs) { toast.error("Диагностика ещё не сформирована. Сначала запустите импорт."); return; }
+    const payload = { папки: diag ?? null, документы: diagDocs ?? null };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
