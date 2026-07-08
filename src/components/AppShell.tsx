@@ -22,11 +22,11 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
-    return window.localStorage.getItem("crm:sidebar-collapsed") === "1";
+    try { return window.localStorage.getItem("crm:sidebar-collapsed") === "1"; } catch { return false; }
   });
   useEffect(() => {
     if (typeof window !== "undefined") {
-      window.localStorage.setItem("crm:sidebar-collapsed", collapsed ? "1" : "0");
+      try { window.localStorage.setItem("crm:sidebar-collapsed", collapsed ? "1" : "0"); } catch {}
     }
   }, [collapsed]);
 
@@ -35,6 +35,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
+    if (typeof window !== "undefined" && !window.confirm("Выйти из КабинетCRM?")) return;
     await qc.cancelQueries();
     qc.clear();
     await supabase.auth.signOut();
