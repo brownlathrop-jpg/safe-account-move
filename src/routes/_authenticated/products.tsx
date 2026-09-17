@@ -19,7 +19,15 @@ import { useActiveWorkspaceId } from "@/lib/workspace";
 export const Route = createFileRoute("/_authenticated/products")({
   head: () => ({ meta: [{ title: "Товары и услуги — КабинетCRM" }] }),
   component: ProductsPage,
+  errorComponent: ({ error }: { error: Error }) => (
+    <div className="p-6 space-y-2">
+      <h1 className="text-lg font-semibold">Не удалось открыть список товаров</h1>
+      <p className="text-sm text-muted-foreground">{error?.message ?? "Неизвестная ошибка"}</p>
+      <Button onClick={() => window.location.reload()}>Обновить</Button>
+    </div>
+  ),
 });
+
 
 type Product = {
   id: string; sku: string | null; name: string; unit: string;
@@ -124,12 +132,17 @@ function ProductsPage() {
 
   const childrenOf = useMemo(() => {
     const map = new Map<string | null, FolderRow[]>();
+    const ids = new Set(folders.map(f => f.id));
     folders.forEach(f => {
-      const arr = map.get(f.parent_id) ?? [];
-      arr.push(f); map.set(f.parent_id, arr);
+      // защита от битых ссылок: папка не может быть родителем сама себе,
+      // а ссылка на несуществующую папку считается корневой
+      const parent = f.parent_id && f.parent_id !== f.id && ids.has(f.parent_id) ? f.parent_id : null;
+      const arr = map.get(parent) ?? [];
+      arr.push(f); map.set(parent, arr);
     });
     return map;
   }, [folders]);
+
 
   const folderIds = useMemo(() => new Set(folders.map(f => f.id)), [folders]);
   const productRootFolder = useMemo(() => folders.find(f => f.parent_id === null && f.name.trim().toLowerCase() === PRODUCT_ROOT_NAME.toLowerCase()) ?? null, [folders]);
@@ -154,14 +167,18 @@ function ProductsPage() {
 
   const descendantsOf = (id: string): string[] => {
     const result: string[] = [];
+    const seen = new Set<string>();
     const stack = [id];
     while (stack.length) {
       const cur = stack.pop()!;
+      if (seen.has(cur)) continue;
+      seen.add(cur);
       result.push(cur);
       (childrenOf.get(cur) ?? []).forEach(c => stack.push(c.id));
     }
     return result;
   };
+
 
   const upsert = useMutation({
     mutationFn: async (p: Partial<Product>) => {
@@ -301,8 +318,11 @@ function ProductsPage() {
   // Плоский список папок с путём — для выбора папки при переносе
   const folderOptions = useMemo(() => {
     const out: { id: string; label: string }[] = [];
+    const seen = new Set<string>();
     const walk = (parentId: string | null, prefix: string) => {
       for (const f of childrenOf.get(parentId) ?? []) {
+        if (seen.has(f.id)) continue;
+        seen.add(f.id);
         const label = prefix ? `${prefix} / ${f.name}` : f.name;
         out.push({ id: f.id, label });
         walk(f.id, label);
@@ -311,6 +331,7 @@ function ProductsPage() {
     walk(null, "");
     return out.sort((a, b) => a.label.localeCompare(b.label, "ru"));
   }, [childrenOf]);
+
 
   const toggleSelected = (id: string) =>
     setSelectedIds(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]));
@@ -347,7 +368,9 @@ function ProductsPage() {
   };
 
   const renderFolderTree = (parentId: string | null, depth = 0, overrideList?: FolderRow[]) => {
+    if (depth > 20) return null;
     const list = overrideList ?? childrenOf.get(parentId) ?? [];
+
     return list.map(f => {
       const hasChildren = (childrenOf.get(f.id) ?? []).length > 0;
       const isOpen = expanded[f.id] ?? true;
