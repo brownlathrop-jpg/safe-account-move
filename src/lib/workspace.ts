@@ -3,7 +3,7 @@
 // чтобы синхронно отдаваться в React через useSyncExternalStore.
 
 import { useSyncExternalStore } from "react";
-import { db } from "@/integrations/firebase/db";
+import { db } from "@/integrations/db";
 
 export type Workspace = { id: string; user_id: string; name: string; created_at: string };
 

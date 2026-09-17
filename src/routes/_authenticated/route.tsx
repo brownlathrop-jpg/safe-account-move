@@ -1,5 +1,5 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
-import { db } from "@/integrations/firebase/db";
+import { db } from "@/integrations/db";
 import { AppShell } from "@/components/AppShell";
 import { ensureWorkspace } from "@/lib/workspace";
 

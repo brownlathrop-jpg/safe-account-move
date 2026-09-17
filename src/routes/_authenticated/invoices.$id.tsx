@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { db } from "@/integrations/firebase/db";
+import { db } from "@/integrations/db";
 import { applyShipmentStock } from "@/lib/posting";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
