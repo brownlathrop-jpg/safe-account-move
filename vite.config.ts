@@ -6,12 +6,17 @@
 // You can pass additional config via defineConfig({ vite: { ... }, etc... }) if needed.
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
-// Для своего сервера (Node) собираем с пресетом node-server: DEPLOY_TARGET=node bun run build.
-// В превью и публикации Lovable остаётся стандартный cloudflare-пресет.
-const selfHost = process.env["DEPLOY_TARGET"] === "node";
-
 export default defineConfig({
-  ...(selfHost ? { nitro: { preset: "node-server" as const } } : {}),
+  vite: {
+    resolve: {
+      alias: [
+        // Приложение работает на обычном Node (свой сервер), поэтому берём
+        // node-версию драйвера PostgreSQL, а не вариант для Cloudflare
+        // (тот тянет cloudflare:sockets и падает при запуске под Node).
+        { find: /^postgres$/, replacement: "postgres/src/index.js" },
+      ],
+    },
+  },
   tanstackStart: {
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
     // nitro/vite builds from this
