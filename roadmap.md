@@ -61,3 +61,7 @@
 - [x] Перенос данных из старой базы (Supabase) — 16 207 записей, товары разложены по папкам
 - [x] Восстановление пароля по письму — Resend, письма с noreply@skladnow.ru
 - [x] Ежедневные бэкапы pg_dump по cron — /var/backups/crm
+
+- [x] Мгновенные обновления (LISTEN/NOTIFY + SSE /api/realtime)
+- [x] Админка /admin (только для is_admin в app_users)
+- [ ] При деплое проверить, что nginx не буферизует /api/realtime (proxy_buffering off)
