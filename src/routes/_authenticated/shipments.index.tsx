@@ -154,10 +154,12 @@ function ShipmentsPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.length === 0 && (
-              <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-10">Накладных пока нет</TableCell></TableRow>
+            {filtered.length === 0 && (
+              <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-10">
+                {rows.length ? "Ничего не найдено" : "Накладных пока нет"}
+              </TableCell></TableRow>
             )}
-            {rows.map(i => (
+            {filtered.map(i => (
               <TableRow key={i.id} className="hover:bg-muted/40">
                 <TableCell>
                   <Link to="/invoices/$id" params={{ id: i.id }} className="font-medium text-primary hover:underline">{i.number}</Link>
