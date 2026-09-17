@@ -310,8 +310,11 @@ function ProductsPage() {
   // Плоский список папок с путём — для выбора папки при переносе
   const folderOptions = useMemo(() => {
     const out: { id: string; label: string }[] = [];
+    const seen = new Set<string>();
     const walk = (parentId: string | null, prefix: string) => {
       for (const f of childrenOf.get(parentId) ?? []) {
+        if (seen.has(f.id)) continue;
+        seen.add(f.id);
         const label = prefix ? `${prefix} / ${f.name}` : f.name;
         out.push({ id: f.id, label });
         walk(f.id, label);
@@ -320,6 +323,7 @@ function ProductsPage() {
     walk(null, "");
     return out.sort((a, b) => a.label.localeCompare(b.label, "ru"));
   }, [childrenOf]);
+
 
   const toggleSelected = (id: string) =>
     setSelectedIds(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]));
