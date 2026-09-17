@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/firebase/db";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -63,7 +63,7 @@ function ProductsPage() {
       const step = 1000;
       let from = 0;
       for (;;) {
-        const { data, error } = await (supabase as any)
+        const { data, error } = await (db as any)
           .from("products").select("*").eq("workspace_id", wsId)
           .order("name").range(from, from + step - 1);
         if (error) throw error;
@@ -84,7 +84,7 @@ function ProductsPage() {
       const step = 1000;
       let from = 0;
       for (;;) {
-        const { data, error } = await (supabase as any)
+        const { data, error } = await (db as any)
           .from("product_folders").select("id,name,parent_id").eq("workspace_id", wsId)
           .order("name").range(from, from + step - 1);
         if (error) throw error;
@@ -101,7 +101,7 @@ function ProductsPage() {
     queryKey: ["units", wsId],
     enabled: !!wsId,
     queryFn: async () => {
-      const { data, error } = await (supabase as any).from("units").select("id,short_name").eq("workspace_id", wsId).order("short_name");
+      const { data, error } = await (db as any).from("units").select("id,short_name").eq("workspace_id", wsId).order("short_name");
       if (error) throw error;
       return (data ?? []) as { id: string; short_name: string }[];
     },
@@ -111,7 +111,7 @@ function ProductsPage() {
     queryKey: ["product_types", wsId],
     enabled: !!wsId,
     queryFn: async () => {
-      const { data, error } = await (supabase as any).from("product_types")
+      const { data, error } = await (db as any).from("product_types")
         .select("id,name,is_service").eq("workspace_id", wsId).order("name");
       if (error) throw error;
       return (data ?? []) as { id: string; name: string; is_service: boolean }[];
@@ -161,7 +161,7 @@ function ProductsPage() {
 
   const upsert = useMutation({
     mutationFn: async (p: Partial<Product>) => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await db.auth.getUser();
       if (!user) throw new Error("Нет сессии");
       if (!wsId) throw new Error("Не выбрана база данных");
       const payload = {
@@ -182,10 +182,10 @@ function ProductsPage() {
         product_type_id: p.product_type_id ?? null,
       };
       if (p.id) {
-        const { error } = await supabase.from("products").update(payload as never).eq("id", p.id);
+        const { error } = await db.from("products").update(payload as never).eq("id", p.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from("products").insert(payload as never);
+        const { error } = await db.from("products").insert(payload as never);
         if (error) throw error;
       }
     },
@@ -199,7 +199,7 @@ function ProductsPage() {
 
   const remove = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("products").delete().eq("id", id);
+      const { error } = await db.from("products").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["products"] }); toast.success("Удалено"); },
@@ -210,11 +210,11 @@ function ProductsPage() {
     mutationFn: async () => {
       const name = folderName.trim();
       if (!name) throw new Error("Введите название");
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await db.auth.getUser();
       if (!user) throw new Error("Нет сессии");
       if (!wsId) throw new Error("Не выбрана база данных");
       if (folderDialog.editing) {
-        const { error } = await supabase.from("product_folders").update({ name }).eq("id", folderDialog.editing.id);
+        const { error } = await db.from("product_folders").update({ name }).eq("id", folderDialog.editing.id);
         if (error) throw error;
       } else {
         let parent_id = folderDialog.parent_id;
@@ -224,7 +224,7 @@ function ProductsPage() {
           if (existingRoot) {
             parent_id = existingRoot.id;
           } else {
-            const { data: rootFolder, error: rootError } = await (supabase as any)
+            const { data: rootFolder, error: rootError } = await (db as any)
               .from("product_folders")
               .insert({ user_id: user.id, workspace_id: wsId, name: rootName, parent_id: null })
               .select("id,name,parent_id")
@@ -233,7 +233,7 @@ function ProductsPage() {
             parent_id = rootFolder.id;
           }
         }
-        const { error } = await (supabase as any).from("product_folders").insert({
+        const { error } = await (db as any).from("product_folders").insert({
           user_id: user.id, workspace_id: wsId, name, parent_id,
         });
         if (error) throw error;
@@ -250,7 +250,7 @@ function ProductsPage() {
 
   const removeFolder = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("product_folders").delete().eq("id", id);
+      const { error } = await db.from("product_folders").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -541,13 +541,13 @@ function ProductsPage() {
                           if (!file) return;
                           try {
                             setUploadingImage(true);
-                            const { data: { user } } = await supabase.auth.getUser();
+                            const { data: { user } } = await db.auth.getUser();
                             if (!user) throw new Error("Нет сессии");
                             const ext = file.name.split(".").pop() || "jpg";
                             const path = `${user.id}/${crypto.randomUUID()}.${ext}`;
-                            const { error: upErr } = await supabase.storage.from("product-images").upload(path, file, { upsert: false, contentType: file.type });
+                            const { error: upErr } = await db.storage.from("product-images").upload(path, file, { upsert: false, contentType: file.type });
                             if (upErr) throw upErr;
-                            const { data: pub } = supabase.storage.from("product-images").getPublicUrl(path);
+                            const { data: pub } = db.storage.from("product-images").getPublicUrl(path);
                             setEditing(cur => cur ? { ...cur, image_url: pub.publicUrl } : cur);
                           } catch (err) {
                             toast.error(err instanceof Error ? err.message : "Ошибка загрузки");

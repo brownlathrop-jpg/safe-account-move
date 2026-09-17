@@ -3,7 +3,7 @@
 // чтобы синхронно отдаваться в React через useSyncExternalStore.
 
 import { useSyncExternalStore } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/firebase/db";
 
 export type Workspace = { id: string; user_id: string; name: string; created_at: string };
 
@@ -42,14 +42,14 @@ export const activeWorkspace = {
  * Возвращает id активной базы.
  */
 export async function ensureWorkspace(userId: string): Promise<string> {
-  const { data, error } = await (supabase as any)
+  const { data, error } = await (db as any)
     .from("workspaces")
     .select("id,name,created_at")
     .order("created_at", { ascending: true });
   if (error) throw error;
   const list = (data ?? []) as { id: string }[];
   if (list.length === 0) {
-    const { data: created, error: e2 } = await (supabase as any)
+    const { data: created, error: e2 } = await (db as any)
       .from("workspaces")
       .insert({ user_id: userId, name: "Тестовая" })
       .select("id")

@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/firebase/db";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,7 +45,7 @@ function InvoiceView() {
   const { data: inv, isLoading, error } = useQuery({
     queryKey: ["invoice", id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("invoices")
         .select("*, partner:partners(name,inn,phone,address), items:invoice_items(*)")
         .eq("id", id).single();
@@ -57,30 +57,30 @@ function InvoiceView() {
   const { data: products = [] } = useQuery({
     queryKey: ["products", wsId],
     enabled: !!wsId,
-    queryFn: async () => (await (supabase as any).from("products").select("id,name,price,cost,unit,kind").eq("workspace_id", wsId).order("name")).data ?? [],
+    queryFn: async () => (await (db as any).from("products").select("id,name,price,cost,unit,kind").eq("workspace_id", wsId).order("name")).data ?? [],
   });
   const { data: partners = [] } = useQuery({
     queryKey: ["partners", wsId],
     enabled: !!wsId,
-    queryFn: async () => (await (supabase as any).from("partners").select("id,name,kind").eq("workspace_id", wsId).order("name")).data ?? [],
+    queryFn: async () => (await (db as any).from("partners").select("id,name,kind").eq("workspace_id", wsId).order("name")).data ?? [],
   });
   const { data: warehouses = [] } = useQuery({
     queryKey: ["warehouses", wsId],
     enabled: !!wsId,
-    queryFn: async () => (await (supabase as any).from("warehouses").select("id,name,is_default").eq("workspace_id", wsId).order("is_default", { ascending: false }).order("name")).data as { id: string; name: string; is_default: boolean }[] ?? [],
+    queryFn: async () => (await (db as any).from("warehouses").select("id,name,is_default").eq("workspace_id", wsId).order("is_default", { ascending: false }).order("name")).data as { id: string; name: string; is_default: boolean }[] ?? [],
   });
   const { data: myOrg } = useQuery({
     queryKey: ["my-organization", wsId],
     enabled: !!wsId,
-    queryFn: async () => (await (supabase as any).from("organizations").select("*").eq("workspace_id", wsId).order("is_primary", { ascending: false }).limit(1).maybeSingle()).data,
+    queryFn: async () => (await (db as any).from("organizations").select("*").eq("workspace_id", wsId).order("is_primary", { ascending: false }).limit(1).maybeSingle()).data,
   });
   const { data: statuses = [] } = useQuery({
     queryKey: ["invoice_statuses", wsId],
     enabled: !!wsId,
     queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await db.auth.getUser();
       if (!user) return [];
-      let { data } = await (supabase as any).from("invoice_statuses").select("id,name,color,sort_order").eq("workspace_id", wsId).order("sort_order");
+      let { data } = await (db as any).from("invoice_statuses").select("id,name,color,sort_order").eq("workspace_id", wsId).order("sort_order");
       if (!data || data.length === 0) {
         const defaults = [
           { name: "Новый", color: "#64748b", sort_order: 0 },
@@ -88,8 +88,8 @@ function InvoiceView() {
           { name: "Оплачен", color: "#3b82f6", sort_order: 2 },
           { name: "Выполнен", color: "#22c55e", sort_order: 3 },
         ].map(s => ({ ...s, user_id: user.id, workspace_id: wsId }));
-        await (supabase as any).from("invoice_statuses").insert(defaults);
-        ({ data } = await (supabase as any).from("invoice_statuses").select("id,name,color,sort_order").eq("workspace_id", wsId).order("sort_order"));
+        await (db as any).from("invoice_statuses").insert(defaults);
+        ({ data } = await (db as any).from("invoice_statuses").select("id,name,color,sort_order").eq("workspace_id", wsId).order("sort_order"));
       }
       return (data ?? []) as { id: string; name: string; color: string; sort_order: number }[];
     },
@@ -139,7 +139,7 @@ function InvoiceView() {
   const { data: children = [] } = useQuery({
     queryKey: ["invoice-children", id],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
+      const { data, error } = await (db as any)
         .from("invoices")
         .select("id,number,doc_type,issue_date,total,status,cash_received")
         .eq("parent_id", id)
@@ -154,7 +154,7 @@ function InvoiceView() {
     queryKey: ["invoice-parent", inv?.parent_id],
     enabled: !!inv?.parent_id,
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
+      const { data, error } = await (db as any)
         .from("invoices")
         .select("id,number,doc_type,issue_date,kind")
         .eq("id", inv!.parent_id).maybeSingle();
@@ -185,11 +185,11 @@ function InvoiceView() {
     mutationFn: async () => {
       const wasPosted = inv?.status === "posted";
       if (wasPosted) {
-        const { error } = await supabase.from("invoices").update({ status: "draft" }).eq("id", id);
+        const { error } = await db.from("invoices").update({ status: "draft" }).eq("id", id);
         if (error) throw error;
       }
 
-      const { error: upErr } = await (supabase as any).from("invoices").update({
+      const { error: upErr } = await (db as any).from("invoices").update({
         kind, number, issue_date: date, partner_id: partnerId || null, note: note || null,
         warehouse_id: isShipment ? (warehouseId || null) : null,
         cash_received: isPKO ? cashReceived : null,
@@ -209,12 +209,12 @@ function InvoiceView() {
 
       for (const row of existingRows) {
         const { id: itemId, ...patch } = row;
-        const { error: itemErr } = await supabase.from("invoice_items").update(patch).eq("id", itemId as string);
+        const { error: itemErr } = await db.from("invoice_items").update(patch).eq("id", itemId as string);
         if (itemErr) throw itemErr;
       }
 
       if (newRows.length) {
-        const { error: insErr } = await supabase.from("invoice_items").insert(newRows);
+        const { error: insErr } = await db.from("invoice_items").insert(newRows);
         if (insErr) throw insErr;
       }
 
@@ -222,12 +222,12 @@ function InvoiceView() {
       const originalIds = (inv?.items ?? []).map((it: any) => it.id).filter(Boolean) as string[];
       const removedIds = originalIds.filter((itemId) => !keptIds.includes(itemId));
       if (removedIds.length) {
-        const { error: delErr } = await supabase.from("invoice_items").delete().in("id", removedIds).eq("invoice_id", id);
+        const { error: delErr } = await db.from("invoice_items").delete().in("id", removedIds).eq("invoice_id", id);
         if (delErr) throw delErr;
       }
 
       if (wasPosted) {
-        const { error } = await supabase.from("invoices").update({ status: "posted" }).eq("id", id);
+        const { error } = await db.from("invoices").update({ status: "posted" }).eq("id", id);
         if (error) throw error;
       }
     },
@@ -237,7 +237,7 @@ function InvoiceView() {
 
   const setStatus = useMutation({
     mutationFn: async (status: "posted" | "cancelled" | "draft") => {
-      const { error } = await supabase.from("invoices").update({ status }).eq("id", id);
+      const { error } = await db.from("invoices").update({ status }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["invoice", id] }); toast.success("Статус обновлён"); },
@@ -246,7 +246,7 @@ function InvoiceView() {
 
   const setStatusId = useMutation({
     mutationFn: async (status_id: string) => {
-      const { error } = await supabase.from("invoices").update({ status_id }).eq("id", id);
+      const { error } = await db.from("invoices").update({ status_id }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["invoice", id] }); toast.success("Статус обновлён"); },
@@ -263,11 +263,11 @@ function InvoiceView() {
 
   const createShipment = useMutation({
     mutationFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await db.auth.getUser();
       if (!user) throw new Error("Нет сессии");
       const cleanNum = String(inv!.number).replace(/^№\s*/, "");
       const defaultWh = warehouses.find(w => w.is_default)?.id ?? warehouses[0]?.id ?? null;
-      const { data: ship, error } = await (supabase as any).from("invoices").insert({
+      const { data: ship, error } = await (db as any).from("invoices").insert({
         user_id: user.id,
         workspace_id: inv!.workspace_id ?? wsId,
         number: `Н-${cleanNum}`,
@@ -288,7 +288,7 @@ function InvoiceView() {
         kind: it.kind ?? "product",
       }));
       if (rows.length) {
-        const { error: insErr } = await supabase.from("invoice_items").insert(rows);
+        const { error: insErr } = await db.from("invoice_items").insert(rows);
         if (insErr) throw insErr;
       }
       return ship.id as string;
@@ -303,10 +303,10 @@ function InvoiceView() {
 
   const createReceipt = useMutation({
     mutationFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await db.auth.getUser();
       if (!user) throw new Error("Нет сессии");
       const cleanNum = String(inv!.number).replace(/^№\s*/, "");
-      const { data: pko, error } = await (supabase as any).from("invoices").insert({
+      const { data: pko, error } = await (db as any).from("invoices").insert({
         user_id: user.id,
         workspace_id: inv!.workspace_id ?? wsId,
         number: `ПКО-${cleanNum}`,

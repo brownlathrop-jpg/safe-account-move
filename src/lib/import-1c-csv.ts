@@ -9,7 +9,7 @@
 // Задача: починить у товаров привязку к папке и цены, где они были пусты
 // после XML-импорта, и добавить те товары, которых в базе ещё нет.
 
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/firebase/db";
 import type { ProgressCb } from "@/lib/import-1c";
 
 type Row = { folder: string; name: string; unit: string; cost: number; price: number };
@@ -46,7 +46,7 @@ async function loadAll(table: string, select: string, wsId: string): Promise<any
   let from = 0;
   const step = 1000;
   for (;;) {
-    const { data, error } = await (supabase as any)
+    const { data, error } = await (db as any)
       .from(table).select(select).eq("workspace_id", wsId).range(from, from + step - 1);
     if (error) throw new Error(`${table}: ${error.message}`);
     if (!data || data.length === 0) break;
@@ -86,7 +86,7 @@ export async function importProductsCsv(
   if (toInsertFolders.length) {
     for (let i = 0; i < toInsertFolders.length; i += 200) {
       const part = toInsertFolders.slice(i, i + 200);
-      const { data, error } = await (supabase as any)
+      const { data, error } = await (db as any)
         .from("product_folders").insert(part).select("id,name");
       if (error) throw new Error(`product_folders: ${error.message}`);
       for (const f of data ?? []) folderIdByName.set(String(f.name).trim(), f.id);
@@ -134,7 +134,7 @@ export async function importProductsCsv(
   for (let i = 0; i < updates.length; i += CONCURRENCY) {
     const part = updates.slice(i, i + CONCURRENCY);
     const results = await Promise.all(part.map(u =>
-      (supabase as any).from("products").update(u.patch).eq("id", u.id)
+      (db as any).from("products").update(u.patch).eq("id", u.id)
     ));
     const bad = results.find(r => r.error);
     if (bad?.error) throw new Error(`products update: ${bad.error.message}`);
@@ -145,7 +145,7 @@ export async function importProductsCsv(
   // Вставки — батчами
   for (let i = 0; i < toInsert.length; i += 200) {
     const part = toInsert.slice(i, i + 200);
-    const { error } = await (supabase as any).from("products").insert(part);
+    const { error } = await (db as any).from("products").insert(part);
     if (error) throw new Error(`products insert: ${error.message}`);
     inserted += part.length;
   }

@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/firebase/db";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -61,7 +61,7 @@ function SettingsPage() {
     queryKey: ["my-organization", wsId],
     enabled: !!wsId,
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
+      const { data, error } = await (db as any)
         .from("organizations").select("*")
         .eq("workspace_id", wsId)
         .order("is_primary", { ascending: false })
@@ -101,16 +101,16 @@ function SettingsPage() {
 
   const save = useMutation({
     mutationFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await db.auth.getUser();
       if (!user) throw new Error("Нет сессии");
       if (!wsId) throw new Error("Не выбрана база данных");
       if (!form.name.trim()) throw new Error("Укажите название организации");
       const payload = { ...form, user_id: user.id, workspace_id: wsId, is_primary: true };
       if (form.id) {
-        const { error } = await (supabase as any).from("organizations").update(payload).eq("id", form.id);
+        const { error } = await (db as any).from("organizations").update(payload).eq("id", form.id);
         if (error) throw error;
       } else {
-        const { error } = await (supabase as any).from("organizations").insert(payload);
+        const { error } = await (db as any).from("organizations").insert(payload);
         if (error) throw error;
       }
     },
@@ -264,7 +264,7 @@ function UnitsRef() {
     queryKey: ["units", wsId],
     enabled: !!wsId,
     queryFn: async () => {
-      const { data, error } = await (supabase as any).from("units").select("id,short_name,full_name").eq("workspace_id", wsId).order("short_name");
+      const { data, error } = await (db as any).from("units").select("id,short_name,full_name").eq("workspace_id", wsId).order("short_name");
       if (error) throw error;
       return data as Unit[];
     },
@@ -274,10 +274,10 @@ function UnitsRef() {
     mutationFn: async () => {
       const s = short.trim();
       if (!s) throw new Error("Введите краткое название");
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await db.auth.getUser();
       if (!user) throw new Error("Нет сессии");
       if (!wsId) throw new Error("Не выбрана база данных");
-      const { error } = await (supabase as any).from("units").insert({
+      const { error } = await (db as any).from("units").insert({
         user_id: user.id, workspace_id: wsId, short_name: s, full_name: full.trim() || null,
       });
       if (error) throw error;
@@ -288,7 +288,7 @@ function UnitsRef() {
 
   const del = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("units").delete().eq("id", id);
+      const { error } = await db.from("units").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["units"] }); toast.success("Удалено"); },
@@ -331,9 +331,9 @@ function InvoiceStatusesRef() {
     queryKey: ["invoice_statuses", wsId],
     enabled: !!wsId,
     queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await db.auth.getUser();
       if (!user) return [];
-      let { data } = await (supabase as any).from("invoice_statuses").select("id,name,color,sort_order").eq("workspace_id", wsId).order("sort_order");
+      let { data } = await (db as any).from("invoice_statuses").select("id,name,color,sort_order").eq("workspace_id", wsId).order("sort_order");
       if (!data || data.length === 0) {
         const defaults = [
           { name: "Новый", color: "#64748b", sort_order: 0 },
@@ -341,8 +341,8 @@ function InvoiceStatusesRef() {
           { name: "Оплачен", color: "#3b82f6", sort_order: 2 },
           { name: "Выполнен", color: "#22c55e", sort_order: 3 },
         ].map(s => ({ ...s, user_id: user.id, workspace_id: wsId }));
-        await (supabase as any).from("invoice_statuses").insert(defaults);
-        ({ data } = await (supabase as any).from("invoice_statuses").select("id,name,color,sort_order").eq("workspace_id", wsId).order("sort_order"));
+        await (db as any).from("invoice_statuses").insert(defaults);
+        ({ data } = await (db as any).from("invoice_statuses").select("id,name,color,sort_order").eq("workspace_id", wsId).order("sort_order"));
       }
       return (data ?? []) as InvStatus[];
     },
@@ -352,11 +352,11 @@ function InvoiceStatusesRef() {
     mutationFn: async () => {
       const n = name.trim();
       if (!n) throw new Error("Введите название статуса");
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await db.auth.getUser();
       if (!user) throw new Error("Нет сессии");
       if (!wsId) throw new Error("Не выбрана база данных");
       const maxOrder = statuses.reduce((m, s) => Math.max(m, s.sort_order), -1);
-      const { error } = await (supabase as any).from("invoice_statuses").insert({
+      const { error } = await (db as any).from("invoice_statuses").insert({
         user_id: user.id, workspace_id: wsId, name: n, color, sort_order: maxOrder + 1,
       });
       if (error) throw error;
@@ -367,7 +367,7 @@ function InvoiceStatusesRef() {
 
   const upd = useMutation({
     mutationFn: async ({ id, patch }: { id: string; patch: Partial<InvStatus> }) => {
-      const { error } = await supabase.from("invoice_statuses").update(patch).eq("id", id);
+      const { error } = await db.from("invoice_statuses").update(patch).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["invoice_statuses"] }),
@@ -376,7 +376,7 @@ function InvoiceStatusesRef() {
 
   const del = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("invoice_statuses").delete().eq("id", id);
+      const { error } = await db.from("invoice_statuses").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["invoice_statuses"] }); toast.success("Удалено"); },
@@ -428,7 +428,7 @@ function NumberingRef() {
   const { data: org } = useQuery({
     queryKey: ["my-organization", wsId],
     enabled: !!wsId,
-    queryFn: async () => (await (supabase as any).from("organizations").select("id,invoice_number_mask,invoice_number_start,name").eq("workspace_id", wsId).order("is_primary", { ascending: false }).limit(1).maybeSingle()).data,
+    queryFn: async () => (await (db as any).from("organizations").select("id,invoice_number_mask,invoice_number_start,name").eq("workspace_id", wsId).order("is_primary", { ascending: false }).limit(1).maybeSingle()).data,
   });
   const [mask, setMask] = useState("");
   const [start, setStart] = useState<number>(1);
@@ -441,15 +441,15 @@ function NumberingRef() {
 
   const save = useMutation({
     mutationFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await db.auth.getUser();
       if (!user) throw new Error("Нет сессии");
       if (!wsId) throw new Error("Не выбрана база данных");
       const payload = { invoice_number_mask: mask, invoice_number_start: Math.max(1, Math.floor(Number(start) || 1)) };
       if (org && (org as any).id) {
-        const { error } = await (supabase as any).from("organizations").update(payload).eq("id", (org as any).id);
+        const { error } = await (db as any).from("organizations").update(payload).eq("id", (org as any).id);
         if (error) throw error;
       } else {
-        const { error } = await (supabase as any).from("organizations").insert({ user_id: user.id, workspace_id: wsId, name: "Моя организация", is_primary: true, ...payload });
+        const { error } = await (db as any).from("organizations").insert({ user_id: user.id, workspace_id: wsId, name: "Моя организация", is_primary: true, ...payload });
         if (error) throw error;
       }
     },
@@ -495,7 +495,7 @@ function WorkspacesRef() {
   const { data: list = [] } = useQuery({
     queryKey: ["workspaces"],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
+      const { data, error } = await (db as any)
         .from("workspaces")
         .select("id,name,created_at")
         .order("created_at", { ascending: true });
@@ -508,9 +508,9 @@ function WorkspacesRef() {
     mutationFn: async () => {
       const n = newName.trim();
       if (!n) throw new Error("Введите название базы");
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await db.auth.getUser();
       if (!user) throw new Error("Нет сессии");
-      const { error } = await (supabase as any).from("workspaces").insert({ user_id: user.id, name: n });
+      const { error } = await (db as any).from("workspaces").insert({ user_id: user.id, name: n });
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["workspaces"] }); setNewName(""); toast.success("База создана"); },
@@ -521,7 +521,7 @@ function WorkspacesRef() {
     mutationFn: async () => {
       const n = renameValue.trim();
       if (!n || !renameId) throw new Error("Введите название");
-      const { error } = await (supabase as any).from("workspaces").update({ name: n }).eq("id", renameId);
+      const { error } = await (db as any).from("workspaces").update({ name: n }).eq("id", renameId);
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["workspaces"] }); setRenameId(null); setRenameValue(""); toast.success("Переименовано"); },
@@ -536,12 +536,12 @@ function WorkspacesRef() {
       if (list.length <= 1) throw new Error("Нельзя удалить единственную базу");
       const tables = ["partners", "products", "product_folders", "invoices", "invoice_statuses", "units", "organizations"] as const;
       for (const t of tables) {
-        const { count, error } = await (supabase as any)
+        const { count, error } = await (db as any)
           .from(t).select("id", { count: "exact", head: true }).eq("workspace_id", id);
         if (error) throw error;
         if ((count ?? 0) > 0) throw new Error("Нельзя удалить непустую базу. Сначала очистите её данные.");
       }
-      const { error } = await (supabase as any).from("workspaces").delete().eq("id", id);
+      const { error } = await (db as any).from("workspaces").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["workspaces"] }); toast.success("База удалена"); },

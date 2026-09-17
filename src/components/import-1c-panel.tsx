@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Upload, FileWarning, Loader2, CheckCircle2, Download } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/firebase/db";
 import { useActiveWorkspaceId } from "@/lib/workspace";
 import { importAll } from "@/lib/import-1c";
 import { importProductsCsv } from "@/lib/import-1c-csv";
@@ -31,7 +31,7 @@ export function Import1CPanel() {
 
   const onFile = async (file: File) => {
     if (!wsId) { toast.error("Не выбрана база данных"); return; }
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user } } = await db.auth.getUser();
     if (!user) { toast.error("Нет сессии"); return; }
     setBusy(true); setError(null); setLog([]); setStage(""); setDone(0); setTotal(0); setNote("");
     startedAtRef.current = Date.now(); setElapsed(0);
@@ -61,7 +61,7 @@ export function Import1CPanel() {
 
   const onCsv = async (file: File) => {
     if (!wsId) { toast.error("Не выбрана база данных"); return; }
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user } } = await db.auth.getUser();
     if (!user) { toast.error("Нет сессии"); return; }
     setBusy(true); setError(null); setLog([]); setStage(""); setDone(0); setTotal(0); setNote("");
     startedAtRef.current = Date.now(); setElapsed(0);

@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Database, Check, Settings2 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/firebase/db";
 import { activeWorkspace, useActiveWorkspaceId, type Workspace } from "@/lib/workspace";
 import {
   DropdownMenu,
@@ -19,7 +19,7 @@ export function WorkspaceSwitcher() {
   const { data: list = [] } = useQuery({
     queryKey: ["workspaces"],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
+      const { data, error } = await (db as any)
         .from("workspaces")
         .select("id,name,created_at")
         .order("created_at", { ascending: true });

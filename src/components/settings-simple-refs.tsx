@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/firebase/db";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,7 +13,7 @@ import { useActiveWorkspaceId } from "@/lib/workspace";
 import { lookupBankByBik } from "@/lib/dadata.functions";
 
 async function getUserOrThrow() {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await db.auth.getUser();
   if (!user) throw new Error("Нет сессии");
   return user;
 }
@@ -33,7 +33,7 @@ export function WarehousesRef() {
     queryKey: ["warehouses", wsId],
     enabled: !!wsId,
     queryFn: async () => {
-      const { data, error } = await (supabase as any).from("warehouses")
+      const { data, error } = await (db as any).from("warehouses")
         .select("id,name,address,is_default").eq("workspace_id", wsId)
         .order("is_default", { ascending: false }).order("name");
       if (error) throw error;
@@ -47,7 +47,7 @@ export function WarehousesRef() {
       if (!n) throw new Error("Введите название склада");
       const user = await getUserOrThrow();
       if (!wsId) throw new Error("Не выбрана база данных");
-      const { error } = await (supabase as any).from("warehouses").insert({
+      const { error } = await (db as any).from("warehouses").insert({
         user_id: user.id, workspace_id: wsId, name: n, address: address.trim() || null,
         is_default: items.length === 0,
       });
@@ -60,15 +60,15 @@ export function WarehousesRef() {
   const setDefault = useMutation({
     mutationFn: async (id: string) => {
       if (!wsId) return;
-      await (supabase as any).from("warehouses").update({ is_default: false }).eq("workspace_id", wsId);
-      await (supabase as any).from("warehouses").update({ is_default: true }).eq("id", id);
+      await (db as any).from("warehouses").update({ is_default: false }).eq("workspace_id", wsId);
+      await (db as any).from("warehouses").update({ is_default: true }).eq("id", id);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["warehouses"] }),
   });
 
   const del = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await (supabase as any).from("warehouses").delete().eq("id", id);
+      const { error } = await (db as any).from("warehouses").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["warehouses"] }); toast.success("Удалено"); },
@@ -121,7 +121,7 @@ export function BanksRef() {
     queryKey: ["banks", wsId],
     enabled: !!wsId,
     queryFn: async () => {
-      const { data, error } = await (supabase as any).from("banks")
+      const { data, error } = await (db as any).from("banks")
         .select("id,bik,name,corr_account,city").eq("workspace_id", wsId).order("name");
       if (error) throw error;
       return data as Bank[];
@@ -147,7 +147,7 @@ export function BanksRef() {
       if (!n) throw new Error("Введите название банка");
       const user = await getUserOrThrow();
       if (!wsId) throw new Error("Не выбрана база данных");
-      const { error } = await (supabase as any).from("banks").insert({
+      const { error } = await (db as any).from("banks").insert({
         user_id: user.id, workspace_id: wsId, bik: b, name: n,
         corr_account: corr.trim() || null, city: city.trim() || null,
       });
@@ -163,7 +163,7 @@ export function BanksRef() {
 
   const del = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await (supabase as any).from("banks").delete().eq("id", id);
+      const { error } = await (db as any).from("banks").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["banks"] }); toast.success("Удалено"); },
@@ -223,7 +223,7 @@ export function ProductTypesRef() {
     queryKey: ["product_types", wsId],
     enabled: !!wsId,
     queryFn: async () => {
-      const { data, error } = await (supabase as any).from("product_types")
+      const { data, error } = await (db as any).from("product_types")
         .select("id,name,is_service").eq("workspace_id", wsId).order("name");
       if (error) throw error;
       return data as ProductType[];
@@ -236,7 +236,7 @@ export function ProductTypesRef() {
       if (!n) throw new Error("Введите название");
       const user = await getUserOrThrow();
       if (!wsId) throw new Error("Не выбрана база данных");
-      const { error } = await (supabase as any).from("product_types").insert({
+      const { error } = await (db as any).from("product_types").insert({
         user_id: user.id, workspace_id: wsId, name: n, is_service: isService,
       });
       if (error) throw error;
@@ -247,7 +247,7 @@ export function ProductTypesRef() {
 
   const del = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await (supabase as any).from("product_types").delete().eq("id", id);
+      const { error } = await (db as any).from("product_types").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["product_types"] }); toast.success("Удалено"); },
@@ -302,7 +302,7 @@ export function PriceTypesRef() {
     queryKey: ["price_types", wsId],
     enabled: !!wsId,
     queryFn: async () => {
-      const { data, error } = await (supabase as any).from("price_types")
+      const { data, error } = await (db as any).from("price_types")
         .select("id,name,currency,is_default").eq("workspace_id", wsId)
         .order("is_default", { ascending: false }).order("name");
       if (error) throw error;
@@ -316,7 +316,7 @@ export function PriceTypesRef() {
       if (!n) throw new Error("Введите название");
       const user = await getUserOrThrow();
       if (!wsId) throw new Error("Не выбрана база данных");
-      const { error } = await (supabase as any).from("price_types").insert({
+      const { error } = await (db as any).from("price_types").insert({
         user_id: user.id, workspace_id: wsId, name: n, currency, is_default: items.length === 0,
       });
       if (error) throw error;
@@ -328,15 +328,15 @@ export function PriceTypesRef() {
   const setDefault = useMutation({
     mutationFn: async (id: string) => {
       if (!wsId) return;
-      await (supabase as any).from("price_types").update({ is_default: false }).eq("workspace_id", wsId);
-      await (supabase as any).from("price_types").update({ is_default: true }).eq("id", id);
+      await (db as any).from("price_types").update({ is_default: false }).eq("workspace_id", wsId);
+      await (db as any).from("price_types").update({ is_default: true }).eq("id", id);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["price_types"] }),
   });
 
   const del = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await (supabase as any).from("price_types").delete().eq("id", id);
+      const { error } = await (db as any).from("price_types").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["price_types"] }); toast.success("Удалено"); },
@@ -386,7 +386,7 @@ export function CashflowItemsRef() {
     queryKey: ["cashflow_items", wsId],
     enabled: !!wsId,
     queryFn: async () => {
-      const { data, error } = await (supabase as any).from("cashflow_items")
+      const { data, error } = await (db as any).from("cashflow_items")
         .select("id,name,direction").eq("workspace_id", wsId).order("name");
       if (error) throw error;
       return data as CashflowItem[];
@@ -399,7 +399,7 @@ export function CashflowItemsRef() {
       if (!n) throw new Error("Введите название");
       const user = await getUserOrThrow();
       if (!wsId) throw new Error("Не выбрана база данных");
-      const { error } = await (supabase as any).from("cashflow_items").insert({
+      const { error } = await (db as any).from("cashflow_items").insert({
         user_id: user.id, workspace_id: wsId, name: n, direction,
       });
       if (error) throw error;
@@ -410,7 +410,7 @@ export function CashflowItemsRef() {
 
   const del = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await (supabase as any).from("cashflow_items").delete().eq("id", id);
+      const { error } = await (db as any).from("cashflow_items").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["cashflow_items"] }); toast.success("Удалено"); },

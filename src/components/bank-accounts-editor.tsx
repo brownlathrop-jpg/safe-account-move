@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/firebase/db";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -41,7 +41,7 @@ export function BankAccountsEditor({ ownerType, ownerId }: Props) {
     queryKey: ["banks", wsId],
     enabled: !!wsId,
     queryFn: async () => {
-      const { data, error } = await (supabase as any).from("banks")
+      const { data, error } = await (db as any).from("banks")
         .select("id,bik,name").eq("workspace_id", wsId).order("name");
       if (error) throw error;
       return data as Bank[];
@@ -52,7 +52,7 @@ export function BankAccountsEditor({ ownerType, ownerId }: Props) {
     queryKey: key,
     enabled: !!ownerId,
     queryFn: async () => {
-      const { data, error } = await (supabase as any).from("bank_accounts")
+      const { data, error } = await (db as any).from("bank_accounts")
         .select("id,bank_id,account_number,currency,is_primary")
         .eq(ownerCol, ownerId)
         .order("is_primary", { ascending: false });
@@ -66,7 +66,7 @@ export function BankAccountsEditor({ ownerType, ownerId }: Props) {
       const n = num.trim();
       if (!bankId) throw new Error("Выберите банк");
       if (!/^\d{20}$/.test(n)) throw new Error("Расчётный счёт — 20 цифр");
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await db.auth.getUser();
       if (!user) throw new Error("Нет сессии");
       if (!wsId) throw new Error("Не выбрана база данных");
       const payload: any = {
@@ -78,7 +78,7 @@ export function BankAccountsEditor({ ownerType, ownerId }: Props) {
         currency: currency.toUpperCase() || "RUB",
         is_primary: accounts.length === 0,
       };
-      const { error } = await (supabase as any).from("bank_accounts").insert(payload);
+      const { error } = await (db as any).from("bank_accounts").insert(payload);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -91,15 +91,15 @@ export function BankAccountsEditor({ ownerType, ownerId }: Props) {
 
   const setPrimary = useMutation({
     mutationFn: async (id: string) => {
-      await (supabase as any).from("bank_accounts").update({ is_primary: false }).eq(ownerCol, ownerId);
-      await (supabase as any).from("bank_accounts").update({ is_primary: true }).eq("id", id);
+      await (db as any).from("bank_accounts").update({ is_primary: false }).eq(ownerCol, ownerId);
+      await (db as any).from("bank_accounts").update({ is_primary: true }).eq("id", id);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: key }),
   });
 
   const del = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await (supabase as any).from("bank_accounts").delete().eq("id", id);
+      const { error } = await (db as any).from("bank_accounts").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: key }); toast.success("Счёт удалён"); },

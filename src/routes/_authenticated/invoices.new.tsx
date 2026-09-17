@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/firebase/db";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -54,7 +54,7 @@ function NewInvoice() {
     queryKey: ["my-organization-mask", wsId],
     enabled: !!wsId,
     queryFn: async () => {
-      const { data } = await (supabase as any).from("organizations").select("invoice_number_mask,invoice_number_start").eq("workspace_id", wsId).order("is_primary", { ascending: false }).limit(1).maybeSingle();
+      const { data } = await (db as any).from("organizations").select("invoice_number_mask,invoice_number_start").eq("workspace_id", wsId).order("is_primary", { ascending: false }).limit(1).maybeSingle();
       return data as { invoice_number_mask: string; invoice_number_start: number } | null;
     },
   });
@@ -62,7 +62,7 @@ function NewInvoice() {
     queryKey: ["invoices-count", wsId],
     enabled: !!wsId,
     queryFn: async () => {
-      const { count } = await (supabase as any).from("invoices").select("id", { count: "exact", head: true }).eq("workspace_id", wsId);
+      const { count } = await (db as any).from("invoices").select("id", { count: "exact", head: true }).eq("workspace_id", wsId);
       return count ?? 0;
     },
   });
@@ -83,18 +83,18 @@ function NewInvoice() {
   const { data: products = [] } = useQuery({
     queryKey: ["products", wsId],
     enabled: !!wsId,
-    queryFn: async () => (await (supabase as any).from("products").select("id,name,price,cost,unit,kind").eq("workspace_id", wsId).order("name")).data ?? [],
+    queryFn: async () => (await (db as any).from("products").select("id,name,price,cost,unit,kind").eq("workspace_id", wsId).order("name")).data ?? [],
   });
   const { data: partners = [] } = useQuery({
     queryKey: ["partners", wsId],
     enabled: !!wsId,
-    queryFn: async () => (await (supabase as any).from("partners").select("id,name,kind").eq("workspace_id", wsId).order("name")).data ?? [],
+    queryFn: async () => (await (db as any).from("partners").select("id,name,kind").eq("workspace_id", wsId).order("name")).data ?? [],
   });
 
   const { data: statuses = [] } = useQuery({
     queryKey: ["invoice_statuses", wsId],
     enabled: !!wsId,
-    queryFn: async () => (await (supabase as any).from("invoice_statuses").select("id,name,color,sort_order").eq("workspace_id", wsId).order("sort_order")).data ?? [],
+    queryFn: async () => (await (db as any).from("invoice_statuses").select("id,name,color,sort_order").eq("workspace_id", wsId).order("sort_order")).data ?? [],
   });
 
   // Автовыбор первого статуса, если ещё не выбран
@@ -135,10 +135,10 @@ function NewInvoice() {
     mutationFn: async () => {
       if (items.length === 0) throw new Error("Добавьте хотя бы одну позицию");
       if (!wsId) throw new Error("Не выбрана база данных");
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await db.auth.getUser();
       if (!user) throw new Error("Нет сессии");
 
-      const { data: inv, error } = await (supabase as any).from("invoices").insert({
+      const { data: inv, error } = await (db as any).from("invoices").insert({
         user_id: user.id,
         workspace_id: wsId,
         number, kind,
@@ -160,7 +160,7 @@ function NewInvoice() {
         sum: it.quantity * it.price,
         kind: it.kind ?? "product",
       }));
-      const { error: itemsErr } = await supabase.from("invoice_items").insert(rows);
+      const { error: itemsErr } = await db.from("invoice_items").insert(rows);
       if (itemsErr) throw itemsErr;
 
       return inv.id as string;

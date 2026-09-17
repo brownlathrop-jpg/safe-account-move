@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/firebase/db";
 import { useActiveWorkspaceId } from "@/lib/workspace";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -32,18 +32,18 @@ function NewCashDoc() {
   const { data: partners = [] } = useQuery({
     queryKey: ["partners", wsId],
     enabled: !!wsId,
-    queryFn: async () => (await (supabase as any).from("partners").select("id,name,kind").eq("workspace_id", wsId).order("name")).data ?? [],
+    queryFn: async () => (await (db as any).from("partners").select("id,name,kind").eq("workspace_id", wsId).order("name")).data ?? [],
   });
   const { data: cashItems = [] } = useQuery({
     queryKey: ["cashflow_items", wsId],
     enabled: !!wsId,
-    queryFn: async () => (await (supabase as any).from("cashflow_items").select("id,name").eq("workspace_id", wsId).order("name")).data ?? [],
+    queryFn: async () => (await (db as any).from("cashflow_items").select("id,name").eq("workspace_id", wsId).order("name")).data ?? [],
   });
   const { data: cnt = 0 } = useQuery({
     queryKey: ["cash-count", wsId],
     enabled: !!wsId,
     queryFn: async () => {
-      const { count } = await (supabase as any).from("invoices").select("id", { count: "exact", head: true }).eq("workspace_id", wsId).eq("doc_type", "cash_receipt");
+      const { count } = await (db as any).from("invoices").select("id", { count: "exact", head: true }).eq("workspace_id", wsId).eq("doc_type", "cash_receipt");
       return count ?? 0;
     },
   });
@@ -61,7 +61,7 @@ function NewCashDoc() {
     mutationFn: async () => {
       if (!wsId) throw new Error("Не выбрана база данных");
       if (!(amount > 0)) throw new Error("Укажите сумму больше нуля");
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await db.auth.getUser();
       if (!user) throw new Error("Нет сессии");
 
       const payload: Record<string, unknown> = {
@@ -79,7 +79,7 @@ function NewCashDoc() {
       };
       if (itemId) payload.cashflow_item_id = itemId;
 
-      const { data, error } = await (supabase as any).from("invoices").insert(payload).select("id").single();
+      const { data, error } = await (db as any).from("invoices").insert(payload).select("id").single();
       if (error) throw error;
       return data.id as string;
     },
