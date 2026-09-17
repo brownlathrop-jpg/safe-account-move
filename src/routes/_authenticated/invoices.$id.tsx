@@ -337,6 +337,55 @@ function InvoiceView() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  /** Копия документа или возврат (документ обратного вида). */
+  const duplicate = useMutation({
+    mutationFn: async (mode: "copy" | "return") => {
+      const { data: { user } } = await db.auth.getUser();
+      if (!user) throw new Error("Нет сессии");
+      const cleanNum = String(inv!.number).replace(/^№\s*/, "");
+      const isReturn = mode === "return";
+      const newKind = isReturn ? (kind === "outgoing" ? "incoming" : "outgoing") : kind;
+      const prefix = isReturn ? "В" : "К";
+      const { data: doc, error } = await (db as any).from("invoices").insert({
+        user_id: user.id,
+        workspace_id: inv!.workspace_id ?? wsId,
+        number: `${prefix}-${cleanNum}`,
+        kind: newKind,
+        partner_id: inv!.partner_id,
+        warehouse_id: isShipment ? (warehouseId || null) : null,
+        issue_date: new Date().toISOString().slice(0, 10),
+        status: "draft",
+        doc_type: docType,
+        is_return: isReturn,
+        parent_id: isReturn ? id : null,
+        cash_received: isPKO ? cashReceived : null,
+        cash_basis: isPKO ? (cashBasis || null) : null,
+        note: isReturn
+          ? `Возврат по ${isShipment ? "накладной" : "документу"} № ${cleanNum}`
+          : (note || null),
+      }).select("id").single();
+      if (error) throw error;
+      const rows = items.map(it => ({
+        invoice_id: doc.id, product_id: it.product_id, name: it.name,
+        quantity: it.quantity, price: it.price, sum: it.quantity * it.price,
+        kind: it.kind ?? "product",
+      }));
+      if (rows.length) {
+        const { error: insErr } = await db.from("invoice_items").insert(rows);
+        if (insErr) throw insErr;
+      }
+      return doc.id as string;
+    },
+    onSuccess: (newId) => {
+      qc.invalidateQueries({ queryKey: ["invoice-children", id] });
+      toast.success("Документ создан");
+      navigate({ to: "/invoices/$id", params: { id: newId } });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+
+
   if (error) return <div className="text-destructive">Ошибка загрузки: {(error as Error).message}</div>;
   if (isLoading || !inv) return <div className="text-muted-foreground">Загрузка…</div>;
 
