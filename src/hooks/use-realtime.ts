@@ -6,12 +6,19 @@ type ChangeEvent = { table: string; id: string | null; workspace_id: string | nu
 
 // Какие ключи запросов обновлять при изменении таблицы (первый элемент ключа — имя таблицы).
 const EXTRA_KEYS: Record<string, string[]> = {
-  stock_movements: ["stock_balances"],
+  stock_movements: ["stock_balances", "dashboard-stats"],
   stock_receipts: ["stock_balances"],
   stock_receipt_items: ["stock_balances", "stock_receipts"],
-  invoice_items: ["invoices", "shipments-count"],
-  invoices: ["shipments-count", "stock_balances"],
-  organizations: ["my-organization"],
+  invoice_items: ["invoices", "invoice", "invoice-children", "shipments", "dashboard-stats"],
+  invoices: [
+    "invoice", "invoice-children", "invoice-parent", "invoices-count",
+    "shipments", "shipments-count", "cash", "cash-count",
+    "stock_balances", "dashboard-stats",
+  ],
+  products: ["stock_balances", "dashboard-stats"],
+  partners: ["partners-list", "dashboard-stats"],
+  organizations: ["my-organization", "my-organization-mask"],
+  workspaces: ["ws-settings"],
 };
 
 export function useRealtime() {
