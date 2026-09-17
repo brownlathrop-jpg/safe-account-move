@@ -6,6 +6,7 @@
  * Услуги и позиции без товара склад не двигают.
  */
 import { db } from "@/integrations/firebase/db";
+import { warehouseBalanceMap } from "@/lib/stock";
 
 export async function applyShipmentStock(invoiceId: string): Promise<void> {
   const inv = await db.getById("invoices", invoiceId);
