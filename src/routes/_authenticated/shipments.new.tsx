@@ -16,7 +16,7 @@ import { ProductPickerSingle } from "@/components/ProductPickerSingle";
 
 export const Route = createFileRoute("/_authenticated/shipments/new")({
   head: () => ({ meta: [{ title: "Новая накладная — КабинетCRM" }] }),
-  component: NewShipment;
+  component: NewShipment,
 });
 
 const fmt = new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB" });
