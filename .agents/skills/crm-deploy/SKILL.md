@@ -50,7 +50,7 @@ rm -rf /tmp/deploy && mkdir -p /tmp/deploy \
 ```bash
 SSH="ssh -i /tmp/sshkey/id -o StrictHostKeyChecking=accept-new crmdeploy@178.212.13.144"
 scp -i /tmp/sshkey/id -o StrictHostKeyChecking=accept-new /tmp/crm.tgz crmdeploy@178.212.13.144:/tmp/
-$SSH 'cd /home/crmadmin/htdocs/crm.skladnow.ru && rm -rf dist.old && { [ -d dist ] && mv dist dist.old; }; tar -xzf /tmp/crm.tgz -C .; rm -f /tmp/crm.tgz; pm2 restart crm --update-env && pm2 save'
+$SSH 'cd /home/crmadmin/htdocs/crm.skladnow.ru && rm -rf dist.old && { [ -d dist ] && mv dist dist.old; }; tar -xzf /tmp/crm.tgz -C .; rm -f /tmp/crm.tgz; pm2 restart ecosystem.config.cjs && pm2 save   # НЕ `pm2 restart crm --update-env` — это стирает переменные из .env'
 ```
 
 5. Verify — do not report success without this:
@@ -68,3 +68,12 @@ Expect `HTTP/2 200` and pm2 status `online`.
 - 502 from nginx → node process is down or not on port 3001; check `$SSH 'curl -sI http://127.0.0.1:3001/'`, pm2 logs and `.env` presence (`PORT=3001`).
 - New dependency added → run `npm ci --omit=dev` (or `bun install --production`) in the app dir before restarting.
 - Permission errors on the app dir → `crmdeploy` has `NOPASSWD` only for `/usr/bin/clpctl`; use CloudPanel (`panel.skladnow.ru`) rather than widening sudo.
+
+## Важно (сентябрь 2026)
+
+- Перезапуск только через `pm2 restart ecosystem.config.cjs` (он подгружает `.env` через dotenv).
+  `pm2 restart crm --update-env` затирает окружение → ошибка «DATABASE_URL не задан».
+- `.env` должен быть читаем группой: `chmod 640 .env` (владелец crmadmin, группа crmadmin, crmdeploy в ней).
+- Если `dist.old` создавался под root — распаковывать под root и затем `chown -R crmadmin:crmadmin dist dist.old`.
+- Драйвер PostgreSQL: в `vite.config.ts` алиас `postgres` → `node_modules/postgres/src/index.js`,
+  иначе cloudflare-сборка тянет `cloudflare:sockets` и на Node вход падает с ошибкой ESM-загрузчика.
