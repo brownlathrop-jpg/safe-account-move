@@ -360,7 +360,9 @@ function ProductsPage() {
   };
 
   const renderFolderTree = (parentId: string | null, depth = 0, overrideList?: FolderRow[]) => {
+    if (depth > 20) return null;
     const list = overrideList ?? childrenOf.get(parentId) ?? [];
+
     return list.map(f => {
       const hasChildren = (childrenOf.get(f.id) ?? []).length > 0;
       const isOpen = expanded[f.id] ?? true;
