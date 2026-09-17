@@ -80,7 +80,3 @@ export async function applyShipmentStock(invoiceId: string): Promise<void> {
     .eq("id", invoiceId);
 }
 
-/** Удалить складские движения документа (при удалении накладной). */
-export async function clearShipmentStock(invoiceId: string): Promise<void> {
-  await db.from("stock_movements").delete().eq("doc_type", "shipment").eq("doc_id", invoiceId);
-}
