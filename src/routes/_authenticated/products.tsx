@@ -388,7 +388,7 @@ function ProductsPage() {
 
   // Свойства для папки-приёмника при перетаскивании товаров.
   const dropProps = (folderId: string | null, key: string) => ({
-    onDragOver: (e: DragEvent) => { e.preventDefault(); setDropFolder(key); },
+    onDragOver: (e: DragEvent) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; setDropFolder(key); },
     onDragLeave: () => setDropFolder(cur => (cur === key ? null : cur)),
     onDrop: (e: DragEvent) => { e.preventDefault(); dropOnFolder(folderId); },
   });
@@ -612,8 +612,10 @@ function ProductsPage() {
                   key={p.id}
                   data-state={selectedIds.includes(p.id) ? "selected" : undefined}
                   draggable
-                  onDragStart={() => {
+                  onDragStart={(e) => {
                     dragIdsRef.current = selectedIds.includes(p.id) ? selectedIds : [p.id];
+                    e.dataTransfer.effectAllowed = "move";
+                    e.dataTransfer.setData("text/plain", dragIdsRef.current.join(","));
                   }}
                   className="cursor-grab active:cursor-grabbing"
                 >
