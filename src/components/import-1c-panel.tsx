@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Upload, FileWarning, Loader2, CheckCircle2, Download } from "lucide-react";
-import { db } from "@/integrations/firebase/db";
+import { db } from "@/integrations/db";
 import { useActiveWorkspaceId } from "@/lib/workspace";
 import { importAll } from "@/lib/import-1c";
 import { importProductsCsv } from "@/lib/import-1c-csv";

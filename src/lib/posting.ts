@@ -5,7 +5,7 @@
  * Продажа (outgoing) списывает товар, закупка (incoming) приходует.
  * Услуги и позиции без товара склад не двигают.
  */
-import { db } from "@/integrations/firebase/db";
+import { db } from "@/integrations/db";
 import { warehouseBalanceMap } from "@/lib/stock";
 
 export async function applyShipmentStock(invoiceId: string): Promise<void> {

@@ -1,7 +1,7 @@
 // Парсер и импорт справочников из выгрузки 1С (правила КонвертацииДанных 2.0).
 // Работает целиком в браузере: XML → DOMParser → пакетные upsert в Supabase.
 
-import { db } from "@/integrations/firebase/db";
+import { db } from "@/integrations/db";
 
 export type ProgressCb = (stage: string, done: number, total: number, note?: string) => void;
 

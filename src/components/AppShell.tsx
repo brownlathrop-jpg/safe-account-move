@@ -1,7 +1,7 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { LayoutDashboard, Package, FileText, Users, LogOut, Plus, Settings, Warehouse, PanelLeftClose, PanelLeftOpen, Truck, Wallet } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
-import { db } from "@/integrations/firebase/db";
+import { db } from "@/integrations/db";
 import { Button } from "@/components/ui/button";
 import { useQueryClient } from "@tanstack/react-query";
 import { WorkspaceSwitcher } from "@/components/WorkspaceSwitcher";

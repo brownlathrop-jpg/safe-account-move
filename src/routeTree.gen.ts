@@ -23,6 +23,7 @@ import { Route as AuthenticatedCashRouteImport } from './routes/_authenticated/c
 import { Route as AuthenticatedShipmentsIndexRouteImport } from './routes/_authenticated/shipments.index'
 import { Route as AuthenticatedInvoicesIndexRouteImport } from './routes/_authenticated/invoices.index'
 import { Route as AuthenticatedCashIndexRouteImport } from './routes/_authenticated/cash.index'
+import { Route as ApiFileSplatRouteImport } from './routes/api/file.$'
 import { Route as AuthenticatedShipmentsNewRouteImport } from './routes/_authenticated/shipments.new'
 import { Route as AuthenticatedInvoicesNewRouteImport } from './routes/_authenticated/invoices.new'
 import { Route as AuthenticatedInvoicesIdRouteImport } from './routes/_authenticated/invoices.$id'
@@ -99,6 +100,11 @@ const AuthenticatedCashIndexRoute = AuthenticatedCashIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthenticatedCashRoute,
 } as any)
+const ApiFileSplatRoute = ApiFileSplatRouteImport.update({
+  id: '/api/file/$',
+  path: '/api/file/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedShipmentsNewRoute =
   AuthenticatedShipmentsNewRouteImport.update({
     id: '/new',
@@ -137,6 +143,7 @@ export interface FileRoutesByFullPath {
   '/invoices/$id': typeof AuthenticatedInvoicesIdRoute
   '/invoices/new': typeof AuthenticatedInvoicesNewRoute
   '/shipments/new': typeof AuthenticatedShipmentsNewRoute
+  '/api/file/$': typeof ApiFileSplatRoute
   '/cash/': typeof AuthenticatedCashIndexRoute
   '/invoices/': typeof AuthenticatedInvoicesIndexRoute
   '/shipments/': typeof AuthenticatedShipmentsIndexRoute
@@ -153,6 +160,7 @@ export interface FileRoutesByTo {
   '/invoices/$id': typeof AuthenticatedInvoicesIdRoute
   '/invoices/new': typeof AuthenticatedInvoicesNewRoute
   '/shipments/new': typeof AuthenticatedShipmentsNewRoute
+  '/api/file/$': typeof ApiFileSplatRoute
   '/cash': typeof AuthenticatedCashIndexRoute
   '/invoices': typeof AuthenticatedInvoicesIndexRoute
   '/shipments': typeof AuthenticatedShipmentsIndexRoute
@@ -174,6 +182,7 @@ export interface FileRoutesById {
   '/_authenticated/invoices/$id': typeof AuthenticatedInvoicesIdRoute
   '/_authenticated/invoices/new': typeof AuthenticatedInvoicesNewRoute
   '/_authenticated/shipments/new': typeof AuthenticatedShipmentsNewRoute
+  '/api/file/$': typeof ApiFileSplatRoute
   '/_authenticated/cash/': typeof AuthenticatedCashIndexRoute
   '/_authenticated/invoices/': typeof AuthenticatedInvoicesIndexRoute
   '/_authenticated/shipments/': typeof AuthenticatedShipmentsIndexRoute
@@ -195,6 +204,7 @@ export interface FileRouteTypes {
     | '/invoices/$id'
     | '/invoices/new'
     | '/shipments/new'
+    | '/api/file/$'
     | '/cash/'
     | '/invoices/'
     | '/shipments/'
@@ -211,6 +221,7 @@ export interface FileRouteTypes {
     | '/invoices/$id'
     | '/invoices/new'
     | '/shipments/new'
+    | '/api/file/$'
     | '/cash'
     | '/invoices'
     | '/shipments'
@@ -231,6 +242,7 @@ export interface FileRouteTypes {
     | '/_authenticated/invoices/$id'
     | '/_authenticated/invoices/new'
     | '/_authenticated/shipments/new'
+    | '/api/file/$'
     | '/_authenticated/cash/'
     | '/_authenticated/invoices/'
     | '/_authenticated/shipments/'
@@ -240,6 +252,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  ApiFileSplatRoute: typeof ApiFileSplatRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -341,6 +354,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/cash/'
       preLoaderRoute: typeof AuthenticatedCashIndexRouteImport
       parentRoute: typeof AuthenticatedCashRoute
+    }
+    '/api/file/$': {
+      id: '/api/file/$'
+      path: '/api/file/$'
+      fullPath: '/api/file/$'
+      preLoaderRoute: typeof ApiFileSplatRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_authenticated/shipments/new': {
       id: '/_authenticated/shipments/new'
@@ -448,6 +468,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  ApiFileSplatRoute: ApiFileSplatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
-import { db } from "@/integrations/firebase/db";
+import { db } from "@/integrations/db";
 import { lookupOrgByInn } from "@/lib/dadata.functions";
 import { useActiveWorkspaceId } from "@/lib/workspace";
 import { Button } from "@/components/ui/button";

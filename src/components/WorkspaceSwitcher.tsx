@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Database, Check, Settings2 } from "lucide-react";
-import { db } from "@/integrations/firebase/db";
+import { db } from "@/integrations/db";
 import { activeWorkspace, useActiveWorkspaceId, type Workspace } from "@/lib/workspace";
 import {
   DropdownMenu,

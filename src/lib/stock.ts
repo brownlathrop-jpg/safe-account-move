@@ -3,7 +3,7 @@
  * Раньше остатки считала база (представление stock_balances), теперь считаем в приложении
  * по движениям склада (stock_movements).
  */
-import { db } from "@/integrations/firebase/db";
+import { db } from "@/integrations/db";
 
 export type Balance = { warehouse_id: string; product_id: string; qty: number };
 

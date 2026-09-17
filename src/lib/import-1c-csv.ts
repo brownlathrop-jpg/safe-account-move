@@ -9,7 +9,7 @@
 // Задача: починить у товаров привязку к папке и цены, где они были пусты
 // после XML-импорта, и добавить те товары, которых в базе ещё нет.
 
-import { db } from "@/integrations/firebase/db";
+import { db } from "@/integrations/db";
 import type { ProgressCb } from "@/lib/import-1c";
 
 type Row = { folder: string; name: string; unit: string; cost: number; price: number };
