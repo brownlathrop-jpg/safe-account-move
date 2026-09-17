@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { db } from "@/integrations/firebase/db";
+import { applyShipmentStock, clearShipmentStock } from "@/lib/posting";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -230,6 +231,7 @@ function InvoiceView() {
         const { error } = await db.from("invoices").update({ status: "posted" }).eq("id", id);
         if (error) throw error;
       }
+      if (isShipment) await applyShipmentStock(id);
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["invoice", id] }); toast.success("Сохранено"); },
     onError: (e: Error) => toast.error(e.message),
@@ -239,6 +241,7 @@ function InvoiceView() {
     mutationFn: async (status: "posted" | "cancelled" | "draft") => {
       const { error } = await db.from("invoices").update({ status }).eq("id", id);
       if (error) throw error;
+      if (isShipment) await applyShipmentStock(id);
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["invoice", id] }); toast.success("Статус обновлён"); },
     onError: (e: Error) => toast.error(e.message),
