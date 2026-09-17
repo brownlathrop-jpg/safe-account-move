@@ -313,6 +313,23 @@ function ProductsPage() {
     return p.folder_id === selectedFolder;
   });
 
+  const exportCsv = () => {
+    const folderName = new Map((folders as FolderRow[]).map(f => [f.id, f.name]));
+    downloadCsv("товары", filtered, [
+      { header: "Артикул", value: p => p.sku },
+      { header: "Название", value: p => p.name },
+      { header: "Папка", value: p => (p.folder_id ? folderName.get(p.folder_id) ?? "" : "") },
+      { header: "Вид", value: p => (p.kind === "service" ? "Услуга" : "Товар") },
+      { header: "Ед.", value: p => p.unit },
+      { header: "Цена", value: p => Number(p.price || 0) },
+      { header: "Себестоимость", value: p => Number(p.cost || 0) },
+      { header: "Остаток", value: p => Number(p.stock || 0) },
+      { header: "НДС", value: p => p.vat_rate ?? "" },
+      { header: "Описание", value: p => p.description },
+    ]);
+  };
+
+
   const productCountIn = (folderId: string) => {
     const ids = new Set(descendantsOf(folderId));
     return products.filter(p => p.folder_id && ids.has(p.folder_id)).length;
