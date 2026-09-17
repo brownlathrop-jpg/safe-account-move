@@ -4,7 +4,11 @@
  * Запуск:  bun scripts/classify-products.mjs [--apply]
  */
 import { cert } from "firebase-admin/app";
-import { randomUUID } from "crypto";
+import { createHash } from "crypto";
+const fid = (s) => {
+  const h = createHash("sha1").update(s).digest("hex");
+  return `${h.slice(0,8)}-${h.slice(8,12)}-5${h.slice(13,16)}-8${h.slice(17,20)}-${h.slice(20,32)}`;
+};
 
 const svc = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
 const credential = cert(svc);
@@ -117,7 +121,7 @@ let cache = null;
 try { cache = JSON.parse(await Bun.file(CACHE).text()); } catch {}
 if (!cache) {
   const products = JSON.parse(await Bun.file("/tmp/products.json").text());
-  cache = { products, folders: await listAll("product_folders") };
+  cache = { products, folders: [] }; // чтение базы исчерпало квоту — папки создаём заново
   await Bun.write(CACHE, JSON.stringify(cache));
 }
 const { products, folders } = cache;
@@ -156,7 +160,7 @@ for (const [wsId, list] of byWs) {
     const hit = index.get(k);
     if (hit) return hit;
     const now = new Date().toISOString();
-    const f = { id: randomUUID(), name, parent_id: parentId ?? null, workspace_id: wsId, user_id: userId, created_at: now, updated_at: now };
+    const f = { id: fid(`${wsId}|${parentId ?? ""}|${name}`), name, parent_id: parentId ?? null, workspace_id: wsId, user_id: userId, created_at: now, updated_at: now };
     index.set(k, f);
     writes.push({ update: { name: `${DOCPATH}/product_folders/${f.id}`, fields: Object.fromEntries(Object.entries(f).map(([k2, v]) => [k2, toValue(v)])) } });
     return f;
