@@ -198,70 +198,6 @@ function fieldExpr(field: string, asText = true): string {
   return asText ? `(data->>'${field.replace(/'/g, "")}')` : `(data->'${field.replace(/'/g, "")}')`;
 }
 
-function whereClause(buf: SqlBuf, filters: Filter[], scopeWorkspaces: string[] | null, table: string) {
-  const parts: string[] = [];
-  const local = new SqlBuf();
-  for (const f of filters) {
-    const col = fieldExpr(f.field);
-    switch (f.op) {
-      case "eq":
-        if (f.value === null || f.value === undefined) {
-          parts.push(`(${col} IS NULL OR ${col} = '')`);
-        } else {
-          local.add(`${col} = ?`, String(f.value));
-          parts.push(local.text);
-          local.text = "";
-        }
-        break;
-      case "neq":
-        local.add(`(${col} IS DISTINCT FROM ?)`, String(f.value));
-        parts.push(local.text);
-        local.text = "";
-        break;
-      case "in": {
-        const vals = (f.value as any[]).map((v) => String(v));
-        if (!vals.length) {
-          parts.push("false");
-        } else {
-          local.add(`${col} = ANY(?)`, vals);
-          parts.push(local.text);
-          local.text = "";
-        }
-        break;
-      }
-      case "gte":
-      case "lte":
-      case "gt":
-      case "lt": {
-        const opSql = { gte: ">=", lte: "<=", gt: ">", lt: "<" }[f.op];
-        local.add(`${col} ${opSql} ?`, String(f.value));
-        parts.push(local.text);
-        local.text = "";
-        break;
-      }
-      case "isnull":
-        parts.push(`(${col} IS NULL OR ${col} = '')`);
-        break;
-      case "notnull":
-        parts.push(`(${col} IS NOT NULL AND ${col} <> '')`);
-        break;
-    }
-  }
-  // Доступ: только базы пользователя (у самой таблицы workspaces фильтр по user_id ставит приложение).
-  if (scopeWorkspaces && table !== "workspaces") {
-    if (scopeWorkspaces.length) {
-      local.add(`(workspace_id IS NULL OR workspace_id = ANY(?))`, scopeWorkspaces);
-      parts.push(local.text);
-      local.text = "";
-    } else {
-      parts.push("workspace_id IS NULL");
-    }
-  }
-  if (!parts.length) return;
-  buf.text += ` WHERE ${parts.join(" AND ")}`;
-  buf.params.push(...local.params);
-  // параметры из local уже собраны по порядку — переносим их корректно
-}
 
 /* ------------------------------------------------------------- выполнение */
 
@@ -546,4 +482,4 @@ export async function getRowById(table: string, id: string): Promise<Row | null>
 }
 
 export type { QuerySpec };
-export { whereClause };
+
