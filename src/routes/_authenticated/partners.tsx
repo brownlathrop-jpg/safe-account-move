@@ -43,6 +43,8 @@ function PartnersPage() {
   const wsId = useActiveWorkspaceId();
   const [editing, setEditing] = useState<Partial<Partner> | null>(null);
   const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [kindFilter, setKindFilter] = useState<"all" | "customer" | "supplier">("all");
   const lookupOrg = useServerFn(lookupOrgByInn);
   const innLookup = useMutation({
     mutationFn: (inn: string) => lookupOrg({ data: { inn } }),
