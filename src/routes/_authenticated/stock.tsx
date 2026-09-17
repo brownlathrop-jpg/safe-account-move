@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/firebase/db";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,19 +35,19 @@ function StockPage() {
   const { data: warehouses = [] } = useQuery({
     queryKey: ["warehouses", wsId],
     enabled: !!wsId,
-    queryFn: async () => (await (supabase as any).from("warehouses").select("id,name,is_default").eq("workspace_id", wsId).order("is_default", { ascending: false }).order("name")).data as Warehouse[],
+    queryFn: async () => (await (db as any).from("warehouses").select("id,name,is_default").eq("workspace_id", wsId).order("is_default", { ascending: false }).order("name")).data as Warehouse[],
   });
 
   const { data: products = [] } = useQuery({
     queryKey: ["products", wsId],
     enabled: !!wsId,
-    queryFn: async () => (await (supabase as any).from("products").select("id,name,unit,cost,price,kind").eq("workspace_id", wsId).order("name")).data as Product[],
+    queryFn: async () => (await (db as any).from("products").select("id,name,unit,cost,price,kind").eq("workspace_id", wsId).order("name")).data as Product[],
   });
 
   const { data: partners = [] } = useQuery({
     queryKey: ["partners", wsId],
     enabled: !!wsId,
-    queryFn: async () => (await (supabase as any).from("partners").select("id,name,kind").eq("workspace_id", wsId).order("name")).data as Partner[],
+    queryFn: async () => (await (db as any).from("partners").select("id,name,kind").eq("workspace_id", wsId).order("name")).data as Partner[],
   });
 
   return (
@@ -90,7 +90,7 @@ function BalancesTab({ warehouses, products }: { warehouses: Warehouse[]; produc
     queryKey: ["stock_balances", wsId],
     enabled: !!wsId,
     queryFn: async () => {
-      const { data, error } = await (supabase as any).from("stock_balances")
+      const { data, error } = await (db as any).from("stock_balances")
         .select("warehouse_id,product_id,qty").eq("workspace_id", wsId);
       if (error) throw error;
       return data as Balance[];
@@ -158,7 +158,7 @@ function ReceiptsTab({ warehouses, products, partners }: { warehouses: Warehouse
   const { data: receipts = [] } = useQuery({
     queryKey: ["stock_receipts", wsId],
     enabled: !!wsId,
-    queryFn: async () => (await (supabase as any).from("stock_receipts")
+    queryFn: async () => (await (db as any).from("stock_receipts")
       .select("id,number,receipt_date,supplier_id,warehouse_id")
       .eq("workspace_id", wsId).order("receipt_date", { ascending: false })).data as Receipt[],
   });
@@ -168,7 +168,7 @@ function ReceiptsTab({ warehouses, products, partners }: { warehouses: Warehouse
 
   const del = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await (supabase as any).from("stock_receipts").delete().eq("id", id);
+      const { error } = await (db as any).from("stock_receipts").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -264,9 +264,9 @@ function NewReceiptDialog({
       if (!number.trim()) throw new Error("Укажите номер документа");
       const clean = rows.filter(r => r.product_id && r.qty > 0);
       if (clean.length === 0) throw new Error("Добавьте хотя бы одну позицию");
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await db.auth.getUser();
       if (!user) throw new Error("Нет сессии");
-      const { data: hdr, error } = await (supabase as any).from("stock_receipts").insert({
+      const { data: hdr, error } = await (db as any).from("stock_receipts").insert({
         user_id: user.id, workspace_id: wsId,
         number: number.trim(), receipt_date: date,
         supplier_id: supplierId || null, warehouse_id: whId,
@@ -280,7 +280,7 @@ function NewReceiptDialog({
         price: r.price,
         sum: r.qty * r.price,
       }));
-      const { error: e2 } = await (supabase as any).from("stock_receipt_items").insert(items);
+      const { error: e2 } = await (db as any).from("stock_receipt_items").insert(items);
       if (e2) throw e2;
     },
     onSuccess: () => {

@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/firebase/db";
 import { useActiveWorkspaceId } from "@/lib/workspace";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -39,23 +39,23 @@ function NewShipment() {
   const { data: products = [] } = useQuery({
     queryKey: ["products", wsId],
     enabled: !!wsId,
-    queryFn: async () => (await (supabase as any).from("products").select("id,name,price,cost,unit,kind").eq("workspace_id", wsId).order("name")).data ?? [],
+    queryFn: async () => (await (db as any).from("products").select("id,name,price,cost,unit,kind").eq("workspace_id", wsId).order("name")).data ?? [],
   });
   const { data: partners = [] } = useQuery({
     queryKey: ["partners", wsId],
     enabled: !!wsId,
-    queryFn: async () => (await (supabase as any).from("partners").select("id,name,kind").eq("workspace_id", wsId).order("name")).data ?? [],
+    queryFn: async () => (await (db as any).from("partners").select("id,name,kind").eq("workspace_id", wsId).order("name")).data ?? [],
   });
   const { data: warehouses = [] } = useQuery({
     queryKey: ["warehouses", wsId],
     enabled: !!wsId,
-    queryFn: async () => (await (supabase as any).from("warehouses").select("id,name,is_default").eq("workspace_id", wsId).order("is_default", { ascending: false }).order("name")).data ?? [],
+    queryFn: async () => (await (db as any).from("warehouses").select("id,name,is_default").eq("workspace_id", wsId).order("is_default", { ascending: false }).order("name")).data ?? [],
   });
   const { data: shipCount = 0 } = useQuery({
     queryKey: ["shipments-count", wsId],
     enabled: !!wsId,
     queryFn: async () => {
-      const { count } = await (supabase as any).from("invoices").select("id", { count: "exact", head: true }).eq("workspace_id", wsId).eq("doc_type", "shipment");
+      const { count } = await (db as any).from("invoices").select("id", { count: "exact", head: true }).eq("workspace_id", wsId).eq("doc_type", "shipment");
       return count ?? 0;
     },
   });
@@ -94,10 +94,10 @@ function NewShipment() {
       if (!wsId) throw new Error("Не выбрана база данных");
       if (items.length === 0) throw new Error("Добавьте хотя бы одну позицию");
       if (!effectiveWh) throw new Error("Создайте склад в настройках — накладная без склада не проводится");
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await db.auth.getUser();
       if (!user) throw new Error("Нет сессии");
 
-      const { data: inv, error } = await (supabase as any).from("invoices").insert({
+      const { data: inv, error } = await (db as any).from("invoices").insert({
         user_id: user.id,
         workspace_id: wsId,
         number: effectiveNumber,
@@ -120,7 +120,7 @@ function NewShipment() {
         sum: it.quantity * it.price,
         kind: it.kind,
       }));
-      const { error: e2 } = await supabase.from("invoice_items").insert(rows);
+      const { error: e2 } = await db.from("invoice_items").insert(rows);
       if (e2) throw e2;
       return inv.id as string;
     },

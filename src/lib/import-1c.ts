@@ -1,7 +1,7 @@
 // Парсер и импорт справочников из выгрузки 1С (правила КонвертацииДанных 2.0).
 // Работает целиком в браузере: XML → DOMParser → пакетные upsert в Supabase.
 
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/firebase/db";
 
 export type ProgressCb = (stage: string, done: number, total: number, note?: string) => void;
 
@@ -266,7 +266,7 @@ async function batchUpsert(table: string, rows: any[], onConflict = "workspace_i
   const deduped = Array.from(seen.values());
   for (let i = 0; i < deduped.length; i += chunk) {
     const part = deduped.slice(i, i + chunk);
-    const { error } = await (supabase as any).from(table).upsert(part, { onConflict });
+    const { error } = await (db as any).from(table).upsert(part, { onConflict });
     if (error) throw new Error(`${table}: ${error.message}`);
   }
 }
@@ -275,7 +275,7 @@ async function loadExtMap(table: string, wsId: string): Promise<Map<string, stri
   let from = 0;
   const step = 1000;
   for (;;) {
-    const { data, error } = await (supabase as any).from(table)
+    const { data, error } = await (db as any).from(table)
       .select("id,ext_1c_id").eq("workspace_id", wsId)
       .not("ext_1c_id", "is", null)
       .range(from, from + step - 1);
@@ -509,7 +509,7 @@ export async function importAll(
     });
     for (let i = 0; i < rows.length; i += 200) {
       const part = rows.slice(i, i + 200);
-      const { error } = await (supabase as any)
+      const { error } = await (db as any)
         .from("banks")
         .upsert(part, { onConflict: "workspace_id,ext_1c_id" });
       if (error) throw new Error("banks: " + error.message);
@@ -556,7 +556,7 @@ export async function importAll(
     for (let i = 0; i < parentPatches.length; i += PCONC) {
       const part = parentPatches.slice(i, i + PCONC);
       await Promise.all(part.map(p =>
-        (supabase as any).from("partners").update({ parent_id: p.parent_id }).eq("id", p.id)
+        (db as any).from("partners").update({ parent_id: p.parent_id }).eq("id", p.id)
       ));
       onProgress("Контрагенты (родители)", Math.min(i + part.length, parentPatches.length), parentPatches.length);
     }
@@ -570,7 +570,7 @@ export async function importAll(
     const partnersMap = await loadExtMap("partners", wsId);
     const banksMap = await loadExtMap("banks", wsId);
     // organization: возьмём главную из workspace
-    const { data: org } = await (supabase as any).from("organizations")
+    const { data: org } = await (db as any).from("organizations")
       .select("id").eq("workspace_id", wsId).order("is_primary", { ascending: false }).limit(1).maybeSingle();
     const orgId = org?.id ?? null;
 
@@ -725,7 +725,7 @@ export async function importAll(
     for (let i = 0; i < folderPatches.length; i += FCONC) {
       const part = folderPatches.slice(i, i + FCONC);
       await Promise.all(part.map(p =>
-        (supabase as any).from("product_folders").update({ parent_id: p.parent_id }).eq("id", p.id)
+        (db as any).from("product_folders").update({ parent_id: p.parent_id }).eq("id", p.id)
       ));
     }
     const foldersWithParent = groups.filter(o => findParentForGroup(o) || pathFolderExtByObject.get(o.ext!)).length
@@ -853,7 +853,7 @@ export async function importAll(
           folder_id: folderId,
         };
       });
-      const { error } = await (supabase as any).from("products").upsert(part, { onConflict: "workspace_id,ext_1c_id" });
+      const { error } = await (db as any).from("products").upsert(part, { onConflict: "workspace_id,ext_1c_id" });
       if (error) throw new Error("products: " + error.message);
       done += part.length;
       onProgress("Товары", done, total, `с родителем: ${withParent}, с папкой: ${withFolder}`);
@@ -869,7 +869,7 @@ export async function importAll(
     {
       let from = 0; const step = 1000;
       for (;;) {
-        const { data, error } = await (supabase as any).from("products")
+        const { data, error } = await (db as any).from("products")
           .select("id,name").eq("workspace_id", wsId).range(from, from + step - 1);
         if (error) throw new Error("products name map: " + error.message);
         if (!data?.length) break;
@@ -915,7 +915,7 @@ async function linkDocParents(objs: Obj[], userId: string, wsId: string, onProgr
   {
     let from = 0; const step = 1000;
     for (;;) {
-      const { data, error } = await (supabase as any).from("invoices")
+      const { data, error } = await (db as any).from("invoices")
         .select("id,ext_1c_id").eq("workspace_id", wsId).not("ext_1c_id", "is", null)
         .range(from, from + step - 1);
       if (error) throw new Error("invoices map: " + error.message);
@@ -935,7 +935,7 @@ async function linkDocParents(objs: Obj[], userId: string, wsId: string, onProgr
   for (let i = 0; i < jobs.length; i += CONC) {
     const part = jobs.slice(i, i + CONC);
     const res = await Promise.all(part.map(j =>
-      (supabase as any).from("invoices").update({ parent_id: j.parentId }).eq("id", j.childId)
+      (db as any).from("invoices").update({ parent_id: j.parentId }).eq("id", j.childId)
     ));
     const bad = res.find(r => r.error);
     if (bad?.error) throw new Error("invoices parent_id: " + bad.error.message);
@@ -1070,7 +1070,7 @@ async function importShipments(
     const chunk = 200;
     for (let i = 0; i < dedupHeaders.length; i += chunk) {
       const part = dedupHeaders.slice(i, i + chunk);
-      const { data, error } = await (supabase as any)
+      const { data, error } = await (db as any)
         .from("invoices")
         .upsert(part, { onConflict: "user_id,ext_1c_id" })
         .select("id,ext_1c_id");
@@ -1085,7 +1085,7 @@ async function importShipments(
       // удаляем порциями (IN-список ограничен)
       for (let i = 0; i < invoiceIds.length; i += 200) {
         const part = invoiceIds.slice(i, i + 200);
-        const { error } = await (supabase as any).from("invoice_items").delete().in("invoice_id", part);
+        const { error } = await (db as any).from("invoice_items").delete().in("invoice_id", part);
         if (error) throw new Error(`invoice_items delete: ${error.message}`);
       }
     }
@@ -1104,7 +1104,7 @@ async function importShipments(
     }
     for (let i = 0; i < itemsBuf.length; i += 500) {
       const part = itemsBuf.slice(i, i + 500);
-      const { error } = await (supabase as any).from("invoice_items").insert(part);
+      const { error } = await (db as any).from("invoice_items").insert(part);
       if (error) throw new Error(`invoice_items insert: ${error.message}`);
       itemsDone += part.length;
     }
@@ -1194,7 +1194,7 @@ async function importCashDocs(
     const chunk = 200;
     for (let i = 0; i < dedup.length; i += chunk) {
       const part = dedup.slice(i, i + chunk);
-      const { error } = await (supabase as any)
+      const { error } = await (db as any)
         .from("invoices")
         .upsert(part, { onConflict: "user_id,ext_1c_id" });
       if (error) throw new Error(`invoices (${g.label}): ${error.message}`);

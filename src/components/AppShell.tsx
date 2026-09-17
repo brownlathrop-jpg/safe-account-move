@@ -1,7 +1,7 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { LayoutDashboard, Package, FileText, Users, LogOut, Plus, Settings, Warehouse, PanelLeftClose, PanelLeftOpen, Truck, Wallet } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/firebase/db";
 import { Button } from "@/components/ui/button";
 import { useQueryClient } from "@tanstack/react-query";
 import { WorkspaceSwitcher } from "@/components/WorkspaceSwitcher";
@@ -40,7 +40,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     if (typeof window !== "undefined" && !window.confirm("Выйти из КабинетCRM?")) return;
     await qc.cancelQueries();
     qc.clear();
-    await supabase.auth.signOut();
+    await db.auth.signOut();
     navigate({ to: "/auth", replace: true });
   };
 

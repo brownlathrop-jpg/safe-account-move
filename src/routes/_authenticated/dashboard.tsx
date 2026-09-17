@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/firebase/db";
 import { useActiveWorkspaceId } from "@/lib/workspace";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -51,14 +51,14 @@ function Dashboard() {
     enabled: !!wsId,
     queryFn: async () => {
       const [invoicesRes, productsRes] = await Promise.all([
-        (supabase as any)
+        (db as any)
           .from("invoices")
           .select("kind,status,total,issue_date,created_at")
           .eq("status", "posted")
           .eq("workspace_id", wsId)
           .gte("issue_date", toKey(from))
           .lte("issue_date", toKey(to)),
-        (supabase as any).from("products").select("id,stock,price").eq("workspace_id", wsId),
+        (db as any).from("products").select("id,stock,price").eq("workspace_id", wsId),
       ]);
       const invoices = (invoicesRes.data ?? []) as any[];
       const products = (productsRes.data ?? []) as any[];

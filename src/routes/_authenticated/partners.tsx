@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/firebase/db";
 import { lookupOrgByInn } from "@/lib/dadata.functions";
 import { useActiveWorkspaceId } from "@/lib/workspace";
 import { Button } from "@/components/ui/button";
@@ -65,7 +65,7 @@ function PartnersPage() {
     queryKey: ["partners-list", wsId],
     enabled: !!wsId,
     queryFn: async () => {
-      const { data, error } = await (supabase as any).from("partners").select("*").eq("workspace_id", wsId).order("name");
+      const { data, error } = await (db as any).from("partners").select("*").eq("workspace_id", wsId).order("name");
       if (error) throw error;
       return data as Partner[];
     },
@@ -73,7 +73,7 @@ function PartnersPage() {
 
   const upsert = useMutation({
     mutationFn: async (p: Partial<Partner>) => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await db.auth.getUser();
       if (!user) throw new Error("Нет сессии");
       if (!wsId) throw new Error("Не выбрана база данных");
       const payload = {
@@ -92,10 +92,10 @@ function PartnersPage() {
         comment: p.comment || null,
       };
       if (p.id) {
-        const { error } = await (supabase as any).from("partners").update(payload).eq("id", p.id);
+        const { error } = await (db as any).from("partners").update(payload).eq("id", p.id);
         if (error) throw error;
       } else {
-        const { error } = await (supabase as any).from("partners").insert(payload);
+        const { error } = await (db as any).from("partners").insert(payload);
         if (error) throw error;
       }
     },
@@ -104,7 +104,7 @@ function PartnersPage() {
   });
 
   const remove = useMutation({
-    mutationFn: async (id: string) => { const { error } = await supabase.from("partners").delete().eq("id", id); if (error) throw error; },
+    mutationFn: async (id: string) => { const { error } = await db.from("partners").delete().eq("id", id); if (error) throw error; },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["partners-list"] }); toast.success("Удалено"); },
     onError: (e: Error) => toast.error(e.message),
   });

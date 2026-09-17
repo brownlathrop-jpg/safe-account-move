@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/firebase/db";
 import { useActiveWorkspaceId } from "@/lib/workspace";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -26,7 +26,7 @@ function CashPage() {
     queryKey: ["cash", wsId, tab],
     enabled: !!wsId,
     queryFn: async () => {
-      let q = (supabase as any)
+      let q = (db as any)
         .from("invoices")
         .select("id,number,kind,total,cash_received,issue_date,partner:partners(name),note")
         .eq("doc_type", "cash_receipt")
