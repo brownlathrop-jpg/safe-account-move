@@ -881,6 +881,25 @@ function InvoiceView() {
       )}
 
       {/* ПКО print layout (КО-1) */}
+      {(printMode === "torg12" || printMode === "upd") && (() => {
+        const printItems: PrintItem[] = items.map((it) => {
+          const p: any = products.find((x: any) => x.id === it.product_id);
+          return {
+            name: it.name,
+            unit: p?.unit || (it.kind === "service" ? "усл" : "шт"),
+            quantity: it.quantity,
+            price: it.price,
+          };
+        });
+        return (
+          <div className="invoice-print hidden print:block bg-white text-black mx-auto" style={{ maxWidth: 1000 }}>
+            {printMode === "torg12"
+              ? <Torg12 supplier={supplierLine} buyer={buyerLine} number={cleanNumber} date={inv.issue_date} items={printItems} note={note} />
+              : <Upd supplier={supplierLine} buyer={buyerLine} number={cleanNumber} date={inv.issue_date} items={printItems} note={note} />}
+          </div>
+        );
+      })()}
+
       {printMode === "pko" && (
       <div className="invoice-print hidden print:block bg-white text-black mx-auto" style={{ maxWidth: 900, fontSize: 12 }}>
         <div className="text-right text-xs mb-1">Унифицированная форма № КО-1<br/>Утверждена постановлением Госкомстата России от 18.08.98 № 88</div>
