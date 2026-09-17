@@ -275,17 +275,31 @@ function ProductsPage() {
 
   const removeFolder = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await db.from("product_folders").delete().eq("id", id);
-      if (error) throw error;
+      const folderIdsToDelete = descendantsOf(id);
+      const set = new Set(folderIdsToDelete);
+      const productIds = products.filter(p => p.folder_id && set.has(p.folder_id)).map(p => p.id);
+      const chunk = 25;
+      for (let i = 0; i < productIds.length; i += chunk) {
+        const res = await Promise.all(productIds.slice(i, i + chunk).map(pid => db.from("products").delete().eq("id", pid)));
+        const bad = res.find(r => r.error);
+        if (bad?.error) throw bad.error;
+      }
+      // удаляем сначала вложенные папки, затем саму
+      for (const fid of [...folderIdsToDelete].reverse()) {
+        const { error } = await db.from("product_folders").delete().eq("id", fid);
+        if (error) throw error;
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["product_folders"] });
       qc.invalidateQueries({ queryKey: ["products"] });
       if (selectedFolder !== ALL && selectedFolder !== ROOT) setSelectedFolder(ALL);
-      toast.success("Папка удалена");
+      setDeleteFolder(null);
+      toast.success("Папка и её содержимое удалены");
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
 
   // Folders shown as rows in the right pane (direct children of current folder)
   const rightFolders = useMemo(() => {
