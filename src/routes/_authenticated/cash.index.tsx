@@ -28,7 +28,7 @@ function CashPage() {
     queryFn: async () => {
       let q = (supabase as any)
         .from("invoices")
-        .select("id,number,kind,total,issue_date,partner:partners(name),note")
+        .select("id,number,kind,total,cash_received,issue_date,partner:partners(name),note")
         .eq("doc_type", "cash_receipt")
         .eq("workspace_id", wsId)
         .order("issue_date", { ascending: false });
@@ -96,7 +96,7 @@ function CashPage() {
                   )}
                 </TableCell>
                 <TableCell>{i.partner?.name ?? "—"}</TableCell>
-                <TableCell className="text-right font-medium">{fmt.format(Number(i.total))}</TableCell>
+                <TableCell className="text-right font-medium">{fmt.format(Number(i.cash_received ?? i.total ?? 0))}</TableCell>
               </TableRow>
             ))}
           </TableBody>

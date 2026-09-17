@@ -75,12 +75,13 @@ function ShipmentsPage() {
               <TableHead>Дата</TableHead>
               <TableHead>Тип</TableHead>
               <TableHead>Контрагент</TableHead>
+              <TableHead>Учёт</TableHead>
               <TableHead className="text-right">Сумма</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {rows.length === 0 && (
-              <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-10">Накладных пока нет</TableCell></TableRow>
+              <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-10">Накладных пока нет</TableCell></TableRow>
             )}
             {rows.map(i => (
               <TableRow key={i.id} className="hover:bg-muted/40">
@@ -96,6 +97,16 @@ function ShipmentsPage() {
                   )}
                 </TableCell>
                 <TableCell>{i.partner?.name ?? "—"}</TableCell>
+                <TableCell>
+                  <span className={cn(
+                    "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
+                    i.status === "posted" ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                      : i.status === "cancelled" ? "bg-destructive/15 text-destructive"
+                      : "bg-muted text-muted-foreground",
+                  )}>
+                    {i.status === "posted" ? "Проведена" : i.status === "cancelled" ? "Отменена" : "Черновик"}
+                  </span>
+                </TableCell>
                 <TableCell className="text-right font-medium">{fmt.format(Number(i.total))}</TableCell>
               </TableRow>
             ))}
