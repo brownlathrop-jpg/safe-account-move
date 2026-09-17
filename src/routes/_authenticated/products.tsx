@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, type DragEvent } from "react";
 import { toast } from "sonner";
 import { db } from "@/integrations/db";
 import { Button } from "@/components/ui/button";
@@ -388,9 +388,9 @@ function ProductsPage() {
 
   // Свойства для папки-приёмника при перетаскивании товаров.
   const dropProps = (folderId: string | null, key: string) => ({
-    onDragOver: (e: React.DragEvent) => { e.preventDefault(); setDropFolder(key); },
+    onDragOver: (e: DragEvent) => { e.preventDefault(); setDropFolder(key); },
     onDragLeave: () => setDropFolder(cur => (cur === key ? null : cur)),
-    onDrop: (e: React.DragEvent) => { e.preventDefault(); dropOnFolder(folderId); },
+    onDrop: (e: DragEvent) => { e.preventDefault(); dropOnFolder(folderId); },
   });
 
   const openNew = () => {
