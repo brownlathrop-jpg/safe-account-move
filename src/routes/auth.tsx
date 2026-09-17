@@ -36,6 +36,25 @@ function AuthPage() {
   };
 
   const [forgot, setForgot] = useState(false);
+  const [resetToken, setResetToken] = useState<string | null>(null);
+
+  useEffect(() => {
+    const t = new URLSearchParams(window.location.search).get("reset");
+    if (t) setResetToken(t);
+  }, []);
+
+  const applyNewPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resetToken) return;
+    setLoading(true);
+    const { error } = await db.auth.resetPasswordWithToken(resetToken, password);
+    setLoading(false);
+    if (error) return toast.error(error.message);
+    toast.success("Пароль изменён — войдите с новым паролем");
+    setResetToken(null);
+    setPassword("");
+    window.history.replaceState(null, "", "/auth");
+  };
 
   const resetPass = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -74,7 +93,18 @@ function AuthPage() {
               <TabsTrigger value="signup">Регистрация</TabsTrigger>
             </TabsList>
             <TabsContent value="signin">
-              {forgot ? (
+              {resetToken ? (
+              <form onSubmit={applyNewPassword} className="space-y-4">
+                <p className="text-sm text-muted-foreground">Придумайте новый пароль для входа.</p>
+                <div className="space-y-2">
+                  <Label htmlFor="password-new">Новый пароль</Label>
+                  <Input id="password-new" type="password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} />
+                </div>
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading ? "Сохраняем…" : "Сохранить пароль"}
+                </Button>
+              </form>
+              ) : forgot ? (
               <form onSubmit={resetPass} className="space-y-4">
                 <p className="text-sm text-muted-foreground">
                   Укажите почту, на которую зарегистрирован вход — пришлём ссылку для смены пароля.
