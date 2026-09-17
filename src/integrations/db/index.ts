@@ -174,7 +174,9 @@ async function loadUser(force = false): Promise<AuthUser> {
   if (loaded && !force) return cached;
   const res: any = await authMe({ data: undefined as any } as any).catch(() => ({ user: null }));
   const u = res?.user ?? null;
-  cached = u ? { id: u.id, email: u.email, user_metadata: { name: u.name ?? "" } } : null;
+  cached = u
+    ? { id: u.id, email: u.email, user_metadata: { name: u.name ?? "", is_admin: !!u.is_admin } }
+    : null;
   loaded = true;
   return cached;
 }
