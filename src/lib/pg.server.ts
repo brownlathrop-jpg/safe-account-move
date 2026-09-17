@@ -473,12 +473,12 @@ async function affectedWorkspaces(
   const explicit = filters.find((f) => f.field === "workspace_id" && f.op === "eq");
   if (explicit) return [String(explicit.value)];
   const c = new SqlBuf();
-  c.text = `select distinct workspace_id from ${table}`;
+  const col = table === "workspaces" ? "id" : "workspace_id";
+  c.text = `select distinct ${col} as ws from ${table}`;
   applyWhere(c, filters, scope, table);
   c.text += " limit 20";
   const rows = await s.unsafe(c.text, c.params as any);
-  if (table === "workspaces") return (rows as any[]).map(() => null).length ? [] : [];
-  return (rows as any[]).map((r) => (r.workspace_id ? String(r.workspace_id) : null));
+  return (rows as any[]).map((r) => (r.ws ? String(r.ws) : null));
 }
 
 /** WHERE со сквозной нумерацией параметров. */
