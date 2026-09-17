@@ -1,10 +1,15 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
 import { db } from "@/integrations/db";
 import { useActiveWorkspaceId } from "@/lib/workspace";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowDownToLine, ArrowUpFromLine, Receipt, Truck } from "lucide-react";
+import { ArrowDownToLine, ArrowUpFromLine, Receipt, Truck, Search, Download } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { downloadCsv, csvDate } from "@/lib/export-csv";
 
 export const Route = createFileRoute("/_authenticated/invoices/")({
   head: () => ({ meta: [{ title: "Заявки — КабинетCRM" }] }),
@@ -16,6 +21,9 @@ const dfmt = new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit"
 
 function InvoicesPage() {
   const wsId = useActiveWorkspaceId();
+  const [search, setSearch] = useState("");
+  const [kind, setKind] = useState<"all" | "incoming" | "outgoing">("all");
+  const [statusName, setStatusName] = useState("all");
   const { data: invoices = [] } = useQuery({
     queryKey: ["invoices", "orders", wsId],
     enabled: !!wsId,
@@ -31,14 +39,70 @@ function InvoicesPage() {
     },
   });
 
+  const statuses = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const i of invoices as any[]) if (i.status_ref?.name) m.set(i.status_ref.name, i.status_ref.name);
+    return [...m.keys()].sort();
+  }, [invoices]);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return (invoices as any[]).filter(i => {
+      if (kind !== "all" && i.kind !== kind) return false;
+      if (statusName !== "all" && (i.status_ref?.name ?? "") !== statusName) return false;
+      if (!q) return true;
+      return String(i.number ?? "").toLowerCase().includes(q)
+        || String(i.partner?.name ?? "").toLowerCase().includes(q);
+    });
+  }, [invoices, search, kind, statusName]);
+
+  const total = useMemo(() => filtered.reduce((s, i) => s + Number(i.total || 0), 0), [filtered]);
+
+  const exportCsv = () => downloadCsv("заявки", filtered, [
+    { header: "№", value: i => i.number },
+    { header: "Дата", value: i => csvDate(i.issue_date) },
+    { header: "Тип", value: i => (i.kind === "incoming" ? "Приход" : "Расход") },
+    { header: "Контрагент", value: i => i.partner?.name ?? "" },
+    { header: "Статус", value: i => i.status_ref?.name ?? "" },
+    { header: "Сумма", value: i => Number(i.total || 0) },
+  ]);
+
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-semibold">Заявки</h1>
-        <p className="text-sm text-muted-foreground">Заявки покупателей и поставщикам. Накладные и ПКО создаются на их основании.</p>
+      <div className="flex flex-wrap items-start gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold">Заявки</h1>
+          <p className="text-sm text-muted-foreground">Заявки покупателей и поставщикам. Накладные и ПКО создаются на их основании.</p>
+        </div>
+        <Button variant="outline" className="ml-auto" onClick={exportCsv} disabled={!filtered.length}>
+          <Download className="h-4 w-4 mr-1" /> Excel
+        </Button>
       </div>
 
-      <Card className="p-0 overflow-hidden">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input className="pl-8" placeholder="Номер или контрагент" value={search} onChange={e => setSearch(e.target.value)} />
+        </div>
+        <Select value={kind} onValueChange={v => setKind(v as any)}>
+          <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Все типы</SelectItem>
+            <SelectItem value="outgoing">Расход</SelectItem>
+            <SelectItem value="incoming">Приход</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={statusName} onValueChange={setStatusName}>
+          <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Любой статус</SelectItem>
+            {statuses.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <span className="text-sm text-muted-foreground">{filtered.length} заявок на {fmt.format(total)}</span>
+      </div>
+
+      <Card className="p-0 overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
@@ -52,10 +116,12 @@ function InvoicesPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {invoices.length === 0 && (
-              <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-10">Заявок пока нет</TableCell></TableRow>
+            {filtered.length === 0 && (
+              <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-10">
+                {invoices.length ? "Ничего не найдено" : "Заявок пока нет"}
+              </TableCell></TableRow>
             )}
-            {invoices.map(i => {
+            {filtered.map(i => {
               const ships = (i.children ?? []).filter((c: any) => c.doc_type === "shipment").length;
               const pkos = (i.children ?? []).filter((c: any) => c.doc_type === "cash_receipt").length;
               return (

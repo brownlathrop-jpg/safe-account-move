@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
 import { db } from "@/integrations/db";
@@ -14,8 +14,9 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Pencil, Trash2, Search, Loader2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, Loader2, Download } from "lucide-react";
 import { BankAccountsEditor } from "@/components/bank-accounts-editor";
+import { downloadCsv } from "@/lib/export-csv";
 
 export const Route = createFileRoute("/_authenticated/partners")({
   head: () => ({ meta: [{ title: "Контрагенты — КабинетCRM" }] }),
@@ -42,6 +43,8 @@ function PartnersPage() {
   const wsId = useActiveWorkspaceId();
   const [editing, setEditing] = useState<Partial<Partner> | null>(null);
   const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [kindFilter, setKindFilter] = useState<"all" | "customer" | "supplier">("all");
   const lookupOrg = useServerFn(lookupOrgByInn);
   const innLookup = useMutation({
     mutationFn: (inn: string) => lookupOrg({ data: { inn } }),
@@ -109,19 +112,62 @@ function PartnersPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return partners.filter(p => {
+      if (kindFilter !== "all" && p.kind !== kindFilter) return false;
+      if (!q) return true;
+      return [p.name, p.full_name, p.inn, p.phone, p.email, p.address]
+        .some(v => String(v ?? "").toLowerCase().includes(q));
+    });
+  }, [partners, search, kindFilter]);
+
+  const exportCsv = () => downloadCsv("контрагенты", filtered, [
+    { header: "Название", value: p => p.name },
+    { header: "Полное наименование", value: p => p.full_name },
+    { header: "Тип", value: p => (p.kind === "customer" ? "Клиент" : "Поставщик") },
+    { header: "ИНН", value: p => p.inn },
+    { header: "КПП", value: p => p.kpp },
+    { header: "Телефон", value: p => p.phone },
+    { header: "Email", value: p => p.email },
+    { header: "Адрес", value: p => p.address },
+    { header: "Комментарий", value: p => p.comment },
+  ]);
+
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">Контрагенты</h1>
           <p className="text-sm text-muted-foreground">Клиенты и поставщики</p>
         </div>
-        <Button onClick={() => { setEditing({ kind: "customer", name: "" }); setOpen(true); }}>
-          <Plus className="h-4 w-4 mr-1" /> Добавить
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={exportCsv} disabled={!filtered.length} title="Выгрузить в Excel">
+            <Download className="h-4 w-4 mr-1" /> Excel
+          </Button>
+          <Button onClick={() => { setEditing({ kind: "customer", name: "" }); setOpen(true); }}>
+            <Plus className="h-4 w-4 mr-1" /> Добавить
+          </Button>
+        </div>
       </div>
 
-      <Card className="p-0 overflow-hidden">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 min-w-[220px]">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input className="pl-8" placeholder="Поиск: название, ИНН, телефон, адрес" value={search} onChange={e => setSearch(e.target.value)} />
+        </div>
+        <Select value={kindFilter} onValueChange={(v) => setKindFilter(v as any)}>
+          <SelectTrigger className="w-[170px]"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Все</SelectItem>
+            <SelectItem value="customer">Клиенты</SelectItem>
+            <SelectItem value="supplier">Поставщики</SelectItem>
+          </SelectContent>
+        </Select>
+        <span className="text-sm text-muted-foreground">Найдено: {filtered.length}</span>
+      </div>
+
+      <Card className="p-0 overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
@@ -134,8 +180,8 @@ function PartnersPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {partners.length === 0 && <TableRow><TableCell colSpan={6} className="text-center py-10 text-muted-foreground">Контрагентов пока нет</TableCell></TableRow>}
-            {partners.map(p => (
+            {filtered.length === 0 && <TableRow><TableCell colSpan={6} className="text-center py-10 text-muted-foreground">Ничего не найдено</TableCell></TableRow>}
+            {filtered.map(p => (
               <TableRow key={p.id}>
                 <TableCell className="font-medium">
                   <Link to="/partner/$id" params={{ id: p.id }} className="text-primary hover:underline">{p.name}</Link>

@@ -1,11 +1,14 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { db } from "@/integrations/db";
 import { useActiveWorkspaceId } from "@/lib/workspace";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowDownToLine, ArrowUpFromLine, Wallet } from "lucide-react";
+import { ArrowDownToLine, ArrowUpFromLine, Wallet, Search, Download } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { downloadCsv, csvDate } from "@/lib/export-csv";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/cash/")({
@@ -21,6 +24,9 @@ type Tab = "all" | "incoming" | "outgoing";
 function CashPage() {
   const wsId = useActiveWorkspaceId();
   const [tab, setTab] = useState<Tab>("all");
+  const [search, setSearch] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
 
   const { data: rows = [] } = useQuery({
     queryKey: ["cash", wsId, tab],
@@ -39,9 +45,34 @@ function CashPage() {
     },
   });
 
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return (rows as any[]).filter(i => {
+      const d = String(i.issue_date ?? "").slice(0, 10);
+      if (from && d < from) return false;
+      if (to && d > to) return false;
+      if (!q) return true;
+      return String(i.number ?? "").toLowerCase().includes(q)
+        || String(i.partner?.name ?? "").toLowerCase().includes(q)
+        || String(i.note ?? "").toLowerCase().includes(q);
+    });
+  }, [rows, search, from, to]);
+
+  const income = useMemo(() => filtered.filter(i => i.kind === "incoming").reduce((s, i) => s + Number(i.cash_received ?? i.total ?? 0), 0), [filtered]);
+  const outcome = useMemo(() => filtered.filter(i => i.kind !== "incoming").reduce((s, i) => s + Number(i.cash_received ?? i.total ?? 0), 0), [filtered]);
+
+  const exportCsv = () => downloadCsv("касса", filtered, [
+    { header: "№", value: i => i.number },
+    { header: "Дата", value: i => csvDate(i.issue_date) },
+    { header: "Тип", value: i => (i.kind === "incoming" ? "Приход" : "Расход") },
+    { header: "Контрагент", value: i => i.partner?.name ?? "" },
+    { header: "Сумма", value: i => Number(i.cash_received ?? i.total ?? 0) },
+    { header: "Основание", value: i => i.note ?? "" },
+  ]);
+
   return (
     <div className="space-y-5">
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <div className="rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 p-2">
           <Wallet className="h-5 w-5" />
         </div>
@@ -49,9 +80,12 @@ function CashPage() {
           <h1 className="text-2xl font-semibold">Касса и банк</h1>
           <p className="text-sm text-muted-foreground">ПКО/РКО и движения по расчётному счёту.</p>
         </div>
+        <Button variant="outline" className="ml-auto" onClick={exportCsv} disabled={!filtered.length}>
+          <Download className="h-4 w-4 mr-1" /> Excel
+        </Button>
       </div>
 
-      <div className="flex gap-1 border-b">
+      <div className="flex gap-1 border-b overflow-x-auto">
         {([
           { k: "all", label: "Все" },
           { k: "incoming", label: "Приход" },
@@ -67,7 +101,19 @@ function CashPage() {
         ))}
       </div>
 
-      <Card className="p-0 overflow-hidden border-t-2 border-t-emerald-500/60">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input className="pl-8" placeholder="Номер, контрагент или основание" value={search} onChange={e => setSearch(e.target.value)} />
+        </div>
+        <Input type="date" className="w-[150px]" value={from} onChange={e => setFrom(e.target.value)} title="Дата с" />
+        <Input type="date" className="w-[150px]" value={to} onChange={e => setTo(e.target.value)} title="Дата по" />
+        <span className="text-sm text-muted-foreground">
+          Приход {fmt.format(income)} · Расход {fmt.format(outcome)}
+        </span>
+      </div>
+
+      <Card className="p-0 overflow-x-auto border-t-2 border-t-emerald-500/60">
         <Table>
           <TableHeader>
             <TableRow>
@@ -79,10 +125,12 @@ function CashPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.length === 0 && (
-              <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-10">Кассовых документов пока нет</TableCell></TableRow>
+            {filtered.length === 0 && (
+              <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-10">
+                {rows.length ? "Ничего не найдено" : "Кассовых документов пока нет"}
+              </TableCell></TableRow>
             )}
-            {rows.map(i => (
+            {filtered.map(i => (
               <TableRow key={i.id} className="hover:bg-muted/40">
                 <TableCell>
                   <Link to="/invoices/$id" params={{ id: i.id }} className="font-medium text-primary hover:underline">{i.number}</Link>

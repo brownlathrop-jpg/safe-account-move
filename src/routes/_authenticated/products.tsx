@@ -9,12 +9,13 @@ import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Pencil, Trash2, Search, Folder, FolderPlus, FolderOpen, ChevronRight, ChevronDown, Upload, X, ImageIcon, MoreHorizontal } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, Folder, FolderPlus, FolderOpen, ChevronRight, ChevronDown, Upload, X, ImageIcon, MoreHorizontal, Download } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { useActiveWorkspaceId } from "@/lib/workspace";
+import { downloadCsv } from "@/lib/export-csv";
 
 export const Route = createFileRoute("/_authenticated/products")({
   head: () => ({ meta: [{ title: "Товары и услуги — КабинетCRM" }] }),
@@ -313,6 +314,23 @@ function ProductsPage() {
     return p.folder_id === selectedFolder;
   });
 
+  const exportCsv = () => {
+    const folderName = new Map((folders as FolderRow[]).map(f => [f.id, f.name]));
+    downloadCsv("товары", filtered, [
+      { header: "Артикул", value: p => p.sku },
+      { header: "Название", value: p => p.name },
+      { header: "Папка", value: p => (p.folder_id ? folderName.get(p.folder_id) ?? "" : "") },
+      { header: "Вид", value: p => (p.kind === "service" ? "Услуга" : "Товар") },
+      { header: "Ед.", value: p => p.unit },
+      { header: "Цена", value: p => Number(p.price || 0) },
+      { header: "Себестоимость", value: p => Number(p.cost || 0) },
+      { header: "Остаток", value: p => Number(p.stock || 0) },
+      { header: "НДС", value: p => p.vat_rate ?? "" },
+      { header: "Описание", value: p => p.description },
+    ]);
+  };
+
+
   const productCountIn = (folderId: string) => {
     const ids = new Set(descendantsOf(folderId));
     return products.filter(p => p.folder_id && ids.has(p.folder_id)).length;
@@ -494,7 +512,10 @@ function ProductsPage() {
           <h1 className="text-2xl font-semibold">Товары и услуги</h1>
           <p className="text-sm text-muted-foreground">Справочник с ценами, остатками и папками</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" onClick={exportCsv} disabled={!filtered.length} title="Выгрузить в Excel">
+            <Download className="h-4 w-4 mr-1" /> Excel
+          </Button>
           <Button variant="outline" onClick={() => {
             const target = getNewFolderTarget();
             openFolderDialog(target.parent_id, undefined, target.parentKind);
