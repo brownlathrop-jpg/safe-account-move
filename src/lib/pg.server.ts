@@ -276,10 +276,40 @@ function splitRow(item: Row) {
   };
 }
 
-export async function runQuery(spec: QuerySpec, userId: string): Promise<{ data: any; error: any; count?: number }> {
+export async function runQuery(
+  spec: QuerySpec,
+  userId: string,
+  userEmail = "",
+): Promise<{ data: any; error: any; count?: number }> {
   const table = assertTable(spec.table);
   const s = sql();
-  const scope = await ownedWorkspaces(userId);
+  const { accessibleWorkspaces, roleIn, canWrite, logChange } = await import("./team.server");
+  const scope = await accessibleWorkspaces(userId);
+
+  /** Проверить право записи в затронутые базы. */
+  const assertWrite = async (wsIds: (string | null)[]) => {
+    const ids = Array.from(new Set(wsIds.filter((x): x is string => !!x)));
+    if (!ids.length) return;
+    for (const id of ids) {
+      const role = await roleIn(userId, id);
+      if (!role) throw new Error("Нет доступа к этой базе");
+      if (!canWrite(role, table)) throw new Error("Недостаточно прав для изменения данных");
+    }
+  };
+  const log = (op: "insert" | "update" | "delete", rows: Row[], changes?: Record<string, unknown>) => {
+    for (const r of rows.slice(0, 50)) {
+      void logChange({
+        table,
+        docId: r.id ? String(r.id) : null,
+        workspaceId: r.workspace_id ? String(r.workspace_id) : null,
+        userId,
+        userEmail,
+        op,
+        changes: changes ?? {},
+      });
+    }
+  };
+
 
   try {
     if (spec.mode === "select") {
