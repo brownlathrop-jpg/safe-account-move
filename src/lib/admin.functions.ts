@@ -30,15 +30,15 @@ export const adminStats = createServerFn({ method: "POST" }).handler(async () =>
     const { sql } = await import("./pg.server");
     const s = sql();
     const counts = await s`
-      select 'products' as table, count(*) from products
-      union all select 'product_folders', count(*) from product_folders
-      union all select 'partners', count(*) from partners
-      union all select 'invoices', count(*) from invoices
-      union all select 'invoice_items', count(*) from invoice_items
-      union all select 'stock_movements', count(*) from stock_movements
-      union all select 'stock_receipts', count(*) from stock_receipts
-      union all select 'workspaces', count(*) from workspaces
-      union all select 'app_users', count(*) from app_users`;
+      select 'Товары и услуги' as label, count(*) from products
+      union all select 'Папки товаров', count(*) from product_folders
+      union all select 'Контрагенты', count(*) from partners
+      union all select 'Документы', count(*) from invoices
+      union all select 'Строки документов', count(*) from invoice_items
+      union all select 'Движения по складу', count(*) from stock_movements
+      union all select 'Поступления на склад', count(*) from stock_receipts
+      union all select 'Базы', count(*) from workspaces
+      union all select 'Пользователи', count(*) from app_users`;
     const size = await s`select pg_size_pretty(pg_database_size(current_database())) as size`;
     const sessions = await s`select count(*) from app_sessions where expires_at > now()`;
     return {
