@@ -66,6 +66,9 @@ function ProductsPage() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [moveOpen, setMoveOpen] = useState(false);
   const [moveTarget, setMoveTarget] = useState<string>(ROOT);
+  const lastClickedRef = useRef<string | null>(null);
+  const dragIdsRef = useRef<string[]>([]);
+  const [dropFolder, setDropFolder] = useState<string | null>(null);
 
   const { data: products = [] } = useQuery({
     queryKey: ["products", wsId],
@@ -333,25 +336,61 @@ function ProductsPage() {
   }, [childrenOf]);
 
 
-  const toggleSelected = (id: string) =>
-    setSelectedIds(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]));
-
-  const moveToFolder = useMutation({
-    mutationFn: async () => {
-      if (!selectedIds.length) throw new Error("Не выбраны товары");
-      const folder_id = moveTarget === ROOT ? null : moveTarget;
-      for (const id of selectedIds) {
-        const { error } = await db.from("products").update({ folder_id } as never).eq("id", id);
-        if (error) throw error;
+  // Клик с Shift выделяет всё между предыдущим и текущим товаром.
+  const toggleSelected = (id: string, shift = false) => {
+    setSelectedIds(prev => {
+      if (shift && lastClickedRef.current) {
+        const list = filtered.map(p => p.id);
+        const a = list.indexOf(lastClickedRef.current);
+        const b = list.indexOf(id);
+        if (a !== -1 && b !== -1) {
+          const range = list.slice(Math.min(a, b), Math.max(a, b) + 1);
+          const merged = new Set([...prev, ...range]);
+          lastClickedRef.current = id;
+          return [...merged];
+        }
       }
+      lastClickedRef.current = id;
+      return prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id];
+    });
+  };
+
+  const moveProducts = useMutation({
+    mutationFn: async ({ ids, folderId }: { ids: string[]; folderId: string | null }) => {
+      if (!ids.length) throw new Error("Не выбраны товары");
+      // Пачками по 25, чтобы большой перенос шёл быстро.
+      for (let i = 0; i < ids.length; i += 25) {
+        const chunk = ids.slice(i, i + 25);
+        const results = await Promise.all(
+          chunk.map(id => db.from("products").update({ folder_id: folderId } as never).eq("id", id)),
+        );
+        const bad = results.find(r => r.error);
+        if (bad?.error) throw bad.error;
+      }
+      return ids.length;
     },
-    onSuccess: () => {
+    onSuccess: (count) => {
       qc.invalidateQueries({ queryKey: ["products"] });
-      toast.success(`Перенесено: ${selectedIds.length}`);
+      toast.success(`Перенесено: ${count}`);
       setSelectedIds([]);
       setMoveOpen(false);
     },
     onError: (e: Error) => toast.error(e.message),
+  });
+
+  const dropOnFolder = (folderId: string | null) => {
+    const ids = dragIdsRef.current.length ? dragIdsRef.current : selectedIds;
+    dragIdsRef.current = [];
+    setDropFolder(null);
+    if (!ids.length) return;
+    moveProducts.mutate({ ids, folderId });
+  };
+
+  // Свойства для папки-приёмника при перетаскивании товаров.
+  const dropProps = (folderId: string | null, key: string) => ({
+    onDragOver: (e: React.DragEvent) => { e.preventDefault(); setDropFolder(key); },
+    onDragLeave: () => setDropFolder(cur => (cur === key ? null : cur)),
+    onDrop: (e: React.DragEvent) => { e.preventDefault(); dropOnFolder(folderId); },
   });
 
   const openNew = () => {
