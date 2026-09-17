@@ -40,11 +40,10 @@ function AuthPage() {
     setLoading(true);
     const { error } = await db.auth.signUp({
       email, password,
-      options: { emailRedirectTo: window.location.origin },
     });
     setLoading(false);
     if (error) return toast.error(error.message);
-    toast.success("Аккаунт создан. Проверьте почту, если включено подтверждение.");
+    toast.success("Аккаунт создан");
     const { data } = await db.auth.getUser();
     if (data.user) navigate({ to: "/dashboard", replace: true });
   };

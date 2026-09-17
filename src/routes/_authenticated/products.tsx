@@ -547,7 +547,7 @@ function ProductsPage() {
                             const path = `${user.id}/${crypto.randomUUID()}.${ext}`;
                             const { error: upErr } = await db.storage.from("product-images").upload(path, file, { upsert: false, contentType: file.type });
                             if (upErr) throw upErr;
-                            const { data: pub } = db.storage.from("product-images").getPublicUrl(path);
+                            const { data: pub } = await db.storage.from("product-images").getUrl(path);
                             setEditing(cur => cur ? { ...cur, image_url: pub.publicUrl } : cur);
                           } catch (err) {
                             toast.error(err instanceof Error ? err.message : "Ошибка загрузки");
