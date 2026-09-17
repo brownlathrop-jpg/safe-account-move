@@ -45,7 +45,6 @@ export async function ensureWorkspace(userId: string): Promise<string> {
   const { data, error } = await (db as any)
     .from("workspaces")
     .select("id,name,created_at")
-    .eq("user_id", userId)
     .order("created_at", { ascending: true });
   if (error) throw error;
   const list = (data ?? []) as { id: string }[];
