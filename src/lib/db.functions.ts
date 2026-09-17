@@ -85,9 +85,17 @@ export const authRequestReset = createServerFn({ method: "POST" })
   .inputValidator((input: { email: string }) => input)
   .handler(async ({ data }) => {
     const { createResetToken } = await import("./auth.server");
+    const { sendMail, appUrl, resetEmailHtml } = await import("./email.server");
     try {
       const token = await createResetToken(data.email);
-      if (token) console.log(`[reset] ссылка восстановления: /auth?reset=${token}`);
+      if (token) {
+        const link = `${appUrl()}/auth?reset=${token}`;
+        await sendMail({
+          to: data.email,
+          subject: "Смена пароля в КабинетCRM",
+          html: resetEmailHtml(link),
+        });
+      }
       // Ответ одинаковый, существует адрес или нет.
       return { ok: true, error: null };
     } catch (e: any) {
