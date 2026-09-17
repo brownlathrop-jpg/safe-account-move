@@ -58,6 +58,6 @@ Expect `HTTP/2 200` and pm2 status `online`.
 ## If it fails
 
 - pm2 `errored` → `$SSH 'pm2 logs crm --lines 50 --nostream'`; on a bad build roll back with `mv dist dist.bad && mv dist.old dist && pm2 restart crm`.
-- 502 from nginx → node process is down; check pm2 logs and `.env` presence.
+- 502 from nginx → node process is down or not on port 3001; check `$SSH 'curl -sI http://127.0.0.1:3001/'`, pm2 logs and `.env` presence (`PORT=3001`).
 - New dependency added → run `npm ci --omit=dev` (or `bun install --production`) in the app dir before restarting.
 - Permission errors on the app dir → `crmdeploy` has `NOPASSWD` only for `/usr/bin/clpctl`; use CloudPanel (`panel.skladnow.ru`) rather than widening sudo.
