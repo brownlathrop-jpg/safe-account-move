@@ -28,7 +28,7 @@ function ShipmentsPage() {
     queryFn: async () => {
       let q = (db as any)
         .from("invoices")
-        .select("id,number,kind,status,total,issue_date,partner:partners(name)")
+        .select("id,number,kind,status,total,issue_date,is_return,partner:partners(name)")
         .eq("doc_type", "shipment")
         .eq("workspace_id", wsId)
         .order("issue_date", { ascending: false });
@@ -94,6 +94,9 @@ function ShipmentsPage() {
                     <span className="inline-flex items-center gap-1 text-success"><ArrowDownToLine className="h-3.5 w-3.5" /> Закупка</span>
                   ) : (
                     <span className="inline-flex items-center gap-1 text-primary"><ArrowUpFromLine className="h-3.5 w-3.5" /> Продажа</span>
+                  )}
+                  {i.is_return && (
+                    <span className="ml-2 inline-flex items-center rounded-full bg-orange-500/15 px-2 py-0.5 text-xs font-medium text-orange-600 dark:text-orange-400">Возврат</span>
                   )}
                 </TableCell>
                 <TableCell>{i.partner?.name ?? "—"}</TableCell>

@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Plus, Trash2 } from "lucide-react";
 import { useActiveWorkspaceId } from "@/lib/workspace";
+import { fetchBalances } from "@/lib/stock";
 import { ProductPickerSingle } from "@/components/ProductPickerSingle";
 
 export const Route = createFileRoute("/_authenticated/stock")({
@@ -89,12 +90,7 @@ function BalancesTab({ warehouses, products }: { warehouses: Warehouse[]; produc
   const { data: balances = [] } = useQuery({
     queryKey: ["stock_balances", wsId],
     enabled: !!wsId,
-    queryFn: async () => {
-      const { data, error } = await (db as any).from("stock_balances")
-        .select("warehouse_id,product_id,qty").eq("workspace_id", wsId);
-      if (error) throw error;
-      return data as Balance[];
-    },
+    queryFn: async () => fetchBalances(wsId!),
   });
 
   const productMap = useMemo(() => new Map(products.map(p => [p.id, p])), [products]);
@@ -168,6 +164,8 @@ function ReceiptsTab({ warehouses, products, partners }: { warehouses: Warehouse
 
   const del = useMutation({
     mutationFn: async (id: string) => {
+      await (db as any).from("stock_movements").delete().eq("doc_type", "receipt").eq("doc_id", id);
+      await (db as any).from("stock_receipt_items").delete().eq("receipt_id", id);
       const { error } = await (db as any).from("stock_receipts").delete().eq("id", id);
       if (error) throw error;
     },
@@ -282,7 +280,16 @@ function NewReceiptDialog({
       }));
       const { error: e2 } = await (db as any).from("stock_receipt_items").insert(items);
       if (e2) throw e2;
+      // Приход на склад: движения пишем сами (в базе больше нет триггеров).
+      const movements = clean.map(r => ({
+        user_id: user.id, workspace_id: wsId,
+        warehouse_id: whId, product_id: r.product_id,
+        qty: r.qty, doc_type: "receipt", doc_id: hdr.id, moved_at: date,
+      }));
+      const { error: e3 } = await (db as any).from("stock_movements").insert(movements);
+      if (e3) throw e3;
     },
+
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["stock_receipts"] });
       qc.invalidateQueries({ queryKey: ["stock_balances"] });

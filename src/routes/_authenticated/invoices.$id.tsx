@@ -12,12 +12,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Printer, CheckCircle2, XCircle, Trash2, Plus, Save, FileEdit, ChevronDown } from "lucide-react";
+import { ArrowLeft, Printer, CheckCircle2, XCircle, Trash2, Plus, Save, FileEdit, ChevronDown, Copy } from "lucide-react";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { amountInWords } from "@/lib/amount-in-words";
 import { ProductPicker, type PickedItem } from "@/components/ProductPicker";
 import { ProductPickerSingle } from "@/components/ProductPickerSingle";
 import { useActiveWorkspaceId } from "@/lib/workspace";
+import { Torg12 } from "@/components/print/Torg12";
+import { Upd } from "@/components/print/Upd";
+import type { PrintItem } from "@/components/print/print-types";
 
 export const Route = createFileRoute("/_authenticated/invoices/$id")({
   head: () => ({ meta: [{ title: "Накладная — КабинетCRM" }] }),
@@ -30,6 +33,7 @@ const dfmt = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", y
 
 type Item = { id?: string; product_id: string | null; name: string; quantity: number; price: number; kind: "product" | "service" };
 type DocType = "order" | "shipment" | "cash_receipt";
+type PrintMode = "standard" | "invoice" | "pko" | "torg12" | "upd";
 
 const docLabels: Record<DocType, { title: string; one: string; createLabel: string }> = {
   order: { title: "Заявка", one: "заявку", createLabel: "Заявка" },
@@ -104,11 +108,11 @@ function InvoiceView() {
   const [note, setNote] = useState("");
   const [items, setItems] = useState<Item[]>([]);
   const [pickRow, setPickRow] = useState<number | null>(null);
-  const [printMode, setPrintMode] = useState<"standard" | "invoice" | "pko">("standard");
+  const [printMode, setPrintMode] = useState<PrintMode>("standard");
   const [cashReceived, setCashReceived] = useState<number>(0);
   const [cashBasis, setCashBasis] = useState<string>("");
 
-  const doPrint = (mode: "standard" | "invoice" | "pko") => {
+  const doPrint = (mode: PrintMode) => {
     setPrintMode(mode);
     setTimeout(() => window.print(), 50);
   };
@@ -333,6 +337,55 @@ function InvoiceView() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  /** Копия документа или возврат (документ обратного вида). */
+  const duplicate = useMutation({
+    mutationFn: async (mode: "copy" | "return") => {
+      const { data: { user } } = await db.auth.getUser();
+      if (!user) throw new Error("Нет сессии");
+      const cleanNum = String(inv!.number).replace(/^№\s*/, "");
+      const isReturn = mode === "return";
+      const newKind = isReturn ? (kind === "outgoing" ? "incoming" : "outgoing") : kind;
+      const prefix = isReturn ? "В" : "К";
+      const { data: doc, error } = await (db as any).from("invoices").insert({
+        user_id: user.id,
+        workspace_id: inv!.workspace_id ?? wsId,
+        number: `${prefix}-${cleanNum}`,
+        kind: newKind,
+        partner_id: inv!.partner_id,
+        warehouse_id: isShipment ? (warehouseId || null) : null,
+        issue_date: new Date().toISOString().slice(0, 10),
+        status: "draft",
+        doc_type: docType,
+        is_return: isReturn,
+        parent_id: isReturn ? id : null,
+        cash_received: isPKO ? cashReceived : null,
+        cash_basis: isPKO ? (cashBasis || null) : null,
+        note: isReturn
+          ? `Возврат по ${isShipment ? "накладной" : "документу"} № ${cleanNum}`
+          : (note || null),
+      }).select("id").single();
+      if (error) throw error;
+      const rows = items.map(it => ({
+        invoice_id: doc.id, product_id: it.product_id, name: it.name,
+        quantity: it.quantity, price: it.price, sum: it.quantity * it.price,
+        kind: it.kind ?? "product",
+      }));
+      if (rows.length) {
+        const { error: insErr } = await db.from("invoice_items").insert(rows);
+        if (insErr) throw insErr;
+      }
+      return doc.id as string;
+    },
+    onSuccess: (newId) => {
+      qc.invalidateQueries({ queryKey: ["invoice-children", id] });
+      toast.success("Документ создан");
+      navigate({ to: "/invoices/$id", params: { id: newId } });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+
+
   if (error) return <div className="text-destructive">Ошибка загрузки: {(error as Error).message}</div>;
   if (isLoading || !inv) return <div className="text-muted-foreground">Загрузка…</div>;
 
@@ -411,6 +464,19 @@ function InvoiceView() {
           )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
+              <Button variant="outline"><Copy className="h-4 w-4 mr-1" /> Создать <ChevronDown className="h-4 w-4 ml-1" /></Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => duplicate.mutate("copy")}>Копию этого документа</DropdownMenuItem>
+              {!isPKO && (
+                <DropdownMenuItem onClick={() => duplicate.mutate("return")}>
+                  {kind === "outgoing" ? "Возврат от покупателя" : "Возврат поставщику"}
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
               <Button variant="outline"><Printer className="h-4 w-4 mr-1" /> Печать <ChevronDown className="h-4 w-4 ml-1" /></Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -426,6 +492,8 @@ function InvoiceView() {
                   {kind === "outgoing" && (
                     <DropdownMenuItem onClick={() => doPrint("invoice")}>Счёт на оплату</DropdownMenuItem>
                   )}
+                  <DropdownMenuItem onClick={() => doPrint("torg12")}>Товарная накладная ТОРГ-12</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => doPrint("upd")}>Универсальный передаточный документ (УПД)</DropdownMenuItem>
                 </>
               )}
             </DropdownMenuContent>
@@ -436,8 +504,22 @@ function InvoiceView() {
       {/* Header label */}
       <div className="print:hidden">
         <h1 className="text-2xl font-semibold">
-          {docTitle} № {cleanNumber}
+          {inv.is_return ? "Возврат — " : ""}{docTitle} № {cleanNumber}
         </h1>
+        {isShipment && inv.status === "posted" && kind === "outgoing" && (
+          <p className="text-sm mt-1">
+            Себестоимость: <b>{fmt.format(Number(inv.cost_total ?? 0))}</b>{" · "}
+            Прибыль:{" "}
+            <b className={Number(inv.total) - Number(inv.cost_total ?? 0) >= 0 ? "text-emerald-600" : "text-destructive"}>
+              {fmt.format(Number(inv.total) - Number(inv.cost_total ?? 0))}
+            </b>
+            {Number(inv.total) > 0 && (
+              <span className="text-muted-foreground">
+                {" "}({Math.round(((Number(inv.total) - Number(inv.cost_total ?? 0)) / Number(inv.total)) * 100)}% от суммы)
+              </span>
+            )}
+          </p>
+        )}
         {inv.parent_id && (
           <p className="text-sm text-muted-foreground mt-1">
             На основании{" "}
@@ -662,7 +744,7 @@ function InvoiceView() {
       </div>
 
       {/* Print layout (hidden on screen) */}
-      {printMode !== "pko" && (
+      {(printMode === "standard" || printMode === "invoice") && (
       <div className="invoice-print hidden print:block bg-white text-black mx-auto" style={{ maxWidth: 900 }}>
         {printMode === "invoice" && orgAsParty && (
           <>
@@ -799,6 +881,25 @@ function InvoiceView() {
       )}
 
       {/* ПКО print layout (КО-1) */}
+      {(printMode === "torg12" || printMode === "upd") && (() => {
+        const printItems: PrintItem[] = items.map((it) => {
+          const p: any = products.find((x: any) => x.id === it.product_id);
+          return {
+            name: it.name,
+            unit: p?.unit || (it.kind === "service" ? "усл" : "шт"),
+            quantity: it.quantity,
+            price: it.price,
+          };
+        });
+        return (
+          <div className="invoice-print hidden print:block bg-white text-black mx-auto" style={{ maxWidth: 1000 }}>
+            {printMode === "torg12"
+              ? <Torg12 supplier={supplierLine} buyer={buyerLine} number={cleanNumber} date={inv.issue_date} items={printItems} note={note} />
+              : <Upd supplier={supplierLine} buyer={buyerLine} number={cleanNumber} date={inv.issue_date} items={printItems} note={note} />}
+          </div>
+        );
+      })()}
+
       {printMode === "pko" && (
       <div className="invoice-print hidden print:block bg-white text-black mx-auto" style={{ maxWidth: 900, fontSize: 12 }}>
         <div className="text-right text-xs mb-1">Унифицированная форма № КО-1<br/>Утверждена постановлением Госкомстата России от 18.08.98 № 88</div>

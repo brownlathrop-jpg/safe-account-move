@@ -6,6 +6,7 @@
  * Услуги и позиции без товара склад не двигают.
  */
 import { db } from "@/integrations/firebase/db";
+import { warehouseBalanceMap } from "@/lib/stock";
 
 export async function applyShipmentStock(invoiceId: string): Promise<void> {
   const inv = await db.getById("invoices", invoiceId);
@@ -50,6 +51,31 @@ export async function applyShipmentStock(invoiceId: string): Promise<void> {
   if (!inv.warehouse_id) throw new Error("Нельзя провести накладную без склада");
 
   const sign = inv.kind === "outgoing" ? -1 : 1;
+
+  // Продажа: проверяем, хватает ли товара на складе (можно разрешить минус в настройках базы).
+  if (sign === -1 && inv.workspace_id) {
+    const ws = await db.getById("workspaces", inv.workspace_id);
+    if (!ws?.allow_negative_stock) {
+      const balances = await warehouseBalanceMap(inv.workspace_id, inv.warehouse_id);
+      const need = new Map<string, number>();
+      for (const r of rows) {
+        if (!r.product_id || r.kind === "service" || serviceById.get(r.product_id)) continue;
+        need.set(r.product_id, (need.get(r.product_id) ?? 0) + Number(r.quantity ?? 0));
+      }
+      const short: string[] = [];
+      for (const [pid, qty] of need) {
+        const have = balances.get(pid) ?? 0;
+        if (qty > have) {
+          const p = await db.getById("products", pid);
+          short.push(`${p?.name ?? "товар"}: нужно ${qty}, на складе ${have}`);
+        }
+      }
+      if (short.length) {
+        await db.from("invoices").update({ status: "draft", posted_at: null, cost_total: costTotal }).eq("id", invoiceId);
+        throw new Error(`Не хватает товара на складе — ${short.join("; ")}`);
+      }
+    }
+  }
   const movements = rows
     .filter(
       (r) =>

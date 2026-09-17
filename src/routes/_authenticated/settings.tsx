@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
 import { Save, Search, Loader2, Plus, Trash2, Database, Check, Pencil } from "lucide-react";
 import { lookupOrgByInn, lookupBankByBik } from "@/lib/dadata.functions";
 import { useActiveWorkspaceId, activeWorkspace } from "@/lib/workspace";
@@ -634,6 +635,38 @@ function WorkspacesRef() {
       <p className="text-xs text-muted-foreground">
         Удалить можно только пустую базу — сначала очистите её данные. Активную базу нельзя удалить, переключитесь на другую.
       </p>
-    </Card>
+
+      <NegativeStockSetting wsId={activeId} />
+      </Card>
+  );
+}
+
+/** Разрешать ли продавать товар, которого нет на складе. */
+function NegativeStockSetting({ wsId }: { wsId: string | null }) {
+  const qc = useQueryClient();
+  const { data: ws } = useQuery({
+    queryKey: ["ws-settings", wsId],
+    enabled: !!wsId,
+    queryFn: async () => (await (db as any).from("workspaces").select("id,allow_negative_stock").eq("id", wsId).maybeSingle()).data,
+  });
+  const allow = !!ws?.allow_negative_stock;
+  const toggle = useMutation({
+    mutationFn: async (v: boolean) => {
+      const { error } = await (db as any).from("workspaces").update({ allow_negative_stock: v }).eq("id", wsId);
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["ws-settings", wsId] }); toast.success("Сохранено"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  return (
+    <div className="border-t pt-2 flex items-start justify-between gap-3">
+      <div className="min-w-0">
+        <div className="font-medium">Разрешить продажу в минус</div>
+        <p className="text-xs text-muted-foreground">
+          Если выключено, накладную не удастся провести, когда товара не хватает на складе.
+        </p>
+      </div>
+      <Switch checked={allow} onCheckedChange={(v) => toggle.mutate(v)} disabled={!wsId || toggle.isPending} />
+    </div>
   );
 }
