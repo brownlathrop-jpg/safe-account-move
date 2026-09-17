@@ -545,7 +545,7 @@ function ProductsPage() {
                             if (!user) throw new Error("Нет сессии");
                             const ext = file.name.split(".").pop() || "jpg";
                             const path = `${user.id}/${crypto.randomUUID()}.${ext}`;
-                            const { error: upErr } = await db.storage.from("product-images").upload(path, file, { upsert: false, contentType: file.type });
+                            const { error: upErr } = await db.storage.from("product-images").upload(path, file, { contentType: file.type });
                             if (upErr) throw upErr;
                             const { data: pub } = await db.storage.from("product-images").getUrl(path);
                             setEditing(cur => cur ? { ...cur, image_url: pub.publicUrl } : cur);
