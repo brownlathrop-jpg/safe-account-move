@@ -28,7 +28,9 @@
 
 ## Перенос данных (17.09.2026)
 - Старая база Supabase ожила, доступ есть.
-- Перенесено: workspaces (2), partners (325).
-- Блокер: исчерпан дневной лимит записей Firestore на бесплатном тарифе Spark (20k/день), ошибка 429 Quota exceeded.
-- Лимит сбрасывается ежедневно (~14:00-15:00 по Барнаулу). После сброса перезапустить `bun scripts/migrate-to-firestore.mjs` — скрипт идемпотентен, перенесёт products, warehouses, invoices, invoice_items, stock_movements и остальные таблицы.
+- В старой базе всего 15 467 записей; уже в Firebase 5 327 (workspaces 2, partners 325, products 5000).
+- Осталось перенести 10 140: products 2918, invoices 886, invoice_items 6104, warehouses 7, banks 70, bank_accounts 85, price_types 8, cashflow_items 54, invoice_statuses 8. Таблиц profiles, stock_movements, stock_balances в старой базе нет.
+- Блокер: дневной лимит записей Firestore на бесплатном тарифе Spark (20k/день), ошибка 429 Quota exceeded; на 15:15 по Барнаулу лимит ещё не сбросился.
+- Скрипт `scripts/migrate-to-firestore.mjs` теперь записывает только недостающие записи (уже перенесённое не жжёт лимит). После сброса лимита запустить `bun scripts/migrate-to-firestore.mjs` — хватит одного дня.
+- Вопрос пользователя: можно ли наполнить из выгрузки 1С — да, но записи в Firebase те же и лимит тот же; из 1С разумно добивать данные, если старая база опять станет недоступна.
 - Альтернатива: перейти на тариф Blaze (оплата по факту, бесплатная квота сохраняется, лимиты выше).

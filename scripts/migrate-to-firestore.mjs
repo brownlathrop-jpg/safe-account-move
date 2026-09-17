@@ -41,12 +41,36 @@ async function restCommit(writes, attempt = 1) {
   });
   if (!res.ok) {
     const text = await res.text();
-    if (attempt < 6 && (res.status >= 500 || res.status === 429)) {
+    if (attempt < 6 && res.status >= 500) {
       await new Promise((r) => setTimeout(r, attempt * 5000));
       return restCommit(writes, attempt + 1);
     }
+    if (res.status === 429) {
+      throw new Error("Дневной лимит записей Firebase исчерпан. Скрипт можно запустить снова после сброса лимита — уже перенесённое повторно записываться не будет.");
+    }
     throw new Error(`Firestore commit: ${res.status} ${text.slice(0, 300)}`);
   }
+}
+
+async function existingIds(table) {
+  const ids = new Set();
+  let pageToken = "";
+  const token = await accessToken();
+  do {
+    const url = new URL(`${REST}/${table}`);
+    url.searchParams.set("pageSize", "1000");
+    url.searchParams.append("mask.fieldPaths", "id");
+    if (pageToken) url.searchParams.set("pageToken", pageToken);
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Firestore list ${table}: ${res.status} ${text.slice(0, 200)}`);
+    }
+    const data = await res.json();
+    for (const doc of data.documents ?? []) ids.add(doc.name.split("/").pop());
+    pageToken = data.nextPageToken ?? "";
+  } while (pageToken);
+  return ids;
 }
 
 const TABLES = [
@@ -92,18 +116,30 @@ for (const table of TABLES) {
     console.log(`- ${table}: нет такой таблицы, пропуск`);
     continue;
   }
+  const existing = await existingIds(table);
+  const missing = rows.filter((row) => !existing.has(String(row.id ?? "")));
+  if (missing.length === 0) {
+    console.log(`= ${table}: уже перенесено ${rows.length}, пропуск`);
+    continue;
+  }
   const CHUNK = 200;
   let writes = [];
-  for (const row of rows) {
+  let done = 0;
+  for (const row of missing) {
     const id = String(row.id ?? crypto.randomUUID());
     const fields = Object.fromEntries(Object.entries({ ...row, id }).map(([k, v]) => [k, toValue(v)]));
     writes.push({ update: { name: `projects/${PROJECT}/databases/(default)/documents/${table}/${id}`, fields } });
     if (writes.length === CHUNK) {
       await restCommit(writes);
+      done += writes.length;
+      console.log(`  ${table}: ${done}/${missing.length}`);
       writes = [];
     }
   }
-  if (writes.length) await restCommit(writes);
-  console.log(`+ ${table}: ${rows.length}`);
+  if (writes.length) {
+    await restCommit(writes);
+    done += writes.length;
+  }
+  console.log(`+ ${table}: перенесено ${done} из ${rows.length}`);
 }
 console.log("Готово");
