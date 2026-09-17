@@ -3,7 +3,7 @@ import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { useSession } from "@tanstack/react-start/server";
 import { sql } from "./pg.server";
 
-export type AppUser = { id: string; email: string; name: string };
+export type AppUser = { id: string; email: string; name: string; is_admin?: boolean };
 
 type SessionData = { userId?: string; email?: string };
 
@@ -57,7 +57,7 @@ export async function signIn(email: string, password: string): Promise<AppUser> 
   if (!row || !verifyPassword(password, row.password_hash)) {
     throw new Error("Неверный email или пароль");
   }
-  const user: AppUser = { id: row.id, email: row.email, name: row.name ?? "" };
+  const user: AppUser = { id: row.id, email: row.email, name: row.name ?? "", is_admin: !!row.is_admin };
   await startSession(user);
   return user;
 }
@@ -77,13 +77,19 @@ export async function currentUser(): Promise<AppUser | null> {
   const userId = session.data.userId;
   if (!userId) return null;
   const s = sql();
-  const rows = await s`select id, email, name from app_users where id = ${userId} limit 1`;
+  const rows = await s`select id, email, name, is_admin from app_users where id = ${userId} limit 1`;
   return rows.length ? (rows[0] as any as AppUser) : null;
 }
 
 export async function requireUser(): Promise<AppUser> {
   const user = await currentUser();
   if (!user) throw new Error("Требуется вход");
+  return user;
+}
+
+export async function requireAdmin(): Promise<AppUser> {
+  const user = await requireUser();
+  if (!user.is_admin) throw new Error("Доступ только для администратора");
   return user;
 }
 
