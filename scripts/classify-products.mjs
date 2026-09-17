@@ -116,7 +116,8 @@ async function commit(writes) {
 let cache = null;
 try { cache = JSON.parse(await Bun.file(CACHE).text()); } catch {}
 if (!cache) {
-  cache = { products: await listAll("products"), folders: await listAll("product_folders") };
+  const products = JSON.parse(await Bun.file("/tmp/products.json").text());
+  cache = { products, folders: await listAll("product_folders") };
   await Bun.write(CACHE, JSON.stringify(cache));
 }
 const { products, folders } = cache;
