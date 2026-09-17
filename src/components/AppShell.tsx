@@ -1,10 +1,11 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import { LayoutDashboard, Package, FileText, Users, LogOut, Plus, Settings, Warehouse, PanelLeftClose, PanelLeftOpen, Truck, Wallet, Shield, BarChart3, UserCog } from "lucide-react";
+import { LayoutDashboard, Package, FileText, Users, LogOut, Plus, Settings, Warehouse, PanelLeftClose, PanelLeftOpen, Truck, Wallet, Shield, BarChart3, UserCog, Menu } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { db } from "@/integrations/db";
 import { Button } from "@/components/ui/button";
 import { useQueryClient } from "@tanstack/react-query";
 import { WorkspaceSwitcher } from "@/components/WorkspaceSwitcher";
+import { GlobalSearch } from "@/components/GlobalSearch";
 import { useRealtime } from "@/hooks/use-realtime";
 
 const nav = [
@@ -43,6 +44,10 @@ export function AppShell({ children }: { children: ReactNode }) {
     }
   }, [collapsed]);
 
+  // мобильное меню (выдвижное)
+  const [mobileOpen, setMobileOpen] = useState(false);
+  useEffect(() => { setMobileOpen(false); }, [pathname]);
+
   const flushInvoiceDraft = () => {
     if (typeof window !== "undefined") window.dispatchEvent(new Event("crm:flush-invoice-draft"));
   };
@@ -55,15 +60,14 @@ export function AppShell({ children }: { children: ReactNode }) {
     navigate({ to: "/auth", replace: true });
   };
 
-  return (
-    <div className="flex h-screen overflow-hidden bg-background">
-      <aside
-        className={`${collapsed ? "w-14" : "w-60"} shrink-0 border-r bg-sidebar flex flex-col h-full transition-[width] duration-150`}
-      >
-        <div className={`flex items-center gap-2 border-b ${collapsed ? "px-2 py-3 justify-center" : "px-4 py-3"}`}>
+  const sidebar = (mobile: boolean) => {
+    const narrow = collapsed && !mobile;
+    return (
+      <>
+        <div className={`flex items-center gap-2 border-b ${narrow ? "px-2 py-3 justify-center" : "px-4 py-3"}`}>
           <div className="h-8 w-8 shrink-0 rounded-md bg-primary text-primary-foreground flex items-center justify-center font-bold text-sm">К</div>
-          {!collapsed && <span className="font-semibold truncate">КабинетCRM</span>}
-          {!collapsed && (
+          {!narrow && <span className="font-semibold truncate">КабинетCRM</span>}
+          {!narrow && !mobile && (
             <Button
               variant="ghost" size="icon" className="ml-auto h-7 w-7"
               onClick={() => setCollapsed(true)} title="Свернуть меню"
@@ -72,7 +76,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             </Button>
           )}
         </div>
-        {collapsed && (
+        {narrow && (
           <div className="px-1 py-2 flex justify-center border-b">
             <Button
               variant="ghost" size="icon" className="h-7 w-7"
@@ -82,46 +86,81 @@ export function AppShell({ children }: { children: ReactNode }) {
             </Button>
           </div>
         )}
-        <nav className={`flex-1 overflow-y-auto ${collapsed ? "px-1" : "px-2"} py-2 space-y-0.5`}>
+        <nav className={`flex-1 overflow-y-auto ${narrow ? "px-1" : "px-2"} py-2 space-y-0.5`}>
           {items.map(({ to, label, icon: Icon }) => {
             const active = pathname === to || pathname.startsWith(to + "/");
             return (
               <Link
                 key={to}
                 to={to}
-                onClick={flushInvoiceDraft}
-                title={collapsed ? label : undefined}
+                onClick={() => { flushInvoiceDraft(); setMobileOpen(false); }}
+                title={narrow ? label : undefined}
                 className={`flex items-center gap-3 rounded-md text-sm font-medium transition-colors ${
-                  collapsed ? "justify-center px-0 py-2" : "px-3 py-1.5"
+                  narrow ? "justify-center px-0 py-2" : "px-3 py-2 sm:py-1.5"
                 } ${active ? "bg-primary text-primary-foreground" : "text-sidebar-foreground hover:bg-sidebar-accent"}`}
               >
                 <Icon className="h-4 w-4 shrink-0" />
-                {!collapsed && <span className="truncate">{label}</span>}
+                {!narrow && <span className="truncate">{label}</span>}
               </Link>
             );
           })}
         </nav>
-        <div className={`border-t ${collapsed ? "p-1 space-y-1" : "p-2 space-y-1.5"}`}>
-          {!collapsed && <WorkspaceSwitcher />}
-          <Link to="/invoices/new" className="block" onClick={flushInvoiceDraft}>
-            <Button className={`w-full ${collapsed ? "px-0" : ""}`} size="sm" title="Новая заявка">
+        <div className={`border-t ${narrow ? "p-1 space-y-1" : "p-2 space-y-1.5"}`}>
+          {!narrow && <WorkspaceSwitcher />}
+          <Link to="/invoices/new" className="block" onClick={() => { flushInvoiceDraft(); setMobileOpen(false); }}>
+            <Button className={`w-full ${narrow ? "px-0" : ""}`} size="sm" title="Новая заявка">
               <Plus className="h-4 w-4" />
-              {!collapsed && <span className="ml-1">Новая заявка</span>}
+              {!narrow && <span className="ml-1">Новая заявка</span>}
             </Button>
           </Link>
           <Button
             variant="ghost" size="sm"
-            className={`w-full ${collapsed ? "justify-center px-0" : "justify-start"}`}
+            className={`w-full ${narrow ? "justify-center px-0" : "justify-start"}`}
             onClick={signOut} title="Выйти"
           >
             <LogOut className="h-4 w-4" />
-            {!collapsed && <span className="ml-2">Выйти</span>}
+            {!narrow && <span className="ml-2">Выйти</span>}
           </Button>
         </div>
+      </>
+    );
+  };
+
+  return (
+    <div className="flex h-screen overflow-hidden bg-background">
+      <aside
+        className={`${collapsed ? "w-14" : "w-60"} hidden md:flex shrink-0 border-r bg-sidebar flex-col h-full transition-[width] duration-150`}
+      >
+        {sidebar(false)}
       </aside>
-      <main className="flex-1 overflow-y-auto overflow-x-hidden">
-        <div className="max-w-7xl mx-auto p-6">{children}</div>
-      </main>
+
+      {/* мобильное меню */}
+      {mobileOpen && (
+        <div className="fixed inset-0 z-50 md:hidden">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setMobileOpen(false)} />
+          <aside className="absolute left-0 top-0 flex h-full w-64 flex-col border-r bg-sidebar shadow-xl">
+            {sidebar(true)}
+          </aside>
+        </div>
+      )}
+
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="flex items-center gap-2 border-b bg-background/95 px-3 py-2 backdrop-blur">
+          <Button
+            variant="ghost" size="icon" className="md:hidden"
+            onClick={() => setMobileOpen(true)} title="Меню"
+          >
+            <Menu className="h-5 w-5" />
+          </Button>
+          <span className="font-semibold md:hidden">КабинетCRM</span>
+          <div className="ml-auto">
+            <GlobalSearch />
+          </div>
+        </header>
+        <main className="flex-1 overflow-y-auto overflow-x-hidden">
+          <div className="max-w-7xl mx-auto p-3 sm:p-6">{children}</div>
+        </main>
+      </div>
     </div>
   );
 }
