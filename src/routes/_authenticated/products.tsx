@@ -16,6 +16,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { useActiveWorkspaceId } from "@/lib/workspace";
 import { downloadCsv } from "@/lib/export-csv";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+
 
 export const Route = createFileRoute("/_authenticated/products")({
   head: () => ({ meta: [{ title: "Товары и услуги — КабинетCRM" }] }),
@@ -70,6 +72,8 @@ function ProductsPage() {
   const lastClickedRef = useRef<string | null>(null);
   const dragIdsRef = useRef<string[]>([]);
   const [dropFolder, setDropFolder] = useState<string | null>(null);
+  const [deleteFolder, setDeleteFolder] = useState<FolderRow | null>(null);
+
 
   const { data: products = [] } = useQuery({
     queryKey: ["products", wsId],
@@ -275,17 +279,31 @@ function ProductsPage() {
 
   const removeFolder = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await db.from("product_folders").delete().eq("id", id);
-      if (error) throw error;
+      const folderIdsToDelete = descendantsOf(id);
+      const set = new Set(folderIdsToDelete);
+      const productIds = products.filter(p => p.folder_id && set.has(p.folder_id)).map(p => p.id);
+      const chunk = 25;
+      for (let i = 0; i < productIds.length; i += chunk) {
+        const res = await Promise.all(productIds.slice(i, i + chunk).map(pid => db.from("products").delete().eq("id", pid)));
+        const bad = res.find(r => r.error);
+        if (bad?.error) throw bad.error;
+      }
+      // удаляем сначала вложенные папки, затем саму
+      for (const fid of [...folderIdsToDelete].reverse()) {
+        const { error } = await db.from("product_folders").delete().eq("id", fid);
+        if (error) throw error;
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["product_folders"] });
       qc.invalidateQueries({ queryKey: ["products"] });
       if (selectedFolder !== ALL && selectedFolder !== ROOT) setSelectedFolder(ALL);
-      toast.success("Папка удалена");
+      setDeleteFolder(null);
+      toast.success("Папка и её содержимое удалены");
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
 
   // Folders shown as rows in the right pane (direct children of current folder)
   const rightFolders = useMemo(() => {
@@ -466,7 +484,7 @@ function ProductsPage() {
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   className="text-destructive focus:text-destructive"
-                  onClick={() => { if (confirm(`Удалить папку "${f.name}"? Подпапки тоже будут удалены.`)) removeFolder.mutate(f.id); }}
+                  onClick={() => setDeleteFolder(f)}
                 >
                   <Trash2 className="h-4 w-4 mr-2" /> Удалить
                 </DropdownMenuItem>
@@ -622,7 +640,7 @@ function ProductsPage() {
                   </TableCell>
                   <TableCell className="text-right">
                     <Button size="icon" variant="ghost" onClick={(e) => { e.stopPropagation(); openFolderDialog(f.parent_id, f); }}><Pencil className="h-4 w-4" /></Button>
-                    <Button size="icon" variant="ghost" onClick={(e) => { e.stopPropagation(); if (confirm(`Удалить папку "${f.name}"?`)) removeFolder.mutate(f.id); }}>
+                    <Button size="icon" variant="ghost" onClick={(e) => { e.stopPropagation(); setDeleteFolder(f); }}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </TableCell>
@@ -863,6 +881,33 @@ function ProductsPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!deleteFolder} onOpenChange={(v) => { if (!v) setDeleteFolder(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Удалить папку «{deleteFolder?.name}»?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteFolder ? (() => {
+                const ids = descendantsOf(deleteFolder.id);
+                const count = products.filter(p => p.folder_id && ids.includes(p.folder_id)).length;
+                const sub = ids.length - 1;
+                return `Будут удалены все данные из папки: ${count} товаров${sub > 0 ? ` и ${sub} вложенных папок` : ""}. Действие нельзя отменить.`;
+              })() : null}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Отмена</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={removeFolder.isPending}
+              onClick={(e) => { e.preventDefault(); if (deleteFolder) removeFolder.mutate(deleteFolder.id); }}
+            >
+              {removeFolder.isPending ? "Удаляем…" : "Удалить всё"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
     </div>
   );
 }
