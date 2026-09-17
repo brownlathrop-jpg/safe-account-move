@@ -464,6 +464,19 @@ function InvoiceView() {
           )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
+              <Button variant="outline"><Copy className="h-4 w-4 mr-1" /> Создать <ChevronDown className="h-4 w-4 ml-1" /></Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => duplicate.mutate("copy")}>Копию этого документа</DropdownMenuItem>
+              {!isPKO && (
+                <DropdownMenuItem onClick={() => duplicate.mutate("return")}>
+                  {kind === "outgoing" ? "Возврат от покупателя" : "Возврат поставщику"}
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
               <Button variant="outline"><Printer className="h-4 w-4 mr-1" /> Печать <ChevronDown className="h-4 w-4 ml-1" /></Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -479,6 +492,8 @@ function InvoiceView() {
                   {kind === "outgoing" && (
                     <DropdownMenuItem onClick={() => doPrint("invoice")}>Счёт на оплату</DropdownMenuItem>
                   )}
+                  <DropdownMenuItem onClick={() => doPrint("torg12")}>Товарная накладная ТОРГ-12</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => doPrint("upd")}>Универсальный передаточный документ (УПД)</DropdownMenuItem>
                 </>
               )}
             </DropdownMenuContent>
