@@ -116,18 +116,30 @@ for (const table of TABLES) {
     console.log(`- ${table}: нет такой таблицы, пропуск`);
     continue;
   }
+  const existing = await existingIds(table);
+  const missing = rows.filter((row) => !existing.has(String(row.id ?? "")));
+  if (missing.length === 0) {
+    console.log(`= ${table}: уже перенесено ${rows.length}, пропуск`);
+    continue;
+  }
   const CHUNK = 200;
   let writes = [];
-  for (const row of rows) {
+  let done = 0;
+  for (const row of missing) {
     const id = String(row.id ?? crypto.randomUUID());
     const fields = Object.fromEntries(Object.entries({ ...row, id }).map(([k, v]) => [k, toValue(v)]));
     writes.push({ update: { name: `projects/${PROJECT}/databases/(default)/documents/${table}/${id}`, fields } });
     if (writes.length === CHUNK) {
       await restCommit(writes);
+      done += writes.length;
+      console.log(`  ${table}: ${done}/${missing.length}`);
       writes = [];
     }
   }
-  if (writes.length) await restCommit(writes);
-  console.log(`+ ${table}: ${rows.length}`);
+  if (writes.length) {
+    await restCommit(writes);
+    done += writes.length;
+  }
+  console.log(`+ ${table}: перенесено ${done} из ${rows.length}`);
 }
 console.log("Готово");
