@@ -27,6 +27,7 @@ import { Route as AuthenticatedInvoicesIndexRouteImport } from './routes/_authen
 import { Route as AuthenticatedCashIndexRouteImport } from './routes/_authenticated/cash.index'
 import { Route as ApiFileSplatRouteImport } from './routes/api/file.$'
 import { Route as AuthenticatedShipmentsNewRouteImport } from './routes/_authenticated/shipments.new'
+import { Route as AuthenticatedPartnerIdRouteImport } from './routes/_authenticated/partner.$id'
 import { Route as AuthenticatedInvoicesNewRouteImport } from './routes/_authenticated/invoices.new'
 import { Route as AuthenticatedInvoicesIdRouteImport } from './routes/_authenticated/invoices.$id'
 import { Route as AuthenticatedCashNewRouteImport } from './routes/_authenticated/cash.new'
@@ -123,6 +124,11 @@ const AuthenticatedShipmentsNewRoute =
     path: '/new',
     getParentRoute: () => AuthenticatedShipmentsRoute,
   } as any)
+const AuthenticatedPartnerIdRoute = AuthenticatedPartnerIdRouteImport.update({
+  id: '/partner/$id',
+  path: '/partner/$id',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedInvoicesNewRoute =
   AuthenticatedInvoicesNewRouteImport.update({
     id: '/new',
@@ -156,6 +162,7 @@ export interface FileRoutesByFullPath {
   '/cash/new': typeof AuthenticatedCashNewRoute
   '/invoices/$id': typeof AuthenticatedInvoicesIdRoute
   '/invoices/new': typeof AuthenticatedInvoicesNewRoute
+  '/partner/$id': typeof AuthenticatedPartnerIdRoute
   '/shipments/new': typeof AuthenticatedShipmentsNewRoute
   '/api/file/$': typeof ApiFileSplatRoute
   '/cash/': typeof AuthenticatedCashIndexRoute
@@ -175,6 +182,7 @@ export interface FileRoutesByTo {
   '/cash/new': typeof AuthenticatedCashNewRoute
   '/invoices/$id': typeof AuthenticatedInvoicesIdRoute
   '/invoices/new': typeof AuthenticatedInvoicesNewRoute
+  '/partner/$id': typeof AuthenticatedPartnerIdRoute
   '/shipments/new': typeof AuthenticatedShipmentsNewRoute
   '/api/file/$': typeof ApiFileSplatRoute
   '/cash': typeof AuthenticatedCashIndexRoute
@@ -199,6 +207,7 @@ export interface FileRoutesById {
   '/_authenticated/cash/new': typeof AuthenticatedCashNewRoute
   '/_authenticated/invoices/$id': typeof AuthenticatedInvoicesIdRoute
   '/_authenticated/invoices/new': typeof AuthenticatedInvoicesNewRoute
+  '/_authenticated/partner/$id': typeof AuthenticatedPartnerIdRoute
   '/_authenticated/shipments/new': typeof AuthenticatedShipmentsNewRoute
   '/api/file/$': typeof ApiFileSplatRoute
   '/_authenticated/cash/': typeof AuthenticatedCashIndexRoute
@@ -223,6 +232,7 @@ export interface FileRouteTypes {
     | '/cash/new'
     | '/invoices/$id'
     | '/invoices/new'
+    | '/partner/$id'
     | '/shipments/new'
     | '/api/file/$'
     | '/cash/'
@@ -242,6 +252,7 @@ export interface FileRouteTypes {
     | '/cash/new'
     | '/invoices/$id'
     | '/invoices/new'
+    | '/partner/$id'
     | '/shipments/new'
     | '/api/file/$'
     | '/cash'
@@ -265,6 +276,7 @@ export interface FileRouteTypes {
     | '/_authenticated/cash/new'
     | '/_authenticated/invoices/$id'
     | '/_authenticated/invoices/new'
+    | '/_authenticated/partner/$id'
     | '/_authenticated/shipments/new'
     | '/api/file/$'
     | '/_authenticated/cash/'
@@ -408,6 +420,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedShipmentsNewRouteImport
       parentRoute: typeof AuthenticatedShipmentsRoute
     }
+    '/_authenticated/partner/$id': {
+      id: '/_authenticated/partner/$id'
+      path: '/partner/$id'
+      fullPath: '/partner/$id'
+      preLoaderRoute: typeof AuthenticatedPartnerIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/invoices/new': {
       id: '/_authenticated/invoices/new'
       path: '/new'
@@ -488,6 +507,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedShipmentsRoute: typeof AuthenticatedShipmentsRouteWithChildren
   AuthenticatedStockRoute: typeof AuthenticatedStockRoute
+  AuthenticatedPartnerIdRoute: typeof AuthenticatedPartnerIdRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -500,6 +520,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedShipmentsRoute: AuthenticatedShipmentsRouteWithChildren,
   AuthenticatedStockRoute: AuthenticatedStockRoute,
+  AuthenticatedPartnerIdRoute: AuthenticatedPartnerIdRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
