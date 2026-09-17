@@ -97,7 +97,7 @@ for (const table of TABLES) {
   for (const row of rows) {
     const id = String(row.id ?? crypto.randomUUID());
     const fields = Object.fromEntries(Object.entries({ ...row, id }).map(([k, v]) => [k, toValue(v)]));
-    writes.push({ update: { name: `${REST}/${table}/${id}`, fields } });
+    writes.push({ update: { name: `projects/${PROJECT}/databases/(default)/documents/${table}/${id}`, fields } });
     if (writes.length === CHUNK) {
       await restCommit(writes);
       writes = [];
