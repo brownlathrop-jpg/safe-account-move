@@ -154,14 +154,18 @@ function ProductsPage() {
 
   const descendantsOf = (id: string): string[] => {
     const result: string[] = [];
+    const seen = new Set<string>();
     const stack = [id];
     while (stack.length) {
       const cur = stack.pop()!;
+      if (seen.has(cur)) continue;
+      seen.add(cur);
       result.push(cur);
       (childrenOf.get(cur) ?? []).forEach(c => stack.push(c.id));
     }
     return result;
   };
+
 
   const upsert = useMutation({
     mutationFn: async (p: Partial<Product>) => {
