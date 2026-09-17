@@ -666,6 +666,6 @@ function NegativeStockSetting({ wsId }: { wsId: string | null }) {
         </p>
       </div>
       <Switch checked={allow} onCheckedChange={(v) => toggle.mutate(v)} disabled={!wsId || toggle.isPending} />
-    </Card>
+    </div>
   );
 }
