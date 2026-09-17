@@ -879,6 +879,33 @@ function ProductsPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!deleteFolder} onOpenChange={(v) => { if (!v) setDeleteFolder(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Удалить папку «{deleteFolder?.name}»?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteFolder ? (() => {
+                const ids = descendantsOf(deleteFolder.id);
+                const count = products.filter(p => p.folder_id && ids.includes(p.folder_id)).length;
+                const sub = ids.length - 1;
+                return `Будут удалены все данные из папки: ${count} товаров${sub > 0 ? ` и ${sub} вложенных папок` : ""}. Действие нельзя отменить.`;
+              })() : null}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Отмена</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={removeFolder.isPending}
+              onClick={(e) => { e.preventDefault(); if (deleteFolder) removeFolder.mutate(deleteFolder.id); }}
+            >
+              {removeFolder.isPending ? "Удаляем…" : "Удалить всё"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
     </div>
   );
 }
