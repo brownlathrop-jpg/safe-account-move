@@ -70,6 +70,8 @@ function ProductsPage() {
   const lastClickedRef = useRef<string | null>(null);
   const dragIdsRef = useRef<string[]>([]);
   const [dropFolder, setDropFolder] = useState<string | null>(null);
+  const [deleteFolder, setDeleteFolder] = useState<FolderRow | null>(null);
+
 
   const { data: products = [] } = useQuery({
     queryKey: ["products", wsId],
