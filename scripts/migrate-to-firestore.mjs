@@ -57,18 +57,32 @@ for (const table of TABLES) {
     console.log(`- ${table}: нет такой таблицы, пропуск`);
     continue;
   }
-  let batch = fs.batch();
-  let n = 0;
-  for (const row of rows) {
-    const id = String(row.id ?? fs.collection(table).doc().id);
-    batch.set(fs.collection(table).doc(id), { ...row, id }, { merge: true });
-    n++;
-    if (n % 400 === 0) {
+  async function writeChunk(docs, attempt = 1) {
+    try {
+      const batch = fs.batch();
+      for (const [id, row] of docs) {
+        batch.set(fs.collection(table).doc(id), { ...row, id }, { merge: true });
+      }
       await batch.commit();
-      batch = fs.batch();
+    } catch (e) {
+      if (attempt >= 6) throw e;
+      const wait = attempt * 5000;
+      console.log(`  ! обрыв связи, повтор через ${wait / 1000}с (попытка ${attempt})`);
+      await new Promise((r) => setTimeout(r, wait));
+      return writeChunk(docs, attempt + 1);
     }
   }
-  if (n % 400 !== 0) await batch.commit();
+  const CHUNK = 200;
+  let chunk = [];
+  for (const row of rows) {
+    const id = String(row.id ?? fs.collection(table).doc().id);
+    chunk.push([id, row]);
+    if (chunk.length === CHUNK) {
+      await writeChunk(chunk);
+      chunk = [];
+    }
+  }
+  if (chunk.length) await writeChunk(chunk);
   console.log(`+ ${table}: ${rows.length}`);
 }
 console.log("Готово");
