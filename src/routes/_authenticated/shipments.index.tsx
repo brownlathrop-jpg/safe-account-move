@@ -25,6 +25,10 @@ type Tab = "all" | "outgoing" | "incoming";
 function ShipmentsPage() {
   const wsId = useActiveWorkspaceId();
   const [tab, setTab] = useState<Tab>("all");
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState<"all" | "posted" | "draft" | "cancelled">("all");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
 
   const { data: rows = [] } = useQuery({
     queryKey: ["shipments", wsId, tab],
