@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, type DragEvent } from "react";
 import { toast } from "sonner";
 import { db } from "@/integrations/db";
 import { Button } from "@/components/ui/button";
@@ -66,6 +66,9 @@ function ProductsPage() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [moveOpen, setMoveOpen] = useState(false);
   const [moveTarget, setMoveTarget] = useState<string>(ROOT);
+  const lastClickedRef = useRef<string | null>(null);
+  const dragIdsRef = useRef<string[]>([]);
+  const [dropFolder, setDropFolder] = useState<string | null>(null);
 
   const { data: products = [] } = useQuery({
     queryKey: ["products", wsId],
@@ -333,25 +336,61 @@ function ProductsPage() {
   }, [childrenOf]);
 
 
-  const toggleSelected = (id: string) =>
-    setSelectedIds(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]));
-
-  const moveToFolder = useMutation({
-    mutationFn: async () => {
-      if (!selectedIds.length) throw new Error("Не выбраны товары");
-      const folder_id = moveTarget === ROOT ? null : moveTarget;
-      for (const id of selectedIds) {
-        const { error } = await db.from("products").update({ folder_id } as never).eq("id", id);
-        if (error) throw error;
+  // Клик с Shift выделяет всё между предыдущим и текущим товаром.
+  const toggleSelected = (id: string, shift = false) => {
+    setSelectedIds(prev => {
+      if (shift && lastClickedRef.current) {
+        const list = filtered.map(p => p.id);
+        const a = list.indexOf(lastClickedRef.current);
+        const b = list.indexOf(id);
+        if (a !== -1 && b !== -1) {
+          const range = list.slice(Math.min(a, b), Math.max(a, b) + 1);
+          const merged = new Set([...prev, ...range]);
+          lastClickedRef.current = id;
+          return [...merged];
+        }
       }
+      lastClickedRef.current = id;
+      return prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id];
+    });
+  };
+
+  const moveProducts = useMutation({
+    mutationFn: async ({ ids, folderId }: { ids: string[]; folderId: string | null }) => {
+      if (!ids.length) throw new Error("Не выбраны товары");
+      // Пачками по 25, чтобы большой перенос шёл быстро.
+      for (let i = 0; i < ids.length; i += 25) {
+        const chunk = ids.slice(i, i + 25);
+        const results = await Promise.all(
+          chunk.map(id => db.from("products").update({ folder_id: folderId } as never).eq("id", id)),
+        );
+        const bad = results.find(r => r.error);
+        if (bad?.error) throw bad.error;
+      }
+      return ids.length;
     },
-    onSuccess: () => {
+    onSuccess: (count) => {
       qc.invalidateQueries({ queryKey: ["products"] });
-      toast.success(`Перенесено: ${selectedIds.length}`);
+      toast.success(`Перенесено: ${count}`);
       setSelectedIds([]);
       setMoveOpen(false);
     },
     onError: (e: Error) => toast.error(e.message),
+  });
+
+  const dropOnFolder = (folderId: string | null) => {
+    const ids = dragIdsRef.current.length ? dragIdsRef.current : selectedIds;
+    dragIdsRef.current = [];
+    setDropFolder(null);
+    if (!ids.length) return;
+    moveProducts.mutate({ ids, folderId });
+  };
+
+  // Свойства для папки-приёмника при перетаскивании товаров.
+  const dropProps = (folderId: string | null, key: string) => ({
+    onDragOver: (e: DragEvent) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; setDropFolder(key); },
+    onDragLeave: () => setDropFolder(cur => (cur === key ? null : cur)),
+    onDrop: (e: DragEvent) => { e.preventDefault(); dropOnFolder(folderId); },
   });
 
   const openNew = () => {
@@ -378,10 +417,11 @@ function ProductsPage() {
       return (
         <div key={f.id}>
           <div
-            className={`group flex items-start gap-1 rounded-md text-sm cursor-pointer hover:bg-muted/60 ${active ? "bg-muted font-medium" : ""}`}
+            className={`group flex items-start gap-1 rounded-md text-sm cursor-pointer hover:bg-muted/60 ${active ? "bg-muted font-medium" : ""} ${dropFolder === f.id ? "ring-2 ring-primary bg-primary/10" : ""}`}
             style={{ paddingLeft: 6 + depth * 12, paddingRight: 4, paddingTop: 4, paddingBottom: 4 }}
             onClick={() => selectFolder(f.id)}
             title={f.name}
+            {...dropProps(f.id, f.id)}
           >
             <button
               type="button"
@@ -514,6 +554,9 @@ function ProductsPage() {
                 <FolderOpen className="h-4 w-4 mr-1" /> Перенести в папку
               </Button>
               <Button size="sm" variant="ghost" onClick={() => setSelectedIds([])}>Снять выделение</Button>
+              <span className="text-xs text-muted-foreground ml-auto hidden md:inline">
+                Можно просто перетащить выбранные строки на папку слева. Shift+клик — выбрать диапазон.
+              </span>
             </div>
           )}
           <Table>
@@ -539,8 +582,12 @@ function ProductsPage() {
                 <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-10">Пусто</TableCell></TableRow>
               )}
               {rightFolders.map(f => (
-                <TableRow key={f.id} className="cursor-pointer hover:bg-muted/40"
-                  onClick={() => selectFolder(f.id)}>
+                <TableRow
+                  key={f.id}
+                  className={`cursor-pointer hover:bg-muted/40 ${dropFolder === `row-${f.id}` ? "bg-primary/10" : ""}`}
+                  onClick={() => selectFolder(f.id)}
+                  {...dropProps(f.id, `row-${f.id}`)}
+                >
                   <TableCell></TableCell>
                   <TableCell className="text-muted-foreground"></TableCell>
                   <TableCell className="font-medium">
@@ -561,9 +608,19 @@ function ProductsPage() {
                 </TableRow>
               ))}
               {filtered.map(p => (
-                <TableRow key={p.id} data-state={selectedIds.includes(p.id) ? "selected" : undefined}>
-                  <TableCell>
-                    <Checkbox checked={selectedIds.includes(p.id)} onCheckedChange={() => toggleSelected(p.id)} />
+                <TableRow
+                  key={p.id}
+                  data-state={selectedIds.includes(p.id) ? "selected" : undefined}
+                  draggable
+                  onDragStart={(e) => {
+                    dragIdsRef.current = selectedIds.includes(p.id) ? selectedIds : [p.id];
+                    e.dataTransfer.effectAllowed = "move";
+                    e.dataTransfer.setData("text/plain", dragIdsRef.current.join(","));
+                  }}
+                  className="cursor-grab active:cursor-grabbing"
+                >
+                  <TableCell onClick={(e) => { e.stopPropagation(); toggleSelected(p.id, e.shiftKey); }}>
+                    <Checkbox checked={selectedIds.includes(p.id)} onCheckedChange={() => {}} />
                   </TableCell>
                   <TableCell className="text-muted-foreground">{p.sku || "—"}</TableCell>
                   <TableCell className="font-medium">{p.name}</TableCell>
@@ -599,7 +656,10 @@ function ProductsPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setMoveOpen(false)}>Отмена</Button>
-            <Button onClick={() => moveToFolder.mutate()} disabled={moveToFolder.isPending}>Перенести</Button>
+            <Button
+              onClick={() => moveProducts.mutate({ ids: selectedIds, folderId: moveTarget === ROOT ? null : moveTarget })}
+              disabled={moveProducts.isPending}
+            >Перенести</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
