@@ -3,16 +3,51 @@
  * Запуск: bun scripts/migrate-to-firestore.mjs
  * Нужны переменные окружения: USER_SUPABASE_SERVICE_ROLE_KEY, FIREBASE_SERVICE_ACCOUNT_JSON
  */
-import { initializeApp, cert } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
+import { cert } from "firebase-admin/app";
 
 const SUPABASE_URL = "https://vanefvbtetycxvotwqer.supabase.co";
 const KEY = process.env.USER_SUPABASE_SERVICE_ROLE_KEY;
 if (!KEY) throw new Error("Нет USER_SUPABASE_SERVICE_ROLE_KEY");
 
 const svc = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
-initializeApp({ credential: cert(svc), projectId: svc.project_id });
-const fs = getFirestore();
+const credential = cert(svc);
+const PROJECT = svc.project_id;
+const REST = `https://firestore.googleapis.com/v1/projects/${PROJECT}/databases/(default)/documents`;
+
+async function accessToken() {
+  const t = await credential.getAccessToken();
+  return t.access_token;
+}
+
+// JSON -> Firestore Value
+function toValue(v) {
+  if (v === null || v === undefined) return { nullValue: null };
+  if (typeof v === "boolean") return { booleanValue: v };
+  if (typeof v === "number")
+    return Number.isInteger(v) ? { integerValue: String(v) } : { doubleValue: v };
+  if (typeof v === "string") return { stringValue: v };
+  if (Array.isArray(v)) return { arrayValue: { values: v.map(toValue) } };
+  if (typeof v === "object")
+    return { mapValue: { fields: Object.fromEntries(Object.entries(v).map(([k, x]) => [k, toValue(x)])) } };
+  return { stringValue: String(v) };
+}
+
+async function restCommit(writes, attempt = 1) {
+  const token = await accessToken();
+  const res = await fetch(`${REST}:commit`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ writes }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    if (attempt < 6 && (res.status >= 500 || res.status === 429)) {
+      await new Promise((r) => setTimeout(r, attempt * 5000));
+      return restCommit(writes, attempt + 1);
+    }
+    throw new Error(`Firestore commit: ${res.status} ${text.slice(0, 300)}`);
+  }
+}
 
 const TABLES = [
   "workspaces",
