@@ -93,7 +93,18 @@ function AuthPage() {
               <TabsTrigger value="signup">Регистрация</TabsTrigger>
             </TabsList>
             <TabsContent value="signin">
-              {forgot ? (
+              {resetToken ? (
+              <form onSubmit={applyNewPassword} className="space-y-4">
+                <p className="text-sm text-muted-foreground">Придумайте новый пароль для входа.</p>
+                <div className="space-y-2">
+                  <Label htmlFor="password-new">Новый пароль</Label>
+                  <Input id="password-new" type="password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} />
+                </div>
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading ? "Сохраняем…" : "Сохранить пароль"}
+                </Button>
+              </form>
+              ) : forgot ? (
               <form onSubmit={resetPass} className="space-y-4">
                 <p className="text-sm text-muted-foreground">
                   Укажите почту, на которую зарегистрирован вход — пришлём ссылку для смены пароля.
