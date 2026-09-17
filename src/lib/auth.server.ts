@@ -57,7 +57,7 @@ export async function signIn(email: string, password: string): Promise<AppUser> 
   if (!row || !verifyPassword(password, row.password_hash)) {
     throw new Error("Неверный email или пароль");
   }
-  const user: AppUser = { id: row.id, email: row.email, name: row.name ?? "" };
+  const user: AppUser = { id: row.id, email: row.email, name: row.name ?? "", is_admin: !!row.is_admin };
   await startSession(user);
   return user;
 }
