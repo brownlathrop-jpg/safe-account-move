@@ -19,7 +19,15 @@ import { useActiveWorkspaceId } from "@/lib/workspace";
 export const Route = createFileRoute("/_authenticated/products")({
   head: () => ({ meta: [{ title: "Товары и услуги — КабинетCRM" }] }),
   component: ProductsPage,
+  errorComponent: ({ error }: { error: Error }) => (
+    <div className="p-6 space-y-2">
+      <h1 className="text-lg font-semibold">Не удалось открыть список товаров</h1>
+      <p className="text-sm text-muted-foreground">{error?.message ?? "Неизвестная ошибка"}</p>
+      <Button onClick={() => window.location.reload()}>Обновить</Button>
+    </div>
+  ),
 });
+
 
 type Product = {
   id: string; sku: string | null; name: string; unit: string;
