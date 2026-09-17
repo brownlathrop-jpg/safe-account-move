@@ -12,7 +12,7 @@ Do it yourself end to end. Never hand the user shell commands.
 - Host: `178.212.13.144` (CloudPanel site `crm.skladnow.ru`, site user `crmadmin`)
 - SSH user: `crmdeploy`, key at `/tmp/sshkey/id`
 - App dir: `/home/crmadmin/htdocs/crm.skladnow.ru/` — contains `dist/`, `node-server.js`, `.env`, `node_modules`, `ecosystem.config.cjs`
-- pm2 process: `crm`
+- pm2 process: `crm`, node listens on port `3001`; nginx (CloudPanel vhost) proxies https://crm.skladnow.ru to `127.0.0.1:3001`
 
 NEVER deploy to `186.246.48.162` / `delivery.skladnow.ru` — different project. `$VPS_SSH_HOST` and `$VPS_SSH_USER` point there; ignore them. Only `$VPS_SSH_PRIVATE_KEY` is shared with this host.
 Do not touch other CloudPanel sites, databases, or vhosts on the server.
