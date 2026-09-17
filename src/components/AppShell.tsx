@@ -1,5 +1,5 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import { LayoutDashboard, Package, FileText, Users, LogOut, Plus, Settings, Warehouse, PanelLeftClose, PanelLeftOpen, Truck, Wallet, Shield, BarChart3 } from "lucide-react";
+import { LayoutDashboard, Package, FileText, Users, LogOut, Plus, Settings, Warehouse, PanelLeftClose, PanelLeftOpen, Truck, Wallet, Shield, BarChart3, UserCog } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { db } from "@/integrations/db";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,7 @@ const nav = [
   { to: "/cash", label: "Касса и банк", icon: Wallet },
   { to: "/partners", label: "Контрагенты", icon: Users },
   { to: "/reports", label: "Отчёты", icon: BarChart3 },
+  { to: "/team", label: "Сотрудники", icon: UserCog },
   { to: "/settings", label: "Настройки", icon: Settings },
 ] as const;
 
