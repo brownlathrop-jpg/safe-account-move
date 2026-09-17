@@ -19,14 +19,21 @@ Do not touch other CloudPanel sites, databases, or vhosts on the server.
 
 ## Steps
 
-1. Restore the key if missing:
+1. Restore the key if missing. The secret stores the PEM with spaces/literal `\n` instead of newlines — always rebuild it with Python (the `sed` one-liner does NOT work, ssh fails with "error in libcrypto"):
 
 ```bash
-mkdir -p /tmp/sshkey && printf '%s\n' "$VPS_SSH_PRIVATE_KEY" \
-  | sed 's/\\n/\n/g' > /tmp/sshkey/id && chmod 600 /tmp/sshkey/id
+python3 - <<'EOF'
+import os, re
+raw = os.environ["VPS_SSH_PRIVATE_KEY"].replace("\\n", "\n")
+m = re.search(r"-----BEGIN OPENSSH PRIVATE KEY-----(.*?)-----END OPENSSH PRIVATE KEY-----", raw, re.S)
+body = re.sub(r"\s+", "", m.group(1))
+lines = ["-----BEGIN OPENSSH PRIVATE KEY-----"] + [body[i:i+64] for i in range(0, len(body), 64)] + ["-----END OPENSSH PRIVATE KEY-----"]
+open("/tmp/sshkey/id", "w").write("\n".join(lines) + "\n")
+EOF
+chmod 600 /tmp/sshkey/id && ssh-keygen -y -f /tmp/sshkey/id > /dev/null && echo KEY_OK
 ```
 
-If the key is a single line without headers, rebuild it as PEM: header line, 64-char body chunks, footer line.
+If `ssh`/`scp` are missing in the sandbox: `nix profile install nixpkgs#openssh`, then `export PATH="$PATH:/nix/var/nix/profiles/default/bin"`.
 
 2. Build: `bun run build` (must produce `dist/`; also check `dist/server/index.mjs`).
 
