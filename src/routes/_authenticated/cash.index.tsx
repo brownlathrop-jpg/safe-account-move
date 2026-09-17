@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ArrowDownToLine, ArrowUpFromLine, Wallet } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export const Route = createFileRoute("/_authenticated/cash")({
+export const Route = createFileRoute("/_authenticated/cash/")({
   head: () => ({ meta: [{ title: "Касса и банк — КабинетCRM" }] }),
   component: CashPage,
 });

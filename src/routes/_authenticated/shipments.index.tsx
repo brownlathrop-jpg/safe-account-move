@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ArrowDownToLine, ArrowUpFromLine, Truck } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export const Route = createFileRoute("/_authenticated/shipments")({
+export const Route = createFileRoute("/_authenticated/shipments/")({
   head: () => ({ meta: [{ title: "Накладные — КабинетCRM" }] }),
   component: ShipmentsPage,
 });
