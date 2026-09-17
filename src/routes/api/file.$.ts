@@ -12,7 +12,7 @@ export const Route = createFileRoute("/api/file/$")({
           where bucket = 'product-images' and path = ${path} limit 1`;
         if (!rows.length) return new Response("Not found", { status: 404 });
         const row = rows[0] as any;
-        return new Response(row.bytes as Buffer, {
+        return new Response(new Uint8Array(row.bytes as Buffer), {
           headers: {
             "Content-Type": row.content_type ?? "application/octet-stream",
             "Cache-Control": "public, max-age=31536000, immutable",
