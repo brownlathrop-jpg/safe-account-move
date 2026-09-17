@@ -375,7 +375,7 @@ export async function runQuery(spec: QuerySpec, userId: string): Promise<{ data:
                updated_at = now()
              where id = $4 returning *`,
             [
-              JSON.stringify(patch),
+              s.json(patch as any),
               item.workspace_id ?? null,
               item.user_id ?? null,
               existingId,
@@ -389,7 +389,7 @@ export async function runQuery(spec: QuerySpec, userId: string): Promise<{ data:
              values ($1, $2, $3, $4::jsonb)
              on conflict (id) do update set data = ${table}.data || excluded.data, updated_at = now()
              returning *`,
-            [r.id, r.workspace_id, r.user_id, JSON.stringify({ ...r.data, id: r.id })] as any,
+            [r.id, r.workspace_id, r.user_id, s.json({ ...r.data, id: r.id } as any)] as any,
           );
           out.push(toRow((res as any[])[0]));
         }
