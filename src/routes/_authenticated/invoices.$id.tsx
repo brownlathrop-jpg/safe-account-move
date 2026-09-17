@@ -504,8 +504,22 @@ function InvoiceView() {
       {/* Header label */}
       <div className="print:hidden">
         <h1 className="text-2xl font-semibold">
-          {docTitle} № {cleanNumber}
+          {inv.is_return ? "Возврат — " : ""}{docTitle} № {cleanNumber}
         </h1>
+        {isShipment && inv.status === "posted" && kind === "outgoing" && (
+          <p className="text-sm mt-1">
+            Себестоимость: <b>{fmt.format(Number(inv.cost_total ?? 0))}</b>{" · "}
+            Прибыль:{" "}
+            <b className={Number(inv.total) - Number(inv.cost_total ?? 0) >= 0 ? "text-emerald-600" : "text-destructive"}>
+              {fmt.format(Number(inv.total) - Number(inv.cost_total ?? 0))}
+            </b>
+            {Number(inv.total) > 0 && (
+              <span className="text-muted-foreground">
+                {" "}({Math.round(((Number(inv.total) - Number(inv.cost_total ?? 0)) / Number(inv.total)) * 100)}% от суммы)
+              </span>
+            )}
+          </p>
+        )}
         {inv.parent_id && (
           <p className="text-sm text-muted-foreground mt-1">
             На основании{" "}
