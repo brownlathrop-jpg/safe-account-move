@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Plus, Pencil, Trash2, Search, Folder, FolderPlus, FolderOpen, ChevronRight, ChevronDown, Upload, X, ImageIcon, MoreHorizontal } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { useActiveWorkspaceId } from "@/lib/workspace";
 
@@ -54,6 +55,9 @@ function ProductsPage() {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [folderDialog, setFolderDialog] = useState<FolderDialogState>({ open: false, parent_id: null });
   const [folderName, setFolderName] = useState("");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [moveOpen, setMoveOpen] = useState(false);
+  const [moveTarget, setMoveTarget] = useState<string>(ROOT);
 
   const { data: products = [] } = useQuery({
     queryKey: ["products", wsId],
@@ -294,6 +298,41 @@ function ProductsPage() {
     return products.filter(p => p.folder_id && ids.has(p.folder_id)).length;
   };
 
+  // Плоский список папок с путём — для выбора папки при переносе
+  const folderOptions = useMemo(() => {
+    const out: { id: string; label: string }[] = [];
+    const walk = (parentId: string | null, prefix: string) => {
+      for (const f of childrenOf.get(parentId) ?? []) {
+        const label = prefix ? `${prefix} / ${f.name}` : f.name;
+        out.push({ id: f.id, label });
+        walk(f.id, label);
+      }
+    };
+    walk(null, "");
+    return out.sort((a, b) => a.label.localeCompare(b.label, "ru"));
+  }, [childrenOf]);
+
+  const toggleSelected = (id: string) =>
+    setSelectedIds(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]));
+
+  const moveToFolder = useMutation({
+    mutationFn: async () => {
+      if (!selectedIds.length) throw new Error("Не выбраны товары");
+      const folder_id = moveTarget === ROOT ? null : moveTarget;
+      for (const id of selectedIds) {
+        const { error } = await db.from("products").update({ folder_id } as never).eq("id", id);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["products"] });
+      toast.success(`Перенесено: ${selectedIds.length}`);
+      setSelectedIds([]);
+      setMoveOpen(false);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const openNew = () => {
     const folder_id = getSelectedRealFolderId();
     const kind: "product" | "service" = selectedFolder === KIND_SERVICE ? "service" : "product";
@@ -445,9 +484,24 @@ function ProductsPage() {
             <Search className="h-4 w-4 text-muted-foreground" />
             <Input placeholder="Поиск по названию или артикулу" value={search} onChange={e => setSearch(e.target.value)} className="border-0 focus-visible:ring-0 shadow-none h-8" />
           </div>
+          {selectedIds.length > 0 && (
+            <div className="p-3 border-b flex items-center gap-3 bg-muted/40 text-sm">
+              <span>Выбрано: {selectedIds.length}</span>
+              <Button size="sm" variant="outline" onClick={() => { setMoveTarget(getSelectedRealFolderId() ?? ROOT); setMoveOpen(true); }}>
+                <FolderOpen className="h-4 w-4 mr-1" /> Перенести в папку
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setSelectedIds([])}>Снять выделение</Button>
+            </div>
+          )}
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-8">
+                  <Checkbox
+                    checked={filtered.length > 0 && filtered.every(p => selectedIds.includes(p.id))}
+                    onCheckedChange={(v) => setSelectedIds(v ? filtered.map(p => p.id) : [])}
+                  />
+                </TableHead>
                 <TableHead>Артикул</TableHead>
                 <TableHead>Название</TableHead>
                 <TableHead>Ед.</TableHead>
@@ -459,11 +513,12 @@ function ProductsPage() {
             </TableHeader>
             <TableBody>
               {rightFolders.length === 0 && filtered.length === 0 && (
-                <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-10">Пусто</TableCell></TableRow>
+                <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-10">Пусто</TableCell></TableRow>
               )}
               {rightFolders.map(f => (
                 <TableRow key={f.id} className="cursor-pointer hover:bg-muted/40"
                   onClick={() => selectFolder(f.id)}>
+                  <TableCell></TableCell>
                   <TableCell className="text-muted-foreground"></TableCell>
                   <TableCell className="font-medium">
                     <span className="inline-flex items-center gap-2">
@@ -483,7 +538,10 @@ function ProductsPage() {
                 </TableRow>
               ))}
               {filtered.map(p => (
-                <TableRow key={p.id}>
+                <TableRow key={p.id} data-state={selectedIds.includes(p.id) ? "selected" : undefined}>
+                  <TableCell>
+                    <Checkbox checked={selectedIds.includes(p.id)} onCheckedChange={() => toggleSelected(p.id)} />
+                  </TableCell>
                   <TableCell className="text-muted-foreground">{p.sku || "—"}</TableCell>
                   <TableCell className="font-medium">{p.name}</TableCell>
                   <TableCell>{p.unit}</TableCell>
@@ -502,6 +560,26 @@ function ProductsPage() {
           </Table>
         </Card>
       </div>
+
+      <Dialog open={moveOpen} onOpenChange={setMoveOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Перенести в папку ({selectedIds.length})</DialogTitle></DialogHeader>
+          <div className="space-y-2">
+            <Label>Папка</Label>
+            <Select value={moveTarget} onValueChange={setMoveTarget}>
+              <SelectTrigger><SelectValue placeholder="Выберите папку" /></SelectTrigger>
+              <SelectContent className="max-h-72">
+                <SelectItem value={ROOT}>Без папки</SelectItem>
+                {folderOptions.map(o => <SelectItem key={o.id} value={o.id}>{o.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMoveOpen(false)}>Отмена</Button>
+            <Button onClick={() => moveToFolder.mutate()} disabled={moveToFolder.isPending}>Перенести</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-lg">
