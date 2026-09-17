@@ -19,17 +19,21 @@ const token = async () => (await credential.getAccessToken()).access_token;
 const APPLY = process.argv.includes("--apply");
 const CACHE = "/tmp/classify-cache.json";
 
+// \b не работает с кириллицей — свои границы слова
+const L = "A-Za-zА-Яа-яЁё0-9";
+const w = (body) => new RegExp(`(?:^|[^${L}])(?:${body})(?![${L}])`, "i");
+
 const BRANDS = [
   ["Solo Porte", /solo\s*porte/i],
   ["Uberture", /uberture/i],
-  ["Дера", /\bдера\b/i],
+  ["Дера", w("дера")],
   ["Дубрава", /дубрава/i],
   ["Матадор", /матадор/i],
-  ["ВДК", /\bвдк\b/i],
-  ["ВФД", /\bвфд\b/i],
+  ["ВДК", w("вдк")],
+  ["ВФД", w("вфд")],
   ["Собрание", /собрание/i],
   ["Foret Light", /foret\s*light/i],
-  ["Foret", /\bforet\b/i],
+  ["Foret", w("foret")],
   ["Lidman", /lidman/i],
   ["Casa Porte", /casa\s*porte/i],
   ["Avanzati", /avanzati/i],
@@ -43,7 +47,7 @@ const BRANDS = [
   ["Prizma", /prizma/i],
   ["Сварог", /сварог/i],
   ["Bussare", /bussare/i],
-  ["Маяк", /\bмаяк\b/i],
+  ["Маяк", w("маяк")],
 ];
 
 const TYPES = [
@@ -51,7 +55,7 @@ const TYPES = [
   ["Наличники", /наличник/i],
   ["Короба", /\bкороб/i],
   ["Погонаж", /погонаж|стоевая|уплотнител/i],
-  ["Двери", /^\s*(ДП|ДО|ДГ|ПГ|ПО)\b|дверь|полотно/i],
+  ["Двери", /^\s*(ДП|ДО|ДГ|ПГ|ПО|Д[ПОГ])[\s.]|дверь|полотно|дверное/i],
 ];
 
 const FURNITURE = /ручк|замок|замк|защелк|петл|цилиндр|накладка на цилиндр|фиксатор|доводчик|упор|шпингалет|крючок|порог|завертк|ответная планка|apecs|ajax|бордер|code deco/i;
