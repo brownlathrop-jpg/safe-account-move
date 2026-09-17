@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { db } from "@/integrations/db";
 import { useActiveWorkspaceId } from "@/lib/workspace";
@@ -39,6 +39,21 @@ function ShipmentsPage() {
     },
   });
 
+  const { data: payments = [] } = useQuery({
+    queryKey: ["invoice_payments", wsId, "shipments"],
+    enabled: !!wsId,
+    queryFn: async () => (await (db as any).from("invoice_payments").select("invoice_id,amount").eq("workspace_id", wsId)).data ?? [],
+  });
+
+  const paidByInvoice = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const p of payments as any[]) {
+      const k = String(p.invoice_id ?? "");
+      m.set(k, (m.get(k) ?? 0) + Number(p.amount || 0));
+    }
+    return m;
+  }, [payments]);
+
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-3">
@@ -77,11 +92,12 @@ function ShipmentsPage() {
               <TableHead>Контрагент</TableHead>
               <TableHead>Учёт</TableHead>
               <TableHead className="text-right">Сумма</TableHead>
+              <TableHead className="text-right">Оплата</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {rows.length === 0 && (
-              <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-10">Накладных пока нет</TableCell></TableRow>
+              <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-10">Накладных пока нет</TableCell></TableRow>
             )}
             {rows.map(i => (
               <TableRow key={i.id} className="hover:bg-muted/40">
@@ -111,6 +127,15 @@ function ShipmentsPage() {
                   </span>
                 </TableCell>
                 <TableCell className="text-right font-medium">{fmt.format(Number(i.total))}</TableCell>
+                <TableCell className="text-right text-sm">
+                  {(() => {
+                    const paid = paidByInvoice.get(i.id) ?? 0;
+                    const left = Number(i.total || 0) - paid;
+                    if (paid <= 0) return <span className="text-destructive">не оплачено</span>;
+                    if (left > 0.005) return <span className="text-amber-600">осталось {fmt.format(left)}</span>;
+                    return <span className="text-emerald-600">оплачено</span>;
+                  })()}
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>

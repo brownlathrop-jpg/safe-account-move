@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -137,7 +137,9 @@ function PartnersPage() {
             {partners.length === 0 && <TableRow><TableCell colSpan={6} className="text-center py-10 text-muted-foreground">Контрагентов пока нет</TableCell></TableRow>}
             {partners.map(p => (
               <TableRow key={p.id}>
-                <TableCell className="font-medium">{p.name}</TableCell>
+                <TableCell className="font-medium">
+                  <Link to="/partner/$id" params={{ id: p.id }} className="text-primary hover:underline">{p.name}</Link>
+                </TableCell>
                 <TableCell><Badge variant={p.kind === "customer" ? "default" : "secondary"}>{p.kind === "customer" ? "Клиент" : "Поставщик"}</Badge></TableCell>
                 <TableCell>{p.inn || "—"}</TableCell>
                 <TableCell>{p.phone || "—"}</TableCell>
