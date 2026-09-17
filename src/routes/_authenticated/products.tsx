@@ -638,7 +638,7 @@ function ProductsPage() {
                   </TableCell>
                   <TableCell className="text-right">
                     <Button size="icon" variant="ghost" onClick={(e) => { e.stopPropagation(); openFolderDialog(f.parent_id, f); }}><Pencil className="h-4 w-4" /></Button>
-                    <Button size="icon" variant="ghost" onClick={(e) => { e.stopPropagation(); if (confirm(`Удалить папку "${f.name}"?`)) removeFolder.mutate(f.id); }}>
+                    <Button size="icon" variant="ghost" onClick={(e) => { e.stopPropagation(); setDeleteFolder(f); }}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </TableCell>
