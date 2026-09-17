@@ -48,6 +48,7 @@ export async function signUp(email: string, password: string, name = ""): Promis
     values (${email}, ${hashPassword(password)}, ${name})
     returning id, email, name`;
   const user = rows[0] as any as AppUser;
+  await acceptInvites(user);
   await startSession(user);
   return user;
 }
@@ -58,8 +59,19 @@ export async function signIn(email: string, password: string): Promise<AppUser> 
     throw new Error("Неверный email или пароль");
   }
   const user: AppUser = { id: row.id, email: row.email, name: row.name ?? "", is_admin: !!row.is_admin };
+  await acceptInvites(user);
   await startSession(user);
   return user;
+}
+
+/** Принять приглашения, отправленные на этот e-mail. */
+async function acceptInvites(user: AppUser) {
+  try {
+    const { acceptInvitesFor } = await import("./team.server");
+    await acceptInvitesFor(user.id, user.email);
+  } catch {
+    /* приглашения не должны мешать входу */
+  }
 }
 
 export async function startSession(user: AppUser) {
