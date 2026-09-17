@@ -89,12 +89,7 @@ function BalancesTab({ warehouses, products }: { warehouses: Warehouse[]; produc
   const { data: balances = [] } = useQuery({
     queryKey: ["stock_balances", wsId],
     enabled: !!wsId,
-    queryFn: async () => {
-      const { data, error } = await (db as any).from("stock_balances")
-        .select("warehouse_id,product_id,qty").eq("workspace_id", wsId);
-      if (error) throw error;
-      return data as Balance[];
-    },
+    queryFn: async () => fetchBalances(wsId!),
   });
 
   const productMap = useMemo(() => new Map(products.map(p => [p.id, p])), [products]);
