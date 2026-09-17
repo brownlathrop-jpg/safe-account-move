@@ -482,7 +482,7 @@ function ProductsPage() {
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   className="text-destructive focus:text-destructive"
-                  onClick={() => { if (confirm(`Удалить папку "${f.name}"? Подпапки тоже будут удалены.`)) removeFolder.mutate(f.id); }}
+                  onClick={() => setDeleteFolder(f)}
                 >
                   <Trash2 className="h-4 w-4 mr-2" /> Удалить
                 </DropdownMenuItem>
