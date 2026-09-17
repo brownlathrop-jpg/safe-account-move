@@ -348,9 +348,9 @@ function InvoiceView() {
   const supplierLine: any = kind === "outgoing" ? orgAsParty : partnerObj;
   const buyerLine: any = kind === "outgoing" ? partnerObj : orgAsParty;
   const cleanNumber = String(inv.number).replace(/^№\s*/, "");
-  const docTitle = docLabels[docType].title;
+  const docTitle = isPKO ? (kind === "outgoing" ? "РКО" : "ПКО") : docLabels[docType].title;
   const title = printMode === "pko"
-    ? `Приходный кассовый ордер № ${cleanNumber}`
+    ? `${kind === "outgoing" ? "Расходный" : "Приходный"} кассовый ордер № ${cleanNumber}`
     : printMode === "invoice"
     ? `Счёт на оплату № ${cleanNumber} от ${dfmt.format(new Date(inv.issue_date))}`
     : isShipment
@@ -412,7 +412,7 @@ function InvoiceView() {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               {isPKO ? (
-                <DropdownMenuItem onClick={() => doPrint("pko")}>Приходный кассовый ордер (КО-1)</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => doPrint("pko")}>{kind === "outgoing" ? "Расходный кассовый ордер (КО-2)" : "Приходный кассовый ордер (КО-1)"}</DropdownMenuItem>
               ) : (
                 <>
                   <DropdownMenuItem onClick={() => doPrint("standard")}>
