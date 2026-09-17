@@ -13,14 +13,14 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedStockRouteImport } from './routes/_authenticated/stock'
-import { Route as AuthenticatedShipmentsRouteImport } from './routes/_authenticated/shipments'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedProductsRouteImport } from './routes/_authenticated/products'
 import { Route as AuthenticatedPartnersRouteImport } from './routes/_authenticated/partners'
 import { Route as AuthenticatedInvoicesRouteImport } from './routes/_authenticated/invoices'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
-import { Route as AuthenticatedCashRouteImport } from './routes/_authenticated/cash'
+import { Route as AuthenticatedShipmentsIndexRouteImport } from './routes/_authenticated/shipments.index'
 import { Route as AuthenticatedInvoicesIndexRouteImport } from './routes/_authenticated/invoices.index'
+import { Route as AuthenticatedCashIndexRouteImport } from './routes/_authenticated/cash.index'
 import { Route as AuthenticatedInvoicesNewRouteImport } from './routes/_authenticated/invoices.new'
 import { Route as AuthenticatedInvoicesIdRouteImport } from './routes/_authenticated/invoices.$id'
 
@@ -41,11 +41,6 @@ const IndexRoute = IndexRouteImport.update({
 const AuthenticatedStockRoute = AuthenticatedStockRouteImport.update({
   id: '/stock',
   path: '/stock',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
-const AuthenticatedShipmentsRoute = AuthenticatedShipmentsRouteImport.update({
-  id: '/shipments',
-  path: '/shipments',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
@@ -73,17 +68,23 @@ const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const AuthenticatedCashRoute = AuthenticatedCashRouteImport.update({
-  id: '/cash',
-  path: '/cash',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
+const AuthenticatedShipmentsIndexRoute =
+  AuthenticatedShipmentsIndexRouteImport.update({
+    id: '/shipments/',
+    path: '/shipments/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedInvoicesIndexRoute =
   AuthenticatedInvoicesIndexRouteImport.update({
     id: '/',
     path: '/',
     getParentRoute: () => AuthenticatedInvoicesRoute,
   } as any)
+const AuthenticatedCashIndexRoute = AuthenticatedCashIndexRouteImport.update({
+  id: '/cash/',
+  path: '/cash/',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedInvoicesNewRoute =
   AuthenticatedInvoicesNewRouteImport.update({
     id: '/new',
@@ -99,95 +100,95 @@ const AuthenticatedInvoicesIdRoute = AuthenticatedInvoicesIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
-  '/cash': typeof AuthenticatedCashRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/invoices': typeof AuthenticatedInvoicesRouteWithChildren
   '/partners': typeof AuthenticatedPartnersRoute
   '/products': typeof AuthenticatedProductsRoute
   '/settings': typeof AuthenticatedSettingsRoute
-  '/shipments': typeof AuthenticatedShipmentsRoute
   '/stock': typeof AuthenticatedStockRoute
   '/invoices/$id': typeof AuthenticatedInvoicesIdRoute
   '/invoices/new': typeof AuthenticatedInvoicesNewRoute
+  '/cash/': typeof AuthenticatedCashIndexRoute
   '/invoices/': typeof AuthenticatedInvoicesIndexRoute
+  '/shipments/': typeof AuthenticatedShipmentsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
-  '/cash': typeof AuthenticatedCashRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/partners': typeof AuthenticatedPartnersRoute
   '/products': typeof AuthenticatedProductsRoute
   '/settings': typeof AuthenticatedSettingsRoute
-  '/shipments': typeof AuthenticatedShipmentsRoute
   '/stock': typeof AuthenticatedStockRoute
   '/invoices/$id': typeof AuthenticatedInvoicesIdRoute
   '/invoices/new': typeof AuthenticatedInvoicesNewRoute
+  '/cash': typeof AuthenticatedCashIndexRoute
   '/invoices': typeof AuthenticatedInvoicesIndexRoute
+  '/shipments': typeof AuthenticatedShipmentsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
-  '/_authenticated/cash': typeof AuthenticatedCashRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/invoices': typeof AuthenticatedInvoicesRouteWithChildren
   '/_authenticated/partners': typeof AuthenticatedPartnersRoute
   '/_authenticated/products': typeof AuthenticatedProductsRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
-  '/_authenticated/shipments': typeof AuthenticatedShipmentsRoute
   '/_authenticated/stock': typeof AuthenticatedStockRoute
   '/_authenticated/invoices/$id': typeof AuthenticatedInvoicesIdRoute
   '/_authenticated/invoices/new': typeof AuthenticatedInvoicesNewRoute
+  '/_authenticated/cash/': typeof AuthenticatedCashIndexRoute
   '/_authenticated/invoices/': typeof AuthenticatedInvoicesIndexRoute
+  '/_authenticated/shipments/': typeof AuthenticatedShipmentsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/auth'
-    | '/cash'
     | '/dashboard'
     | '/invoices'
     | '/partners'
     | '/products'
     | '/settings'
-    | '/shipments'
     | '/stock'
     | '/invoices/$id'
     | '/invoices/new'
+    | '/cash/'
     | '/invoices/'
+    | '/shipments/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/auth'
-    | '/cash'
     | '/dashboard'
     | '/partners'
     | '/products'
     | '/settings'
-    | '/shipments'
     | '/stock'
     | '/invoices/$id'
     | '/invoices/new'
+    | '/cash'
     | '/invoices'
+    | '/shipments'
   id:
     | '__root__'
     | '/'
     | '/_authenticated'
     | '/auth'
-    | '/_authenticated/cash'
     | '/_authenticated/dashboard'
     | '/_authenticated/invoices'
     | '/_authenticated/partners'
     | '/_authenticated/products'
     | '/_authenticated/settings'
-    | '/_authenticated/shipments'
     | '/_authenticated/stock'
     | '/_authenticated/invoices/$id'
     | '/_authenticated/invoices/new'
+    | '/_authenticated/cash/'
     | '/_authenticated/invoices/'
+    | '/_authenticated/shipments/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -226,13 +227,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedStockRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/shipments': {
-      id: '/_authenticated/shipments'
-      path: '/shipments'
-      fullPath: '/shipments'
-      preLoaderRoute: typeof AuthenticatedShipmentsRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
     '/_authenticated/settings': {
       id: '/_authenticated/settings'
       path: '/settings'
@@ -268,11 +262,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/cash': {
-      id: '/_authenticated/cash'
-      path: '/cash'
-      fullPath: '/cash'
-      preLoaderRoute: typeof AuthenticatedCashRouteImport
+    '/_authenticated/shipments/': {
+      id: '/_authenticated/shipments/'
+      path: '/shipments'
+      fullPath: '/shipments/'
+      preLoaderRoute: typeof AuthenticatedShipmentsIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/invoices/': {
@@ -281,6 +275,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/invoices/'
       preLoaderRoute: typeof AuthenticatedInvoicesIndexRouteImport
       parentRoute: typeof AuthenticatedInvoicesRoute
+    }
+    '/_authenticated/cash/': {
+      id: '/_authenticated/cash/'
+      path: '/cash'
+      fullPath: '/cash/'
+      preLoaderRoute: typeof AuthenticatedCashIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/invoices/new': {
       id: '/_authenticated/invoices/new'
@@ -317,25 +318,25 @@ const AuthenticatedInvoicesRouteWithChildren =
   )
 
 interface AuthenticatedRouteRouteChildren {
-  AuthenticatedCashRoute: typeof AuthenticatedCashRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedInvoicesRoute: typeof AuthenticatedInvoicesRouteWithChildren
   AuthenticatedPartnersRoute: typeof AuthenticatedPartnersRoute
   AuthenticatedProductsRoute: typeof AuthenticatedProductsRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
-  AuthenticatedShipmentsRoute: typeof AuthenticatedShipmentsRoute
   AuthenticatedStockRoute: typeof AuthenticatedStockRoute
+  AuthenticatedCashIndexRoute: typeof AuthenticatedCashIndexRoute
+  AuthenticatedShipmentsIndexRoute: typeof AuthenticatedShipmentsIndexRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
-  AuthenticatedCashRoute: AuthenticatedCashRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedInvoicesRoute: AuthenticatedInvoicesRouteWithChildren,
   AuthenticatedPartnersRoute: AuthenticatedPartnersRoute,
   AuthenticatedProductsRoute: AuthenticatedProductsRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
-  AuthenticatedShipmentsRoute: AuthenticatedShipmentsRoute,
   AuthenticatedStockRoute: AuthenticatedStockRoute,
+  AuthenticatedCashIndexRoute: AuthenticatedCashIndexRoute,
+  AuthenticatedShipmentsIndexRoute: AuthenticatedShipmentsIndexRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
