@@ -15,6 +15,7 @@ const EXTRA_KEYS: Record<string, string[]> = {
     "shipments", "shipments-count", "cash", "cash-count",
     "stock_balances", "dashboard-stats",
   ],
+  invoice_payments: ["invoice", "invoices", "shipments", "partner-balance", "partner-docs", "dashboard-stats"],
   products: ["stock_balances", "dashboard-stats"],
   partners: ["partners-list", "dashboard-stats"],
   organizations: ["my-organization", "my-organization-mask"],

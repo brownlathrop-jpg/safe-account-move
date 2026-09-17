@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { db } from "@/integrations/db";
+import { PaymentsCard } from "@/components/PaymentsCard";
 import { applyShipmentStock } from "@/lib/posting";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -586,6 +587,17 @@ function InvoiceView() {
         </Card>
       )}
 
+
+      {/* Оплаты по документу */}
+      {!isPKO && (
+        <PaymentsCard
+          invoiceId={id}
+          partnerId={inv.partner_id ?? null}
+          workspaceId={wsId}
+          total={Number(inv.total ?? 0)}
+          direction={kind === "outgoing" ? "in" : "out"}
+        />
+      )}
 
       {/* Edit form */}
       <div className="print:hidden space-y-5">

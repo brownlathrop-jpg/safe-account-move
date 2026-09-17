@@ -41,6 +41,7 @@ const TABLES = new Set([
   "banks",
   "price_types",
   "units",
+  "invoice_payments",
 ]);
 
 function assertTable(t: string) {
@@ -53,8 +54,14 @@ function assertTable(t: string) {
 type Rel = { table: string; fk: string; type: "one" | "many" };
 
 const RELATIONS: Record<string, Record<string, Rel>> = {
+  invoice_payments: {
+    partner: { table: "partners", fk: "partner_id", type: "one" },
+    invoice: { table: "invoices", fk: "invoice_id", type: "one" },
+  },
   invoices: {
     partner: { table: "partners", fk: "partner_id", type: "one" },
+    payments: { table: "invoice_payments", fk: "invoice_id", type: "many" },
+    invoice_payments: { table: "invoice_payments", fk: "invoice_id", type: "many" },
     partners: { table: "partners", fk: "partner_id", type: "one" },
     status_ref: { table: "invoice_statuses", fk: "status_id", type: "one" },
     invoice_statuses: { table: "invoice_statuses", fk: "status_id", type: "one" },
@@ -368,7 +375,7 @@ export async function runQuery(spec: QuerySpec, userId: string): Promise<{ data:
                updated_at = now()
              where id = $4 returning *`,
             [
-              JSON.stringify(patch),
+              s.json(patch as any),
               item.workspace_id ?? null,
               item.user_id ?? null,
               existingId,
@@ -382,7 +389,7 @@ export async function runQuery(spec: QuerySpec, userId: string): Promise<{ data:
              values ($1, $2, $3, $4::jsonb)
              on conflict (id) do update set data = ${table}.data || excluded.data, updated_at = now()
              returning *`,
-            [r.id, r.workspace_id, r.user_id, JSON.stringify({ ...r.data, id: r.id })] as any,
+            [r.id, r.workspace_id, r.user_id, s.json({ ...r.data, id: r.id } as any)] as any,
           );
           out.push(toRow((res as any[])[0]));
         }
