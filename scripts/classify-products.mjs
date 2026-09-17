@@ -58,6 +58,10 @@ const TYPES = [
   ["Двери", /^\s*(ДП|ДО|ДГ|ПГ|ПО|Д[ПОГ])[\s.]|дверь|полотно|дверное/i],
 ];
 
+const SERVICE_WORDS = /установк|замер|доставк|разгрузк|погрузк|подъем|подъём|сборк|монтаж|демонтаж|облагораживание|услуг|работы/i;
+const MATERIALS = /плинтус|уголок|угол наружный|угол внутренний|заглушк|соединительный элемент|брус|брусок|саморез|шпатл|шпакл|серпянк|гкл|гипсокартон|линолеум|профиль|потолок|решетк|выключател|счетчик|счётчик|розетк|клей|грунтовк|пена монтажная|лента|скотч|штукатурк|плита|фанера|двп|дсп|лдсп/i;
+const HARDWARE_KITS = /сводорасширител|карниз|направляющ|ролик|комплект \(|раздвижн|доводчик/i;
+
 const FURNITURE = /ручк|замок|замк|защелк|петл|цилиндр|накладка на цилиндр|фиксатор|доводчик|упор|шпингалет|крючок|порог|завертк|ответная планка|apecs|ajax|бордер|code deco/i;
 
 const fromValue = (v) => {
@@ -132,11 +136,13 @@ const { products, folders } = cache;
 
 function classify(p) {
   const name = p.name ?? "";
-  if (p.kind === "service" || p.is_service) return ["Услуги", null];
+  if (p.kind === "service" || p.is_service || SERVICE_WORDS.test(name)) return ["Услуги", null];
   if (FURNITURE.test(name)) {
     const t = TYPES.find(([, re]) => re.test(name));
     return ["Фурнитура", t && t[0] !== "Двери" ? t[0] : null];
   }
+  if (HARDWARE_KITS.test(name)) return ["Комплектующие", null];
+  if (MATERIALS.test(name)) return ["Стройматериалы", null];
   const brand = BRANDS.find(([, re]) => re.test(name));
   const type = TYPES.find(([, re]) => re.test(name));
   if (brand) return [brand[0], type ? type[0] : "Прочее"];
