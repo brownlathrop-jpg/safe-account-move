@@ -228,7 +228,8 @@ function AdminPage() {
               <div className="grid gap-1 sm:grid-cols-2 md:grid-cols-3">
                 {(stats.data?.counts ?? []).map((c: any) => (
                   <div key={c.table} className="flex justify-between rounded border px-3 py-1.5">
-                    <span className="text-muted-foreground">{c.table}</span>
+                    <span className="text-muted-foreground">{TABLE_LABELS[c.table] ?? c.table}</span>
+
                     <span className="font-medium">{c.count}</span>
                   </div>
                 ))}
