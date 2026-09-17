@@ -4,7 +4,7 @@ import { routeTree } from "./routeTree.gen";
 
 export const getRouter = () => {
   // Кэш держим дольше по умолчанию: справочники и списки не перечитываются
-  // из базы при каждом переходе между страницами — меньше обращений к Firebase.
+  // из базы при каждом переходе между страницами — меньше обращений к базе.
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
