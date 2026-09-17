@@ -40,6 +40,28 @@ const call = async (fn: any, data?: any) => {
   return res.data;
 };
 
+// Понятные названия таблиц для раздела «Состояние базы»
+const TABLE_LABELS: Record<string, string> = {
+  products: "Товары и услуги",
+  product_folders: "Папки товаров",
+  partners: "Контрагенты",
+  invoices: "Документы",
+  invoice_items: "Строки документов",
+  invoice_payments: "Оплаты",
+  stock_movements: "Движения по складу",
+  stock_receipts: "Поступления на склад",
+  workspaces: "Базы",
+  app_users: "Пользователи",
+  workspace_members: "Сотрудники",
+  workspace_invites: "Приглашения",
+  document_log: "История изменений",
+  sessions: "Сессии",
+  files: "Файлы",
+  warehouses: "Склады",
+  doc_statuses: "Статусы документов",
+};
+
+
 function AdminPage() {
   const qc = useQueryClient();
   const [allowed, setAllowed] = useState<boolean | null>(null);
@@ -206,7 +228,8 @@ function AdminPage() {
               <div className="grid gap-1 sm:grid-cols-2 md:grid-cols-3">
                 {(stats.data?.counts ?? []).map((c: any) => (
                   <div key={c.table} className="flex justify-between rounded border px-3 py-1.5">
-                    <span className="text-muted-foreground">{c.table}</span>
+                    <span className="text-muted-foreground">{TABLE_LABELS[c.table] ?? c.table}</span>
+
                     <span className="font-medium">{c.count}</span>
                   </div>
                 ))}
