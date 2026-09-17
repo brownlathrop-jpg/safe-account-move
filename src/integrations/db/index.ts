@@ -192,7 +192,7 @@ export const auth = {
   async signInWithPassword({ email, password }: { email: string; password: string }) {
     const res: any = await authSignIn({ data: { email, password } });
     if (res.error) return { data: null, error: res.error };
-    cached = { id: res.user.id, email: res.user.email, user_metadata: { name: res.user.name ?? "" } };
+    cached = { id: res.user.id, email: res.user.email, user_metadata: { name: res.user.name ?? "", is_admin: !!res.user.is_admin } };
     loaded = true;
     notify();
     return { data: { user: cached }, error: null };
@@ -200,7 +200,7 @@ export const auth = {
   async signUp({ email, password }: { email: string; password: string; options?: any }) {
     const res: any = await authSignUp({ data: { email, password } });
     if (res.error) return { data: null, error: res.error };
-    cached = { id: res.user.id, email: res.user.email, user_metadata: { name: res.user.name ?? "" } };
+    cached = { id: res.user.id, email: res.user.email, user_metadata: { name: res.user.name ?? "", is_admin: !!res.user.is_admin } };
     loaded = true;
     notify();
     return { data: { user: cached }, error: null };
