@@ -1,10 +1,11 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import { LayoutDashboard, Package, FileText, Users, LogOut, Plus, Settings, Warehouse, PanelLeftClose, PanelLeftOpen, Truck, Wallet } from "lucide-react";
+import { LayoutDashboard, Package, FileText, Users, LogOut, Plus, Settings, Warehouse, PanelLeftClose, PanelLeftOpen, Truck, Wallet, Shield } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { db } from "@/integrations/db";
 import { Button } from "@/components/ui/button";
 import { useQueryClient } from "@tanstack/react-query";
 import { WorkspaceSwitcher } from "@/components/WorkspaceSwitcher";
+import { useRealtime } from "@/hooks/use-realtime";
 
 const nav = [
   { to: "/dashboard", label: "Аналитика", icon: LayoutDashboard },
@@ -19,6 +20,14 @@ const nav = [
 
 export function AppShell({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
+  useRealtime();
+  const [isAdmin, setIsAdmin] = useState(false);
+  useEffect(() => {
+    db.auth.getUser().then(({ data }) => setIsAdmin(!!(data.user?.user_metadata as any)?.is_admin));
+  }, []);
+  const items = isAdmin
+    ? [...nav, { to: "/admin", label: "Админка", icon: Shield } as const]
+    : nav;
   const qc = useQueryClient();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
@@ -72,7 +81,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         )}
         <nav className={`flex-1 overflow-y-auto ${collapsed ? "px-1" : "px-2"} py-2 space-y-0.5`}>
-          {nav.map(({ to, label, icon: Icon }) => {
+          {items.map(({ to, label, icon: Icon }) => {
             const active = pathname === to || pathname.startsWith(to + "/");
             return (
               <Link

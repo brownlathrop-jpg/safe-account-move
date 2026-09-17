@@ -21,6 +21,7 @@ import { Route as AuthenticatedPartnersRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedInvoicesRouteImport } from './routes/_authenticated/invoices'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedCashRouteImport } from './routes/_authenticated/cash'
+import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedShipmentsIndexRouteImport } from './routes/_authenticated/shipments.index'
 import { Route as AuthenticatedInvoicesIndexRouteImport } from './routes/_authenticated/invoices.index'
 import { Route as AuthenticatedCashIndexRouteImport } from './routes/_authenticated/cash.index'
@@ -89,6 +90,11 @@ const AuthenticatedCashRoute = AuthenticatedCashRouteImport.update({
   path: '/cash',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedShipmentsIndexRoute =
   AuthenticatedShipmentsIndexRouteImport.update({
     id: '/',
@@ -137,6 +143,7 @@ const AuthenticatedCashNewRoute = AuthenticatedCashNewRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/admin': typeof AuthenticatedAdminRoute
   '/cash': typeof AuthenticatedCashRouteWithChildren
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/invoices': typeof AuthenticatedInvoicesRouteWithChildren
@@ -158,6 +165,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/admin': typeof AuthenticatedAdminRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/partners': typeof AuthenticatedPartnersRoute
   '/products': typeof AuthenticatedProductsRoute
@@ -178,6 +186,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
+  '/_authenticated/admin': typeof AuthenticatedAdminRoute
   '/_authenticated/cash': typeof AuthenticatedCashRouteWithChildren
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/invoices': typeof AuthenticatedInvoicesRouteWithChildren
@@ -201,6 +210,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth'
+    | '/admin'
     | '/cash'
     | '/dashboard'
     | '/invoices'
@@ -222,6 +232,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/auth'
+    | '/admin'
     | '/dashboard'
     | '/partners'
     | '/products'
@@ -241,6 +252,7 @@ export interface FileRouteTypes {
     | '/'
     | '/_authenticated'
     | '/auth'
+    | '/_authenticated/admin'
     | '/_authenticated/cash'
     | '/_authenticated/dashboard'
     | '/_authenticated/invoices'
@@ -354,6 +366,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCashRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/admin': {
+      id: '/_authenticated/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AuthenticatedAdminRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/shipments/': {
       id: '/_authenticated/shipments/'
       path: '/'
@@ -460,6 +479,7 @@ const AuthenticatedShipmentsRouteWithChildren =
   )
 
 interface AuthenticatedRouteRouteChildren {
+  AuthenticatedAdminRoute: typeof AuthenticatedAdminRoute
   AuthenticatedCashRoute: typeof AuthenticatedCashRouteWithChildren
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedInvoicesRoute: typeof AuthenticatedInvoicesRouteWithChildren
@@ -471,6 +491,7 @@ interface AuthenticatedRouteRouteChildren {
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedAdminRoute: AuthenticatedAdminRoute,
   AuthenticatedCashRoute: AuthenticatedCashRouteWithChildren,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedInvoicesRoute: AuthenticatedInvoicesRouteWithChildren,
