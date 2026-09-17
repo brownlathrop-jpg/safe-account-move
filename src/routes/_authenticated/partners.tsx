@@ -110,19 +110,62 @@ function PartnersPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return partners.filter(p => {
+      if (kindFilter !== "all" && p.kind !== kindFilter) return false;
+      if (!q) return true;
+      return [p.name, p.full_name, p.inn, p.phone, p.email, p.address]
+        .some(v => String(v ?? "").toLowerCase().includes(q));
+    });
+  }, [partners, search, kindFilter]);
+
+  const exportCsv = () => downloadCsv("контрагенты", filtered, [
+    { header: "Название", value: p => p.name },
+    { header: "Полное наименование", value: p => p.full_name },
+    { header: "Тип", value: p => (p.kind === "customer" ? "Клиент" : "Поставщик") },
+    { header: "ИНН", value: p => p.inn },
+    { header: "КПП", value: p => p.kpp },
+    { header: "Телефон", value: p => p.phone },
+    { header: "Email", value: p => p.email },
+    { header: "Адрес", value: p => p.address },
+    { header: "Комментарий", value: p => p.comment },
+  ]);
+
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">Контрагенты</h1>
           <p className="text-sm text-muted-foreground">Клиенты и поставщики</p>
         </div>
-        <Button onClick={() => { setEditing({ kind: "customer", name: "" }); setOpen(true); }}>
-          <Plus className="h-4 w-4 mr-1" /> Добавить
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={exportCsv} disabled={!filtered.length} title="Выгрузить в Excel">
+            <Download className="h-4 w-4 mr-1" /> Excel
+          </Button>
+          <Button onClick={() => { setEditing({ kind: "customer", name: "" }); setOpen(true); }}>
+            <Plus className="h-4 w-4 mr-1" /> Добавить
+          </Button>
+        </div>
       </div>
 
-      <Card className="p-0 overflow-hidden">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 min-w-[220px]">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input className="pl-8" placeholder="Поиск: название, ИНН, телефон, адрес" value={search} onChange={e => setSearch(e.target.value)} />
+        </div>
+        <Select value={kindFilter} onValueChange={(v) => setKindFilter(v as any)}>
+          <SelectTrigger className="w-[170px]"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Все</SelectItem>
+            <SelectItem value="customer">Клиенты</SelectItem>
+            <SelectItem value="supplier">Поставщики</SelectItem>
+          </SelectContent>
+        </Select>
+        <span className="text-sm text-muted-foreground">Найдено: {filtered.length}</span>
+      </div>
+
+      <Card className="p-0 overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
@@ -135,7 +178,7 @@ function PartnersPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {partners.length === 0 && <TableRow><TableCell colSpan={6} className="text-center py-10 text-muted-foreground">Контрагентов пока нет</TableCell></TableRow>}
+            {filtered.length === 0 && <TableRow><TableCell colSpan={6} className="text-center py-10 text-muted-foreground">Ничего не найдено</TableCell></TableRow>}
             {partners.map(p => (
               <TableRow key={p.id}>
                 <TableCell className="font-medium">
