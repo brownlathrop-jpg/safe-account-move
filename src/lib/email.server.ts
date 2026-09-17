@@ -43,3 +43,21 @@ export function resetEmailHtml(link: string): string {
     <p style="margin:0;font-size:13px;color:#6b7280">Если это были не вы — просто удалите письмо, пароль останется прежним.</p>
   </div>`;
 }
+
+export function inviteEmailHtml(link: string, existingUser: boolean): string {
+  const text = existingUser
+    ? "Вам открыли доступ к рабочей базе. Войдите под своим обычным паролем — новая база появится в списке."
+    : "Вас пригласили работать в КабинетCRM. Нажмите кнопку, задайте пароль — и сразу попадёте в базу.";
+  return `
+  <div style="font-family:Arial,sans-serif;background:#ffffff;padding:24px;color:#111827">
+    <h2 style="margin:0 0 12px">Приглашение в КабинетCRM</h2>
+    <p style="margin:0 0 16px">${text}</p>
+    <p style="margin:0 0 20px">
+      <a href="${link}" style="background:#2563eb;color:#ffffff;text-decoration:none;padding:12px 20px;border-radius:8px;display:inline-block">
+        ${existingUser ? "Открыть КабинетCRM" : "Принять приглашение"}
+      </a>
+    </p>
+    <p style="margin:0;font-size:13px;color:#6b7280">Ссылка действует 14 дней.</p>
+  </div>`;
+}
+
