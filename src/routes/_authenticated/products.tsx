@@ -124,12 +124,17 @@ function ProductsPage() {
 
   const childrenOf = useMemo(() => {
     const map = new Map<string | null, FolderRow[]>();
+    const ids = new Set(folders.map(f => f.id));
     folders.forEach(f => {
-      const arr = map.get(f.parent_id) ?? [];
-      arr.push(f); map.set(f.parent_id, arr);
+      // защита от битых ссылок: папка не может быть родителем сама себе,
+      // а ссылка на несуществующую папку считается корневой
+      const parent = f.parent_id && f.parent_id !== f.id && ids.has(f.parent_id) ? f.parent_id : null;
+      const arr = map.get(parent) ?? [];
+      arr.push(f); map.set(parent, arr);
     });
     return map;
   }, [folders]);
+
 
   const folderIds = useMemo(() => new Set(folders.map(f => f.id)), [folders]);
   const productRootFolder = useMemo(() => folders.find(f => f.parent_id === null && f.name.trim().toLowerCase() === PRODUCT_ROOT_NAME.toLowerCase()) ?? null, [folders]);
