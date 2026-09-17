@@ -92,32 +92,18 @@ for (const table of TABLES) {
     console.log(`- ${table}: нет такой таблицы, пропуск`);
     continue;
   }
-  async function writeChunk(docs, attempt = 1) {
-    try {
-      const batch = fs.batch();
-      for (const [id, row] of docs) {
-        batch.set(fs.collection(table).doc(id), { ...row, id }, { merge: true });
-      }
-      await batch.commit();
-    } catch (e) {
-      if (attempt >= 6) throw e;
-      const wait = attempt * 5000;
-      console.log(`  ! обрыв связи, повтор через ${wait / 1000}с (попытка ${attempt})`);
-      await new Promise((r) => setTimeout(r, wait));
-      return writeChunk(docs, attempt + 1);
-    }
-  }
   const CHUNK = 200;
-  let chunk = [];
+  let writes = [];
   for (const row of rows) {
-    const id = String(row.id ?? fs.collection(table).doc().id);
-    chunk.push([id, row]);
-    if (chunk.length === CHUNK) {
-      await writeChunk(chunk);
-      chunk = [];
+    const id = String(row.id ?? crypto.randomUUID());
+    const fields = Object.fromEntries(Object.entries({ ...row, id }).map(([k, v]) => [k, toValue(v)]));
+    writes.push({ update: { name: `${REST}/${table}/${id}`, fields } });
+    if (writes.length === CHUNK) {
+      await restCommit(writes);
+      writes = [];
     }
   }
-  if (chunk.length) await writeChunk(chunk);
+  if (writes.length) await restCommit(writes);
   console.log(`+ ${table}: ${rows.length}`);
 }
 console.log("Готово");
