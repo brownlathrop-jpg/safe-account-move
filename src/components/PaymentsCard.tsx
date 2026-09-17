@@ -32,14 +32,12 @@ export function PaymentsCard({
   invoiceId,
   partnerId,
   workspaceId,
-  userId,
   total,
   direction,
 }: {
   invoiceId: string;
   partnerId: string | null;
   workspaceId: string | null;
-  userId: string | null;
   total: number;
   /** in — деньги получаем (продажа), out — платим поставщику. */
   direction: "in" | "out";
@@ -83,6 +81,7 @@ export function PaymentsCard({
     mutationFn: async () => {
       const amount = Number(String(form.amount).replace(",", "."));
       if (!amount || amount <= 0) throw new Error("Укажите сумму больше нуля");
+      const { data: { user } } = await db.auth.getUser();
       const { error } = await db.from("invoice_payments").insert({
         invoice_id: invoiceId,
         partner_id: partnerId,
@@ -93,7 +92,7 @@ export function PaymentsCard({
         cashflow_item_id: form.cashflow_item_id || null,
         note: form.note || null,
         workspace_id: workspaceId,
-        user_id: userId,
+        user_id: user?.id ?? null,
       } as never);
       if (error) throw error;
     },
