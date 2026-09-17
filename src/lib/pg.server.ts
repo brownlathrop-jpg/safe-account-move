@@ -374,6 +374,7 @@ export async function runQuery(
 
     if (spec.mode === "insert" || spec.mode === "upsert") {
       const payload = spec.payload ?? [];
+      await assertWrite(payload.map((i) => (i.workspace_id ? String(i.workspace_id) : null)));
       const conflict = spec.onConflict ?? ["id"];
       const out: Row[] = [];
       for (const item of payload) {
@@ -424,11 +425,13 @@ export async function runQuery(
           out.push(toRow((res as any[])[0]));
         }
       }
+      log(spec.mode === "upsert" ? "update" : "insert", out);
       if (spec.single) return { data: out[0] ?? null, error: null };
       return { data: out, error: null };
     }
 
     if (spec.mode === "update") {
+      await assertWrite(await affectedWorkspaces(s, table, spec.filters ?? [], scope));
       const patch = { ...(spec.payload?.[0] ?? {}), updated_at: new Date().toISOString() };
       delete (patch as Row).id;
       const buf = new SqlBuf();
@@ -440,20 +443,42 @@ export async function runQuery(
       buf.params.push(...w.params);
       const res = await s.unsafe(buf.text, buf.params as any);
       const rows = (res as any[]).map(toRow);
+      log("update", rows, patch as Record<string, unknown>);
       if (spec.single) return { data: rows[0] ?? null, error: null };
       return { data: rows, error: null };
     }
 
     // delete
+    await assertWrite(await affectedWorkspaces(s, table, spec.filters ?? [], scope));
     const buf = new SqlBuf();
     buf.text = `delete from ${table}`;
     applyWhere(buf, spec.filters ?? [], scope, table);
     buf.text += " returning *";
     const res = await s.unsafe(buf.text, buf.params as any);
-    return { data: (res as any[]).map(toRow), error: null };
+    const deleted = (res as any[]).map(toRow);
+    log("delete", deleted);
+    return { data: deleted, error: null };
   } catch (e: any) {
     return { data: null, error: { message: e?.message ?? String(e) } };
   }
+}
+
+/** Базы, затронутые фильтрами (для проверки прав). */
+async function affectedWorkspaces(
+  s: any,
+  table: string,
+  filters: Filter[],
+  scope: string[] | null,
+): Promise<(string | null)[]> {
+  const explicit = filters.find((f) => f.field === "workspace_id" && f.op === "eq");
+  if (explicit) return [String(explicit.value)];
+  const c = new SqlBuf();
+  c.text = `select distinct workspace_id from ${table}`;
+  applyWhere(c, filters, scope, table);
+  c.text += " limit 20";
+  const rows = await s.unsafe(c.text, c.params as any);
+  if (table === "workspaces") return (rows as any[]).map(() => null).length ? [] : [];
+  return (rows as any[]).map((r) => (r.workspace_id ? String(r.workspace_id) : null));
 }
 
 /** WHERE со сквозной нумерацией параметров. */
@@ -504,8 +529,11 @@ function applyWhere(buf: SqlBuf, filters: Filter[], scope: string[] | null, tabl
         break;
     }
   }
-  if (scope && table !== "workspaces") {
-    if (scope.length) push(`(workspace_id IS NULL OR workspace_id = ANY(?))`, scope);
+  if (scope) {
+    if (table === "workspaces") {
+      if (scope.length) push(`id = ANY(?)`, scope);
+      else parts.push("false");
+    } else if (scope.length) push(`(workspace_id IS NULL OR workspace_id = ANY(?))`, scope);
     else parts.push("workspace_id IS NULL");
   }
   if (parts.length) buf.text += ` WHERE ${parts.join(" AND ")}`;
