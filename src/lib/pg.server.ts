@@ -276,10 +276,45 @@ function splitRow(item: Row) {
   };
 }
 
-export async function runQuery(spec: QuerySpec, userId: string): Promise<{ data: any; error: any; count?: number }> {
+export async function runQuery(
+  spec: QuerySpec,
+  userId: string,
+  userEmail = "",
+): Promise<{ data: any; error: any; count?: number }> {
   const table = assertTable(spec.table);
   const s = sql();
-  const scope = await ownedWorkspaces(userId);
+  const { accessibleWorkspaces, roleIn, canWrite, logChange } = await import("./team.server");
+  const scope = await accessibleWorkspaces(userId);
+
+  /** Проверить право записи в затронутые базы. */
+  const assertWrite = async (wsIds: (string | null)[]) => {
+    const ids = Array.from(new Set(wsIds.filter((x): x is string => !!x)));
+    if (!ids.length) {
+      // общие записи без привязки к базе — только для владельцев баз
+      const own = await ownedWorkspaces(userId);
+      if (!own.length) throw new Error("Недостаточно прав для изменения данных");
+      return;
+    }
+    for (const id of ids) {
+      const role = await roleIn(userId, id);
+      if (!role) throw new Error("Нет доступа к этой базе");
+      if (!canWrite(role, table)) throw new Error("Недостаточно прав для изменения данных");
+    }
+  };
+  const log = (op: "insert" | "update" | "delete", rows: Row[], changes?: Record<string, unknown>) => {
+    for (const r of rows.slice(0, 50)) {
+      void logChange({
+        table,
+        docId: r.id ? String(r.id) : null,
+        workspaceId: r.workspace_id ? String(r.workspace_id) : null,
+        userId,
+        userEmail,
+        op,
+        changes: changes ?? {},
+      });
+    }
+  };
+
 
   try {
     if (spec.mode === "select") {
@@ -344,6 +379,7 @@ export async function runQuery(spec: QuerySpec, userId: string): Promise<{ data:
 
     if (spec.mode === "insert" || spec.mode === "upsert") {
       const payload = spec.payload ?? [];
+      await assertWrite(payload.map((i) => (i.workspace_id ? String(i.workspace_id) : null)));
       const conflict = spec.onConflict ?? ["id"];
       const out: Row[] = [];
       for (const item of payload) {
@@ -394,11 +430,13 @@ export async function runQuery(spec: QuerySpec, userId: string): Promise<{ data:
           out.push(toRow((res as any[])[0]));
         }
       }
+      log(spec.mode === "upsert" ? "update" : "insert", out);
       if (spec.single) return { data: out[0] ?? null, error: null };
       return { data: out, error: null };
     }
 
     if (spec.mode === "update") {
+      await assertWrite(await affectedWorkspaces(s, table, spec.filters ?? [], scope));
       const patch = { ...(spec.payload?.[0] ?? {}), updated_at: new Date().toISOString() };
       delete (patch as Row).id;
       const buf = new SqlBuf();
@@ -410,20 +448,42 @@ export async function runQuery(spec: QuerySpec, userId: string): Promise<{ data:
       buf.params.push(...w.params);
       const res = await s.unsafe(buf.text, buf.params as any);
       const rows = (res as any[]).map(toRow);
+      log("update", rows, patch as Record<string, unknown>);
       if (spec.single) return { data: rows[0] ?? null, error: null };
       return { data: rows, error: null };
     }
 
     // delete
+    await assertWrite(await affectedWorkspaces(s, table, spec.filters ?? [], scope));
     const buf = new SqlBuf();
     buf.text = `delete from ${table}`;
     applyWhere(buf, spec.filters ?? [], scope, table);
     buf.text += " returning *";
     const res = await s.unsafe(buf.text, buf.params as any);
-    return { data: (res as any[]).map(toRow), error: null };
+    const deleted = (res as any[]).map(toRow);
+    log("delete", deleted);
+    return { data: deleted, error: null };
   } catch (e: any) {
     return { data: null, error: { message: e?.message ?? String(e) } };
   }
+}
+
+/** Базы, затронутые фильтрами (для проверки прав). */
+async function affectedWorkspaces(
+  s: any,
+  table: string,
+  filters: Filter[],
+  scope: string[] | null,
+): Promise<(string | null)[]> {
+  const explicit = filters.find((f) => f.field === "workspace_id" && f.op === "eq");
+  if (explicit) return [String(explicit.value)];
+  const c = new SqlBuf();
+  const col = table === "workspaces" ? "id" : "workspace_id";
+  c.text = `select distinct ${col} as ws from ${table}`;
+  applyWhere(c, filters, scope, table);
+  c.text += " limit 20";
+  const rows = await s.unsafe(c.text, c.params as any);
+  return (rows as any[]).map((r) => (r.ws ? String(r.ws) : null));
 }
 
 /** WHERE со сквозной нумерацией параметров. */
@@ -474,8 +534,11 @@ function applyWhere(buf: SqlBuf, filters: Filter[], scope: string[] | null, tabl
         break;
     }
   }
-  if (scope && table !== "workspaces") {
-    if (scope.length) push(`(workspace_id IS NULL OR workspace_id = ANY(?))`, scope);
+  if (scope) {
+    if (table === "workspaces") {
+      if (scope.length) push(`id = ANY(?)`, scope);
+      else parts.push("false");
+    } else if (scope.length) push(`(workspace_id IS NULL OR workspace_id = ANY(?))`, scope);
     else parts.push("workspace_id IS NULL");
   }
   if (parts.length) buf.text += ` WHERE ${parts.join(" AND ")}`;

@@ -12,7 +12,7 @@ export const dbQuery = createServerFn({ method: "POST" })
     } catch {
       return { data: null, error: { message: "Требуется вход" } };
     }
-    return runQuery(data, user.id);
+    return runQuery(data, user.id, user.email ?? "");
   });
 
 export const dbGetById = createServerFn({ method: "POST" })

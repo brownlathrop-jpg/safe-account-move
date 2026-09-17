@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { db } from "@/integrations/db";
 import { PaymentsCard } from "@/components/PaymentsCard";
+import { DocHistoryCard } from "@/components/DocHistoryCard";
 import { applyShipmentStock } from "@/lib/posting";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -598,6 +599,11 @@ function InvoiceView() {
           direction={kind === "outgoing" ? "in" : "out"}
         />
       )}
+
+      {/* Кто и когда менял документ */}
+      <div className="print:hidden">
+        <DocHistoryCard table="invoices" docId={id} />
+      </div>
 
       {/* Edit form */}
       <div className="print:hidden space-y-5">
