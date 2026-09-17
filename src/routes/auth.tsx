@@ -35,6 +35,18 @@ function AuthPage() {
     navigate({ to: "/dashboard", replace: true });
   };
 
+  const [forgot, setForgot] = useState(false);
+
+  const resetPass = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    const { error } = await db.auth.resetPasswordForEmail(email);
+    setLoading(false);
+    if (error) return toast.error(error.message);
+    toast.success("Письмо отправлено — проверьте почту и перейдите по ссылке");
+    setForgot(false);
+  };
+
   const signUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -62,6 +74,23 @@ function AuthPage() {
               <TabsTrigger value="signup">Регистрация</TabsTrigger>
             </TabsList>
             <TabsContent value="signin">
+              {forgot ? (
+              <form onSubmit={resetPass} className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Укажите почту, на которую зарегистрирован вход — пришлём ссылку для смены пароля.
+                </p>
+                <div className="space-y-2">
+                  <Label htmlFor="email-reset">Email</Label>
+                  <Input id="email-reset" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+                </div>
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading ? "Отправляем…" : "Отправить ссылку"}
+                </Button>
+                <Button type="button" variant="ghost" className="w-full" onClick={() => setForgot(false)}>
+                  Назад к входу
+                </Button>
+              </form>
+              ) : (
               <form onSubmit={signIn} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="email">Email</Label>
@@ -74,7 +103,11 @@ function AuthPage() {
                 <Button type="submit" className="w-full" disabled={loading}>
                   {loading ? "Входим…" : "Войти"}
                 </Button>
+                <button type="button" onClick={() => setForgot(true)} className="w-full text-sm text-primary hover:underline">
+                  Забыли пароль?
+                </button>
               </form>
+              )}
             </TabsContent>
             <TabsContent value="signup">
               <form onSubmit={signUp} className="space-y-4">
