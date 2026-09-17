@@ -5,8 +5,12 @@ import { db } from "@/integrations/db";
 import { useActiveWorkspaceId } from "@/lib/workspace";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowDownToLine, ArrowUpFromLine, Truck } from "lucide-react";
+import { ArrowDownToLine, ArrowUpFromLine, Truck, Search, Download } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { downloadCsv, csvDate } from "@/lib/export-csv";
 
 export const Route = createFileRoute("/_authenticated/shipments/")({
   head: () => ({ meta: [{ title: "Накладные — КабинетCRM" }] }),
