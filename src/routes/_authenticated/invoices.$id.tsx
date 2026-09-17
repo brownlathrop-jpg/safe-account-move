@@ -18,6 +18,9 @@ import { amountInWords } from "@/lib/amount-in-words";
 import { ProductPicker, type PickedItem } from "@/components/ProductPicker";
 import { ProductPickerSingle } from "@/components/ProductPickerSingle";
 import { useActiveWorkspaceId } from "@/lib/workspace";
+import { Torg12 } from "@/components/print/Torg12";
+import { Upd } from "@/components/print/Upd";
+import type { PrintItem } from "@/components/print/print-types";
 
 export const Route = createFileRoute("/_authenticated/invoices/$id")({
   head: () => ({ meta: [{ title: "Накладная — КабинетCRM" }] }),
@@ -30,6 +33,7 @@ const dfmt = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", y
 
 type Item = { id?: string; product_id: string | null; name: string; quantity: number; price: number; kind: "product" | "service" };
 type DocType = "order" | "shipment" | "cash_receipt";
+type PrintMode = "standard" | "invoice" | "pko" | "torg12" | "upd";
 
 const docLabels: Record<DocType, { title: string; one: string; createLabel: string }> = {
   order: { title: "Заявка", one: "заявку", createLabel: "Заявка" },
@@ -104,11 +108,11 @@ function InvoiceView() {
   const [note, setNote] = useState("");
   const [items, setItems] = useState<Item[]>([]);
   const [pickRow, setPickRow] = useState<number | null>(null);
-  const [printMode, setPrintMode] = useState<"standard" | "invoice" | "pko">("standard");
+  const [printMode, setPrintMode] = useState<PrintMode>("standard");
   const [cashReceived, setCashReceived] = useState<number>(0);
   const [cashBasis, setCashBasis] = useState<string>("");
 
-  const doPrint = (mode: "standard" | "invoice" | "pko") => {
+  const doPrint = (mode: PrintMode) => {
     setPrintMode(mode);
     setTimeout(() => window.print(), 50);
   };
