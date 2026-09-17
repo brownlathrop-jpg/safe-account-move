@@ -744,7 +744,7 @@ function InvoiceView() {
       </div>
 
       {/* Print layout (hidden on screen) */}
-      {printMode !== "pko" && (
+      {(printMode === "standard" || printMode === "invoice") && (
       <div className="invoice-print hidden print:block bg-white text-black mx-auto" style={{ maxWidth: 900 }}>
         {printMode === "invoice" && orgAsParty && (
           <>
