@@ -179,7 +179,7 @@ function PartnersPage() {
           </TableHeader>
           <TableBody>
             {filtered.length === 0 && <TableRow><TableCell colSpan={6} className="text-center py-10 text-muted-foreground">Ничего не найдено</TableCell></TableRow>}
-            {partners.map(p => (
+            {filtered.map(p => (
               <TableRow key={p.id}>
                 <TableCell className="font-medium">
                   <Link to="/partner/$id" params={{ id: p.id }} className="text-primary hover:underline">{p.name}</Link>
