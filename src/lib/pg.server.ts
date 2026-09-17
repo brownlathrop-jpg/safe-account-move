@@ -289,7 +289,12 @@ export async function runQuery(
   /** Проверить право записи в затронутые базы. */
   const assertWrite = async (wsIds: (string | null)[]) => {
     const ids = Array.from(new Set(wsIds.filter((x): x is string => !!x)));
-    if (!ids.length) return;
+    if (!ids.length) {
+      // общие записи без привязки к базе — только для владельцев баз
+      const own = await ownedWorkspaces(userId);
+      if (!own.length) throw new Error("Недостаточно прав для изменения данных");
+      return;
+    }
     for (const id of ids) {
       const role = await roleIn(userId, id);
       if (!role) throw new Error("Нет доступа к этой базе");
