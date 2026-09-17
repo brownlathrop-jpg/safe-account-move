@@ -494,7 +494,10 @@ function ProductsPage() {
           <h1 className="text-2xl font-semibold">Товары и услуги</h1>
           <p className="text-sm text-muted-foreground">Справочник с ценами, остатками и папками</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" onClick={exportCsv} disabled={!filtered.length} title="Выгрузить в Excel">
+            <Download className="h-4 w-4 mr-1" /> Excel
+          </Button>
           <Button variant="outline" onClick={() => {
             const target = getNewFolderTarget();
             openFolderDialog(target.parent_id, undefined, target.parentKind);
