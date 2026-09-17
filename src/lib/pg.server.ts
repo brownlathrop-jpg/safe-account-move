@@ -41,6 +41,7 @@ const TABLES = new Set([
   "banks",
   "price_types",
   "units",
+  "invoice_payments",
 ]);
 
 function assertTable(t: string) {
@@ -53,8 +54,14 @@ function assertTable(t: string) {
 type Rel = { table: string; fk: string; type: "one" | "many" };
 
 const RELATIONS: Record<string, Record<string, Rel>> = {
+  invoice_payments: {
+    partner: { table: "partners", fk: "partner_id", type: "one" },
+    invoice: { table: "invoices", fk: "invoice_id", type: "one" },
+  },
   invoices: {
     partner: { table: "partners", fk: "partner_id", type: "one" },
+    payments: { table: "invoice_payments", fk: "invoice_id", type: "many" },
+    invoice_payments: { table: "invoice_payments", fk: "invoice_id", type: "many" },
     partners: { table: "partners", fk: "partner_id", type: "one" },
     status_ref: { table: "invoice_statuses", fk: "status_id", type: "one" },
     invoice_statuses: { table: "invoice_statuses", fk: "status_id", type: "one" },
