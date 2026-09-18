@@ -8,6 +8,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Download } from "lucide-react";
+import { downloadCsv } from "@/lib/export-csv";
+import { fetchBalances } from "@/lib/stock";
 
 export const Route = createFileRoute("/_authenticated/reports")({
   head: () => ({
