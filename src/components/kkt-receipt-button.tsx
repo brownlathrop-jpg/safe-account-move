@@ -107,6 +107,24 @@ export function KktReceiptButton({
               <span className="text-muted-foreground">Сумма чека</span>
               <span className="text-lg font-semibold">{fmt.format(total)}</span>
             </div>
+            {hasServices && (
+              <div className="rounded-md border p-3 space-y-1">
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <Checkbox
+                    checked={mergeServices}
+                    onCheckedChange={(v) => setMergeServices(v === true)}
+                    className="mt-0.5"
+                  />
+                  <span>
+                    Услуги в стоимость товара
+                    <span className="block text-xs text-muted-foreground">
+                      Стоимость услуг распределится по товарам (округление до рубля), отдельными строками услуги в чек не попадут. Сумма чека не изменится.
+                    </span>
+                  </span>
+                </label>
+                {mergeError && <p className="text-xs text-destructive">{mergeError}</p>}
+              </div>
+            )}
             <div className="space-y-1">
               <Label className="text-xs">Оплата</Label>
               <Select value={paymentType} onValueChange={(v) => setPaymentType(v as KktPaymentType)}>
