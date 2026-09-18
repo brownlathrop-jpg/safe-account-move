@@ -214,12 +214,12 @@ function NewShipment() {
                   </button>
                 </TableCell>
                 <TableCell className="text-right">
-                  <Input className="h-7 text-right" type="number" step="0.001" value={it.quantity}
-                    onChange={(e) => update(idx, { quantity: Number(e.target.value) })} />
+                  <NumCell grid="ship" row={idx} col={0} className="h-7" step="0.001" value={it.quantity}
+                    onCommit={(v) => update(idx, { quantity: v })} />
                 </TableCell>
                 <TableCell className="text-right">
-                  <Input className="h-7 text-right" type="number" step="0.01" value={it.price}
-                    onChange={(e) => update(idx, { price: Number(e.target.value) })} />
+                  <NumCell grid="ship" row={idx} col={1} className="h-7" step="0.01" value={it.price}
+                    onCommit={(v) => update(idx, { price: v })} />
                 </TableCell>
                 <TableCell className="text-right font-medium">{fmt.format(it.quantity * it.price)}</TableCell>
                 <TableCell>
