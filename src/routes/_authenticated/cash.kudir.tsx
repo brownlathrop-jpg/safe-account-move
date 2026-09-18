@@ -6,7 +6,6 @@ import { useQuery } from "@tanstack/react-query";
 import { db } from "@/integrations/db";
 import { useActiveWorkspaceId } from "@/lib/workspace";
 import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -241,10 +240,6 @@ function KudirPage() {
           Доходы и расходы попадают в книгу по дате денег: оплаты по накладным, приходные и расходные кассовые ордера,
           а также продажи с пробитым чеком, по которым оплата отдельно не записана.
         </p>
-        <div className="mt-3">
-          <Label className="text-xs">Проверка: строк в книге — {flat.length}</Label>
-          <Input className="hidden" readOnly value="" />
-        </div>
       </Card>
 
       <div className="flex flex-wrap gap-4 text-sm">
