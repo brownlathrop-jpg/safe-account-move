@@ -207,13 +207,22 @@ function ProductsPage() {
       const { data: { user } } = await db.auth.getUser();
       if (!user) throw new Error("Нет сессии");
       if (!wsId) throw new Error("Не выбрана база данных");
+      // Цены по типам; основная цена = цена типа «по умолчанию» (для совместимости).
+      const prices: Record<string, number> = {};
+      for (const t of priceTypes) {
+        const v = Number((p.prices ?? {})[t.id] ?? 0);
+        if (!Number.isNaN(v)) prices[t.id] = v;
+      }
+      const baseTypeId = priceTypes.find(t => t.is_default)?.id ?? null;
+      const basePrice = baseTypeId && prices[baseTypeId] != null ? prices[baseTypeId] : Number(p.price ?? 0);
       const payload = {
         user_id: user.id,
         workspace_id: wsId,
         sku: p.sku || null,
         name: p.name!,
         unit: p.unit || "шт",
-        price: Number(p.price ?? 0),
+        price: Number(basePrice ?? 0),
+        prices,
         cost: Number(p.cost ?? 0),
         stock: Number(p.stock ?? 0),
         description: p.description || null,
