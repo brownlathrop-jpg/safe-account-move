@@ -361,9 +361,10 @@ function InvoiceView() {
     },
     onSuccess: (newId) => {
       qc.invalidateQueries({ queryKey: ["invoice-children", id] });
+      qc.invalidateQueries({ queryKey: ["doc-chain"] });
       qc.invalidateQueries({ queryKey: ["invoices"] });
       qc.invalidateQueries({ queryKey: ["shipments"] });
-      toast.success("Накладная создана");
+      toast.success(inv?.kind === "incoming" ? "Поступление создано" : "Накладная создана");
       navigate({ to: "/invoices/$id", params: { id: newId } });
     },
     onError: (e: Error) => toast.error(e.message),
