@@ -105,6 +105,26 @@ export async function requireAdmin(): Promise<AppUser> {
   return user;
 }
 
+/* --------------------------------------------- личные настройки пользователя */
+
+export async function getUserPrefs(): Promise<Record<string, any>> {
+  const user = await requireUser();
+  const s = sql();
+  const rows = await s`select prefs from app_users where id = ${user.id} limit 1`;
+  return ((rows[0] as any)?.prefs ?? {}) as Record<string, any>;
+}
+
+export async function setUserPrefs(patch: Record<string, any>): Promise<Record<string, any>> {
+  const user = await requireUser();
+  const s = sql();
+  const rows = await s`
+    update app_users
+       set prefs = coalesce(prefs, '{}'::jsonb) || ${s.json(patch as any)}::jsonb
+     where id = ${user.id}
+     returning prefs`;
+  return ((rows[0] as any)?.prefs ?? {}) as Record<string, any>;
+}
+
 export async function changePassword(newPassword: string) {
   if (newPassword.length < 6) throw new Error("Пароль должен быть не короче 6 символов");
   const user = await requireUser();
