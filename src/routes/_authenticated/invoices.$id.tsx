@@ -780,7 +780,42 @@ function InvoiceView() {
           <Card className="p-0 overflow-hidden">
             <div className="px-3 py-2 border-b flex items-center justify-between">
               <h3 className="font-medium text-sm">Позиции</h3>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                {editable && items.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1 text-xs">
+                    <span className="text-muted-foreground">
+                      {selected.length ? `Скидка на ${selected.length} поз.:` : "Скидка на все позиции:"}
+                    </span>
+                    {discountRefs.length > 0 && (
+                      <Select value="" onValueChange={(v) => {
+                        const d = discountRefs.find(x => x.id === v);
+                        if (d) applyDiscount(d.kind, d.value, d.name);
+                      }}>
+                        <SelectTrigger className="h-7 w-40 text-xs"><SelectValue placeholder="Из справочника" /></SelectTrigger>
+                        <SelectContent>
+                          {discountRefs.map(d => (
+                            <SelectItem key={d.id} value={d.id}>{d.name} — {discountLabel(d.kind, d.value)}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                    <Select value={manualKind} onValueChange={(v) => setManualKind(v as DiscountKind)}>
+                      <SelectTrigger className="h-7 w-24 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="percent">%</SelectItem>
+                        <SelectItem value="amount">₽</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Input className="h-7 w-20 text-xs" placeholder="0" value={manualValue}
+                      onChange={e => setManualValue(e.target.value)} />
+                    <Button size="sm" variant="outline" className="h-7 text-xs"
+                      onClick={() => applyDiscount(manualKind, Number(String(manualValue).replace(",", ".")) || 0, null)}>
+                      Применить
+                    </Button>
+                    <Button size="sm" variant="ghost" className="h-7 text-xs"
+                      onClick={() => applyDiscount("percent", 0, null)}>Снять</Button>
+                  </div>
+                )}
                 {editable && (
                   <ProductPicker
                     products={products as any}
@@ -795,9 +830,19 @@ function InvoiceView() {
             <Table className="xls-table">
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[40%]">Товар</TableHead>
+                  {editable && (
+                    <TableHead className="w-8">
+                      <Checkbox
+                        checked={items.length > 0 && selected.length === items.length}
+                        onCheckedChange={(v) => setSelected(v ? items.map((_, i) => i) : [])}
+                        aria-label="Отметить все позиции"
+                      />
+                    </TableHead>
+                  )}
+                  <TableHead>Товар</TableHead>
                   <TableHead className="w-24 text-right">Кол-во</TableHead>
                   <TableHead className="w-28 text-right">Цена</TableHead>
+                  <TableHead className="w-36 text-right">Скидка</TableHead>
                   <TableHead className="w-32 text-right">Сумма</TableHead>
                   <TableHead className="w-8"></TableHead>
                 </TableRow>
@@ -805,7 +850,7 @@ function InvoiceView() {
               <TableBody>
                 {items.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={5} className="p-0">
+                    <TableCell colSpan={editable ? 7 : 6} className="p-0">
                       {editable ? (
                         <button
                           type="button"
@@ -821,7 +866,12 @@ function InvoiceView() {
                   </TableRow>
                 )}
                 {items.map((it, idx) => (
-                  <TableRow key={idx}>
+                  <TableRow key={idx} data-selected={selected.includes(idx) || undefined} className={selected.includes(idx) ? "bg-accent/40" : undefined}>
+                    {editable && (
+                      <TableCell>
+                        <Checkbox checked={selected.includes(idx)} onCheckedChange={() => toggleSel(idx)} aria-label="Отметить позицию" />
+                      </TableCell>
+                    )}
                     <TableCell>
                       {editable ? (
                         <button
@@ -841,7 +891,32 @@ function InvoiceView() {
                       <NumCell grid="inv" row={idx} col={1} step="0.01" className="xls-cell" value={it.price}
                         onCommit={(v) => updateItem(idx, { price: v })} disabled={!editable} />
                     </TableCell>
-                    <TableCell className="text-right font-medium">{fmt.format(it.quantity * it.price)}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1 justify-end">
+                        <NumCell grid="inv" row={idx} col={2} step="0.01" className="xls-cell w-16" value={Number(it.discount_value) || 0}
+                          onCommit={(v) => updateItem(idx, { discount_value: v })} disabled={!editable} />
+                        <Select value={it.discount_kind === "amount" ? "amount" : "percent"}
+                          onValueChange={(v) => updateItem(idx, { discount_kind: v as DiscountKind })}
+                          disabled={!editable}>
+                          <SelectTrigger className="h-7 w-14 text-xs px-2"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="percent">%</SelectItem>
+                            <SelectItem value="amount">₽</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      {lineDiscount(it) > 0 && (
+                        <div className="text-[11px] text-muted-foreground text-right mt-0.5" title={it.discount_name ?? undefined}>
+                          −{fmt.format(lineDiscount(it))}
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right font-medium">
+                      {lineDiscount(it) > 0 && (
+                        <div className="text-[11px] text-muted-foreground line-through">{fmt.format(lineGross(it))}</div>
+                      )}
+                      {fmt.format(lineNet(it))}
+                    </TableCell>
                     <TableCell>
                       {editable && <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => removeItem(idx)}><Trash2 className="h-3.5 w-3.5" /></Button>}
                     </TableCell>
@@ -849,7 +924,13 @@ function InvoiceView() {
                 ))}
               </TableBody>
             </Table>
-            <div className="px-3 py-2 border-t flex justify-end items-center gap-3">
+            <div className="px-3 py-2 border-t flex flex-wrap justify-end items-center gap-x-4 gap-y-1">
+              {totalDiscount > 0 && (
+                <>
+                  <span className="text-xs text-muted-foreground">Сумма без скидки: {fmt.format(totalGross)}</span>
+                  <span className="text-xs text-muted-foreground">Скидка: −{fmt.format(totalDiscount)}</span>
+                </>
+              )}
               <span className="text-xs text-muted-foreground">Итого:</span>
               <span className="text-base font-semibold">{fmt.format(total)}</span>
             </div>
