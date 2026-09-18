@@ -251,6 +251,8 @@ function KudirPage() {
               book,
               {
                 name: org?.name ?? "",
+                print_name: org?.print_name ?? "",
+                logo_url: org?.logo_url ?? null,
                 inn: org?.inn ?? "",
                 kpp: org?.kpp ?? "",
                 legal_address: org?.legal_address ?? "",

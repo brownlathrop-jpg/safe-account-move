@@ -1,5 +1,6 @@
 // Печать списка в отдельном окне (дальше — «Сохранить как PDF» в диалоге печати).
 import type { CsvColumn } from "./export-csv";
+import { type PrintBrand, printHeaderHtml } from "./print-header";
 
 function esc(v: string | number | null | undefined): string {
   if (v === null || v === undefined) return "";
@@ -10,7 +11,7 @@ function esc(v: string | number | null | undefined): string {
     .replace(/"/g, "&quot;");
 }
 
-export function printList<T>(title: string, rows: T[], columns: CsvColumn<T>[]) {
+export function printList<T>(title: string, rows: T[], columns: CsvColumn<T>[], org?: PrintBrand | null) {
   if (!rows.length) return;
   const head = columns.map(c => `<th>${esc(c.header)}</th>`).join("");
   const body = rows
@@ -27,6 +28,7 @@ export function printList<T>(title: string, rows: T[], columns: CsvColumn<T>[]) 
   th { background: #f2f2f2; }
   @media print { body { margin: 0; } }
 </style></head><body>
+${printHeaderHtml(org)}
 <h1>${esc(title)}</h1>
 <div class="meta">Дата: ${stamp} · строк: ${rows.length}</div>
 <table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>
