@@ -133,7 +133,9 @@ function PartnersPage() {
     { header: "Email", value: p => p.email },
     { header: "Адрес", value: p => p.address },
     { header: "Комментарий", value: p => p.comment },
-  ]);
+  ];
+  const exportCsv = () => downloadCsv("контрагенты", filtered, listColumns);
+  const printPartners = () => printList("Контрагенты", filtered, listColumns);
 
   return (
     <div className="space-y-5">
@@ -145,6 +147,9 @@ function PartnersPage() {
         <div className="flex items-center gap-2">
           <Button variant="outline" onClick={exportCsv} disabled={!filtered.length} title="Выгрузить в Excel">
             <Download className="h-4 w-4 mr-1" /> Excel
+          </Button>
+          <Button variant="outline" onClick={printPartners} disabled={!filtered.length} title="Печать списка / сохранить в PDF">
+            <Printer className="h-4 w-4 mr-1" /> Печать
           </Button>
           <Button onClick={() => { setEditing({ kind: "customer", name: "" }); setOpen(true); }}>
             <Plus className="h-4 w-4 mr-1" /> Добавить
