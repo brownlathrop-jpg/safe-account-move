@@ -155,20 +155,6 @@ function InvoiceView() {
   const isShipment = docType === "shipment";
   const isPKO = docType === "cash_receipt";
 
-  // Children documents (shipments + PKO) of this order
-  const { data: children = [] } = useQuery({
-    queryKey: ["invoice-children", id],
-    queryFn: async () => {
-      const { data, error } = await (db as any)
-        .from("invoices")
-        .select("id,number,doc_type,issue_date,total,status,cash_received")
-        .eq("parent_id", id)
-        .order("created_at", { ascending: true });
-      if (error) throw error;
-      return (data ?? []) as any[];
-    },
-    // Показываем связанные для любого документа, не только для заявки
-  });
 
   const { data: parent } = useQuery({
     queryKey: ["invoice-parent", inv?.parent_id],
