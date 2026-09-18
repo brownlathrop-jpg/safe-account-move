@@ -20,6 +20,7 @@ import { amountInWords } from "@/lib/amount-in-words";
 import { ProductPicker, type PickedItem } from "@/components/ProductPicker";
 import { ProductPickerSingle } from "@/components/ProductPickerSingle";
 import { useActiveWorkspaceId } from "@/lib/workspace";
+import { usePriceTypes, useMyPriceTypeId, priceOf } from "@/lib/price-types";
 import { Torg12 } from "@/components/print/Torg12";
 import { Upd } from "@/components/print/Upd";
 import type { PrintItem } from "@/components/print/print-types";
@@ -64,7 +65,7 @@ function InvoiceView() {
   const { data: products = [] } = useQuery({
     queryKey: ["products", wsId],
     enabled: !!wsId,
-    queryFn: async () => (await (db as any).from("products").select("id,name,price,cost,unit,kind").eq("workspace_id", wsId).order("name")).data ?? [],
+    queryFn: async () => (await (db as any).from("products").select("id,name,price,cost,unit,kind,prices").eq("workspace_id", wsId).order("name")).data ?? [],
   });
   const { data: partners = [] } = useQuery({
     queryKey: ["partners", wsId],
@@ -173,6 +174,10 @@ function InvoiceView() {
   const total = useMemo(() => items.reduce((s, i) => s + i.quantity * i.price, 0), [items]);
   const filteredPartners = partners.filter((p: any) => kind === "outgoing" ? p.kind === "customer" : p.kind === "supplier");
   const editable = inv?.status !== "cancelled";
+  const { data: priceTypes = [] } = usePriceTypes(wsId);
+  const myPriceTypeId = useMyPriceTypeId(wsId);
+  const [priceTypeOverride, setPriceTypeOverride] = useState<string | null>(null);
+  const priceTypeId = priceTypeOverride ?? myPriceTypeId;
 
   const addItem = () => setItems([...items, { product_id: null, name: "", quantity: 1, price: 0, kind: "product" }]);
   const addItemAndPick = () => {
@@ -182,10 +187,19 @@ function InvoiceView() {
   };
   const updateItem = (idx: number, patch: Partial<Item>) => setItems(items.map((it, i) => i === idx ? { ...it, ...patch } : it));
   const removeItem = (idx: number) => setItems(items.filter((_, i) => i !== idx));
+  const applyPriceType = (v: string) => {
+    setPriceTypeOverride(v);
+    if (kind !== "outgoing") return;
+    setItems(items.map(it => {
+      const p: any = products.find((x: any) => x.id === it.product_id);
+      return p ? { ...it, price: priceOf(p, v) } : it;
+    }));
+  };
+
   const pickProduct = (idx: number, productId: string) => {
     const p: any = products.find((x: any) => x.id === productId);
     if (!p) return;
-    updateItem(idx, { product_id: p.id, name: p.name, price: kind === "outgoing" ? Number(p.price) : Number(p.cost), kind: (p.kind ?? "product") as "product" | "service" });
+    updateItem(idx, { product_id: p.id, name: p.name, price: kind === "outgoing" ? priceOf(p, priceTypeId) : Number(p.cost), kind: (p.kind ?? "product") as "product" | "service" });
   };
 
   const save = useMutation({
@@ -620,6 +634,16 @@ function InvoiceView() {
               </Select>
             </div>
             <div className="space-y-1">
+              <Label className="text-xs">Тип цены</Label>
+              <Select value={priceTypeId ?? "__none"} onValueChange={applyPriceType} disabled={!editable || kind !== "outgoing"}>
+                <SelectTrigger className="h-8"><SelectValue placeholder="Не задан" /></SelectTrigger>
+                <SelectContent>
+                  {priceTypes.length === 0 && <div className="px-2 py-1.5 text-sm text-muted-foreground">Нет типов цен — добавьте в Настройках</div>}
+                  {priceTypes.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
               <Label className="text-xs">Номер</Label>
               <Input className="h-8" value={number} onChange={e => setNumber(e.target.value)} disabled={!editable} />
             </div>
@@ -679,6 +703,7 @@ function InvoiceView() {
                   <ProductPicker
                     products={products as any}
                     kind={kind}
+                    priceTypeId={priceTypeId}
                     onAdd={(picked: PickedItem[]) => setItems([...items, ...picked])}
                   />
                 )}

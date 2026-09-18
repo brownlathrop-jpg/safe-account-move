@@ -15,6 +15,8 @@ CREATE TABLE IF NOT EXISTS app_users (
   created_at    timestamptz NOT NULL DEFAULT now()
 );
 CREATE UNIQUE INDEX IF NOT EXISTS app_users_email_key ON app_users (lower(email));
+-- личные настройки пользователя (например, тип цены по умолчанию)
+ALTER TABLE app_users ADD COLUMN IF NOT EXISTS prefs jsonb NOT NULL DEFAULT '{}'::jsonb;
 
 CREATE TABLE IF NOT EXISTS app_sessions (
   token      text PRIMARY KEY,

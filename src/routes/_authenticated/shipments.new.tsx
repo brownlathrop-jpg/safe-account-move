@@ -4,6 +4,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { db } from "@/integrations/db";
 import { useActiveWorkspaceId } from "@/lib/workspace";
+import { useMyPriceTypeId, priceOf } from "@/lib/price-types";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,6 +27,7 @@ type Row = { product_id: string | null; name: string; quantity: number; price: n
 function NewShipment() {
   const navigate = useNavigate();
   const wsId = useActiveWorkspaceId();
+  const myPriceTypeId = useMyPriceTypeId(wsId);
 
   const [kind, setKind] = useState<"outgoing" | "incoming">("outgoing");
   const [number, setNumber] = useState("");
@@ -39,7 +41,7 @@ function NewShipment() {
   const { data: products = [] } = useQuery({
     queryKey: ["products", wsId],
     enabled: !!wsId,
-    queryFn: async () => (await (db as any).from("products").select("id,name,price,cost,unit,kind").eq("workspace_id", wsId).order("name")).data ?? [],
+    queryFn: async () => (await (db as any).from("products").select("id,name,price,cost,unit,kind,prices").eq("workspace_id", wsId).order("name")).data ?? [],
   });
   const { data: partners = [] } = useQuery({
     queryKey: ["partners", wsId],
@@ -84,7 +86,7 @@ function NewShipment() {
     update(idx, {
       product_id: p.id,
       name: p.name,
-      price: kind === "outgoing" ? Number(p.price ?? 0) : Number(p.cost ?? 0),
+      price: kind === "outgoing" ? priceOf(p, myPriceTypeId) : Number(p.cost ?? 0),
       kind: (p.kind ?? "product") as "product" | "service",
     });
   };

@@ -19,6 +19,7 @@ import { useActiveWorkspaceId } from "@/lib/workspace";
 import { downloadCsv, type CsvColumn } from "@/lib/export-csv";
 import { printList } from "@/lib/print-list";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { usePriceTypes, useMyPriceTypeId, priceOf } from "@/lib/price-types";
 
 
 export const Route = createFileRoute("/_authenticated/products")({
@@ -41,6 +42,7 @@ type Product = {
   is_service?: boolean;
   vat_rate?: string | null;
   product_type_id?: string | null;
+  prices?: Record<string, number> | null;
 };
 
 type FolderRow = { id: string; name: string; parent_id: string | null };
@@ -146,6 +148,9 @@ function ProductsPage() {
     },
   });
 
+  const { data: priceTypes = [] } = usePriceTypes(wsId);
+  const myPriceTypeId = useMyPriceTypeId(wsId);
+
   const childrenOf = useMemo(() => {
     const map = new Map<string | null, FolderRow[]>();
     const ids = new Set(folders.map(f => f.id));
@@ -202,13 +207,22 @@ function ProductsPage() {
       const { data: { user } } = await db.auth.getUser();
       if (!user) throw new Error("Нет сессии");
       if (!wsId) throw new Error("Не выбрана база данных");
+      // Цены по типам; основная цена = цена типа «по умолчанию» (для совместимости).
+      const prices: Record<string, number> = {};
+      for (const t of priceTypes) {
+        const v = Number((p.prices ?? {})[t.id] ?? 0);
+        if (!Number.isNaN(v)) prices[t.id] = v;
+      }
+      const baseTypeId = priceTypes.find(t => t.is_default)?.id ?? null;
+      const basePrice = baseTypeId && prices[baseTypeId] != null ? prices[baseTypeId] : Number(p.price ?? 0);
       const payload = {
         user_id: user.id,
         workspace_id: wsId,
         sku: p.sku || null,
         name: p.name!,
         unit: p.unit || "шт",
-        price: Number(p.price ?? 0),
+        price: Number(basePrice ?? 0),
+        prices,
         cost: Number(p.cost ?? 0),
         stock: Number(p.stock ?? 0),
         description: p.description || null,
@@ -394,7 +408,7 @@ function ProductsPage() {
       { header: "Папка", value: p => (p.folder_id ? folderName.get(p.folder_id) ?? "" : "") },
       { header: "Вид", value: p => (p.kind === "service" ? "Услуга" : "Товар") },
       { header: "Ед.", value: p => p.unit },
-      { header: "Цена", value: p => Number(p.price || 0) },
+      { header: "Цена", value: p => priceOf(p, myPriceTypeId) },
       { header: "Себестоимость", value: p => Number(p.cost || 0) },
       { header: "Остаток", value: p => Number(p.stock || 0) },
       { header: "НДС", value: p => p.vat_rate ?? "" },
@@ -816,7 +830,7 @@ function ProductsPage() {
                   <TableCell className="font-medium">{p.name}</TableCell>
                   <TableCell>{p.unit}</TableCell>
                   <TableCell className="text-right">{fmt.format(Number(p.cost))}</TableCell>
-                  <TableCell className="text-right font-medium">{fmt.format(Number(p.price))}</TableCell>
+                  <TableCell className="text-right font-medium">{fmt.format(priceOf(p, myPriceTypeId))}</TableCell>
                   <TableCell className="text-right">{Number(p.stock)}</TableCell>
                   <TableCell className="text-right">
                     <Button size="icon" variant="ghost" onClick={() => openEdit(p)}><Pencil className="h-4 w-4" /></Button>
@@ -985,15 +999,42 @@ function ProductsPage() {
                   <Label>Себестоимость</Label>
                   <Input type="number" step="0.01" value={editing.cost ?? 0} onChange={e => setEditing({ ...editing, cost: Number(e.target.value) })} />
                 </div>
-                <div className="space-y-2">
-                  <Label>Цена продажи</Label>
-                  <Input type="number" step="0.01" value={editing.price ?? 0} onChange={e => setEditing({ ...editing, price: Number(e.target.value) })} />
-                </div>
+                {priceTypes.length === 0 && (
+                  <div className="space-y-2">
+                    <Label>Цена продажи</Label>
+                    <Input type="number" step="0.01" value={editing.price ?? 0} onChange={e => setEditing({ ...editing, price: Number(e.target.value) })} />
+                  </div>
+                )}
                 <div className="space-y-2">
                   <Label>Начальный остаток</Label>
                   <Input type="number" step="0.001" value={editing.stock ?? 0} onChange={e => setEditing({ ...editing, stock: Number(e.target.value) })} disabled={!!editing.id} />
                 </div>
               </div>
+              {priceTypes.length > 0 && (
+                <div className="space-y-2">
+                  <Label>Цены по типам</Label>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    {priceTypes.map(t => (
+                      <div key={t.id} className="space-y-1">
+                        <Label className="text-xs font-normal text-muted-foreground">
+                          {t.name}{t.is_default ? " (основной)" : ""}
+                        </Label>
+                        <Input
+                          type="number" step="0.01"
+                          value={(editing.prices ?? {})[t.id] ?? (t.is_default ? Number(editing.price ?? 0) : 0)}
+                          onChange={e => setEditing({
+                            ...editing,
+                            prices: { ...(editing.prices ?? {}), [t.id]: Number(e.target.value) },
+                          })}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Типы цен добавляются в Настройках → Справочники. В документы подставляется тип цены, выбранный пользователем.
+                  </p>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Вид номенклатуры</Label>

@@ -149,3 +149,23 @@ export const storageRemove = createServerFn({ method: "POST" })
       return { ok: false, error: { message: e?.message ?? String(e) } };
     }
   });
+
+export const userPrefsGet = createServerFn({ method: "POST" }).handler(async () => {
+  const { getUserPrefs } = await import("./auth.server");
+  try {
+    return { prefs: await getUserPrefs(), error: null };
+  } catch (e: any) {
+    return { prefs: {}, error: { message: e?.message ?? String(e) } };
+  }
+});
+
+export const userPrefsSet = createServerFn({ method: "POST" })
+  .inputValidator((input: { patch: Record<string, any> }) => input)
+  .handler(async ({ data }) => {
+    const { setUserPrefs } = await import("./auth.server");
+    try {
+      return { prefs: await setUserPrefs(data.patch ?? {}), error: null };
+    } catch (e: any) {
+      return { prefs: {}, error: { message: e?.message ?? String(e) } };
+    }
+  });
