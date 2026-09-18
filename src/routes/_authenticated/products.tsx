@@ -164,6 +164,7 @@ function ProductsPage() {
   const selectFolder = (id: string) => {
     selectedFolderRef.current = id;
     setSelectedFolder(id);
+    setPage(0);
   };
   const getSelectedRealFolderId = () => folderIds.has(selectedFolderRef.current) ? selectedFolderRef.current : null;
   const getNewFolderTarget = (): { parent_id: string | null; parentKind?: FolderKind } => {
@@ -591,7 +592,7 @@ function ProductsPage() {
           </div>
           <div className="p-3 border-b flex items-center gap-2">
             <Search className="h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Поиск по названию или артикулу" value={search} onChange={e => setSearch(e.target.value)} className="border-0 focus-visible:ring-0 shadow-none h-8" />
+            <Input placeholder="Поиск по названию или артикулу" value={search} onChange={e => { setSearch(e.target.value); setPage(0); }} className="border-0 focus-visible:ring-0 shadow-none h-8" />
           </div>
           {selectedIds.length > 0 && (
             <div className="p-3 border-b flex items-center gap-3 bg-muted/40 text-sm">
@@ -653,7 +654,7 @@ function ProductsPage() {
                   </TableCell>
                 </TableRow>
               ))}
-              {filtered.map(p => (
+              {pageItems.map(p => (
                 <TableRow
                   key={p.id}
                   data-state={selectedIds.includes(p.id) ? "selected" : undefined}
