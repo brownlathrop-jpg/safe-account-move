@@ -306,6 +306,7 @@ function ProductsPage() {
       qc.invalidateQueries({ queryKey: ["products"] });
       if (selectedFolder !== ALL && selectedFolder !== ROOT) setSelectedFolder(ALL);
       setDeleteFolder(null);
+      setSelectedFolderIds([]);
       toast.success("Папка и её содержимое удалены");
     },
     onError: (e: Error) => toast.error(e.message),
