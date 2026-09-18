@@ -111,6 +111,8 @@ export type KktFiscalResult = {
   total: number;
   operationId: string;
   paymentType: KktPaymentType;
+  /** Чек возврата продажи. */
+  isReturn?: boolean;
 };
 
 export type KktDeviceInfo = {
@@ -331,6 +333,7 @@ export async function printSellReceipt(s: KktSettings, input: KktReceiptInput): 
     datetime: doc.dateTime ?? new Date().toISOString(),
     total: (task as any).total,
     operationId: input.operationId,
+    isReturn: !!input.isReturn,
     paymentType: input.paymentType,
   };
 }
@@ -341,11 +344,31 @@ export async function printLastReceiptCopy(s: KktSettings) {
 }
 
 /** Ссылка на проверку чека в приложении ФНС. */
-export function fnsCheckUrl(f: { fiscalDocNumber?: number | null; fiscalSign?: string | null; total?: number; datetime?: string }) {
-  if (!f.fiscalDocNumber || !f.fiscalSign) return null;
+type FiscalLike = {
+  fiscalDocNumber?: number | null;
+  fiscalSign?: string | null;
+  fnNumber?: string | null;
+  total?: number;
+  datetime?: string;
+  isReturn?: boolean;
+};
+
+/**
+ * Строка фискального QR-кода по приказу ФНС (тег 1196):
+ * t=дата и время, s=сумма, fn=номер ФН, i=номер ФД, fp=фискальный признак,
+ * n=признак расчёта (1 — приход, 2 — возврат прихода).
+ */
+export function fnsQrPayload(f: FiscalLike): string | null {
+  if (!f.fiscalDocNumber || !f.fiscalSign || !f.fnNumber) return null;
   const dt = f.datetime ? new Date(f.datetime) : new Date();
   const p = (n: number) => String(n).padStart(2, "0");
   const t = `${dt.getFullYear()}${p(dt.getMonth() + 1)}${p(dt.getDate())}T${p(dt.getHours())}${p(dt.getMinutes())}`;
   const s = (Number(f.total) || 0).toFixed(2);
-  return `https://consumer.nalog.ru/check?t=${t}&s=${s}&fn=&i=${f.fiscalDocNumber}&fp=${f.fiscalSign}&n=1`;
+  return `t=${t}&s=${s}&fn=${f.fnNumber}&i=${f.fiscalDocNumber}&fp=${f.fiscalSign}&n=${f.isReturn ? 2 : 1}`;
+}
+
+/** Ссылка на проверку чека в сервисе ФНС. */
+export function fnsCheckUrl(f: FiscalLike) {
+  const qr = fnsQrPayload(f);
+  return qr ? `https://consumer.nalog.ru/check?${qr}` : null;
 }
