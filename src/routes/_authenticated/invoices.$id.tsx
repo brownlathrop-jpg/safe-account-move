@@ -1103,7 +1103,7 @@ function InvoiceView() {
           };
         });
         return (
-          <div className="invoice-print invoice-print-landscape hidden print:block bg-white text-black mx-auto" style={{ maxWidth: 1000 }}>
+          <div ref={landscapeRef} className="invoice-print invoice-print-landscape hidden print:block bg-white text-black mx-auto" style={{ maxWidth: 1000 }}>
             <PrintHeader org={myOrg as any} />
             {printMode === "torg12"
               ? <Torg12 supplier={supplierLine} buyer={buyerLine} number={cleanNumber} date={inv.issue_date} items={printItems} note={note} />
