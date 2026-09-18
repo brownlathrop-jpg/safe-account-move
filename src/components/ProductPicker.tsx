@@ -196,7 +196,7 @@ export function ProductPicker({
           <PackageSearch className="h-4 w-4 mr-1" /> Подбор товаров
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-4xl">
+      <DialogContent className="max-w-4xl w-[calc(100vw-2rem)] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle>Подбор товаров</DialogTitle>
         </DialogHeader>
@@ -215,7 +215,7 @@ export function ProductPicker({
 
         <div className="flex gap-2 items-start">
           {!searching && tree}
-          <div className="flex-1 max-h-[55vh] overflow-auto border rounded-md divide-y">
+          <div className="flex-1 min-w-0 max-h-[55vh] overflow-auto border rounded-md divide-y">
             {visible.length === 0 && (
               <div className="text-center text-muted-foreground py-8">
                 {searching ? "Ничего не найдено" : "В этой папке пусто"}
