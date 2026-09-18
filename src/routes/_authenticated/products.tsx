@@ -999,15 +999,42 @@ function ProductsPage() {
                   <Label>Себестоимость</Label>
                   <Input type="number" step="0.01" value={editing.cost ?? 0} onChange={e => setEditing({ ...editing, cost: Number(e.target.value) })} />
                 </div>
-                <div className="space-y-2">
-                  <Label>Цена продажи</Label>
-                  <Input type="number" step="0.01" value={editing.price ?? 0} onChange={e => setEditing({ ...editing, price: Number(e.target.value) })} />
-                </div>
+                {priceTypes.length === 0 && (
+                  <div className="space-y-2">
+                    <Label>Цена продажи</Label>
+                    <Input type="number" step="0.01" value={editing.price ?? 0} onChange={e => setEditing({ ...editing, price: Number(e.target.value) })} />
+                  </div>
+                )}
                 <div className="space-y-2">
                   <Label>Начальный остаток</Label>
                   <Input type="number" step="0.001" value={editing.stock ?? 0} onChange={e => setEditing({ ...editing, stock: Number(e.target.value) })} disabled={!!editing.id} />
                 </div>
               </div>
+              {priceTypes.length > 0 && (
+                <div className="space-y-2">
+                  <Label>Цены по типам</Label>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    {priceTypes.map(t => (
+                      <div key={t.id} className="space-y-1">
+                        <Label className="text-xs font-normal text-muted-foreground">
+                          {t.name}{t.is_default ? " (основной)" : ""}
+                        </Label>
+                        <Input
+                          type="number" step="0.01"
+                          value={(editing.prices ?? {})[t.id] ?? (t.is_default ? Number(editing.price ?? 0) : 0)}
+                          onChange={e => setEditing({
+                            ...editing,
+                            prices: { ...(editing.prices ?? {}), [t.id]: Number(e.target.value) },
+                          })}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Типы цен добавляются в Настройках → Справочники. В документы подставляется тип цены, выбранный пользователем.
+                  </p>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Вид номенклатуры</Label>
