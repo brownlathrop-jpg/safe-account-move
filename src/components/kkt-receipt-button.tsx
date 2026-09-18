@@ -45,6 +45,9 @@ export function KktReceiptButton({
   const [cashReceived, setCashReceived] = useState("");
   const [mergeServices, setMergeServices] = useState(false);
   const print = useKktPrintReceipt(settings, invoiceId);
+  const shift = useKktShift(settings, open);
+  const shiftAction = useKktShiftAction(settings);
+  const shiftOk = shift.data?.shiftState === "opened";
 
   if (!enabled) return null;
 
