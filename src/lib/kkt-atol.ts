@@ -235,16 +235,27 @@ export async function kktDeviceInfo(s: KktSettings): Promise<KktDeviceInfo> {
     throw e;
   });
   const shift: any = await runTask(s.url, { type: "queryShiftStatus" }, 15000).catch(() => null);
-  const st = String(shift?.shiftStatus?.state ?? shift?.state ?? "").toLowerCase();
+  const rawState = shift?.shiftStatus?.state ?? shift?.shift?.state ?? shift?.state;
+  const st = String(rawState ?? "").toLowerCase();
+  // Разные версии драйвера отдают состояние смены словом или числом (0/1/2).
+  const shiftState: KktDeviceInfo["shiftState"] =
+    st === "opened" || st === "open" || st === "1"
+      ? "opened"
+      : st === "closed" || st === "close" || st === "0"
+        ? "closed"
+        : st === "expired" || st === "2"
+          ? "expired"
+          : "unknown";
   return {
     model: info?.modelName ?? info?.model ?? "—",
     serial: info?.serialNumber ?? "—",
     fnNumber: info?.fnSerial ?? info?.fnNumber ?? "—",
     regNumber: info?.regNumber ?? info?.ecrRegistrationNumber ?? "—",
-    shiftState: st === "opened" ? "opened" : st === "closed" ? "closed" : st === "expired" ? "expired" : "unknown",
+    shiftState,
     shiftNumber: Number(shift?.shiftStatus?.number ?? shift?.number ?? 0) || null,
   };
 }
+
 
 export function positionAmount(p: KktPosition): number {
   return p.amount != null ? round2(p.amount) : round2((Number(p.price) || 0) * (Number(p.quantity) || 0));
