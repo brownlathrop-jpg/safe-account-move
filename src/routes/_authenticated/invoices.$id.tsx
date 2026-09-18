@@ -1015,6 +1015,8 @@ function InvoiceView() {
               <th className="border border-black px-2 py-1 text-center w-20">Ед. изм.</th>
               <th className="border border-black px-2 py-1 text-center w-20">Кол-во</th>
               <th className="border border-black px-2 py-1 text-center w-28">Цена</th>
+              {totalDiscount > 0 && <th className="border border-black px-2 py-1 text-center w-24">Скидка</th>}
+              {totalDiscount > 0 && <th className="border border-black px-2 py-1 text-center w-28">Сумма без скидки</th>}
               <th className="border border-black px-2 py-1 text-center w-32">Сумма</th>
             </tr>
           </thead>
@@ -1022,8 +1024,9 @@ function InvoiceView() {
             {(() => {
               const goods = items.filter(it => (it.kind ?? "product") === "product");
               const services = items.filter(it => it.kind === "service");
-              const goodsTotal = goods.reduce((s, i) => s + i.quantity * i.price, 0);
-              const servicesTotal = services.reduce((s, i) => s + i.quantity * i.price, 0);
+              const goodsTotal = goods.reduce((s, i) => s + lineNet(i), 0);
+              const servicesTotal = services.reduce((s, i) => s + lineNet(i), 0);
+              const cols = totalDiscount > 0 ? 8 : 6;
               const hasBoth = goods.length > 0 && services.length > 0;
               let n = 0;
               const renderRow = (it: Item, i: number) => {
@@ -1036,7 +1039,15 @@ function InvoiceView() {
                     <td className="border border-black px-2 py-1 text-center">{p?.unit || (it.kind === "service" ? "усл" : "шт")}</td>
                     <td className="border border-black px-2 py-1 text-right">{it.quantity}</td>
                     <td className="border border-black px-2 py-1 text-right">{nfmt.format(it.price)}</td>
-                    <td className="border border-black px-2 py-1 text-right">{nfmt.format(it.quantity * it.price)}</td>
+                    {totalDiscount > 0 && (
+                      <td className="border border-black px-2 py-1 text-right">
+                        {lineDiscount(it) > 0 ? nfmt.format(lineDiscount(it)) : "—"}
+                      </td>
+                    )}
+                    {totalDiscount > 0 && (
+                      <td className="border border-black px-2 py-1 text-right">{nfmt.format(lineGross(it))}</td>
+                    )}
+                    <td className="border border-black px-2 py-1 text-right">{nfmt.format(lineNet(it))}</td>
                   </tr>
                 );
               };
@@ -1044,33 +1055,41 @@ function InvoiceView() {
                 <>
                   {hasBoth && (
                     <tr>
-                      <td colSpan={6} className="px-2 py-1 font-bold uppercase">Товары</td>
+                      <td colSpan={cols} className="px-2 py-1 font-bold uppercase">Товары</td>
                     </tr>
                   )}
                   {goods.map(renderRow)}
                   {hasBoth && goods.length > 0 && (
                     <tr>
-                      <td colSpan={5} className="px-2 py-1 text-right font-bold">Итого по товарам:</td>
+                      <td colSpan={cols - 1} className="px-2 py-1 text-right font-bold">Итого по товарам:</td>
                       <td className="border border-black px-2 py-1 text-right font-bold">{nfmt.format(goodsTotal)}</td>
                     </tr>
                   )}
                   {hasBoth && (
                     <tr>
-                      <td colSpan={6} className="px-2 py-1 font-bold uppercase">Услуги</td>
+                      <td colSpan={cols} className="px-2 py-1 font-bold uppercase">Услуги</td>
                     </tr>
                   )}
                   {services.map(renderRow)}
                   {hasBoth && services.length > 0 && (
                     <tr>
-                      <td colSpan={5} className="px-2 py-1 text-right font-bold">Итого по услугам:</td>
+                      <td colSpan={cols - 1} className="px-2 py-1 text-right font-bold">Итого по услугам:</td>
                       <td className="border border-black px-2 py-1 text-right font-bold">{nfmt.format(servicesTotal)}</td>
                     </tr>
                   )}
-                  <tr><td colSpan={5} className="px-2 py-1 text-right font-bold">Итого:</td>
+                  {totalDiscount > 0 && (
+                    <>
+                      <tr><td colSpan={cols - 1} className="px-2 py-1 text-right font-bold">Сумма без скидки:</td>
+                        <td className="border border-black px-2 py-1 text-right">{nfmt.format(totalGross)}</td></tr>
+                      <tr><td colSpan={cols - 1} className="px-2 py-1 text-right font-bold">Скидка:</td>
+                        <td className="border border-black px-2 py-1 text-right">−{nfmt.format(totalDiscount)}</td></tr>
+                    </>
+                  )}
+                  <tr><td colSpan={cols - 1} className="px-2 py-1 text-right font-bold">Итого:</td>
                     <td className="border border-black px-2 py-1 text-right font-bold">{nfmt.format(total)}</td></tr>
-                  <tr><td colSpan={5} className="px-2 py-1 text-right font-bold">Без налога (НДС):</td>
+                  <tr><td colSpan={cols - 1} className="px-2 py-1 text-right font-bold">Без налога (НДС):</td>
                     <td className="border border-black px-2 py-1 text-right">---</td></tr>
-                  <tr><td colSpan={5} className="px-2 py-1 text-right font-bold">Всего к оплате:</td>
+                  <tr><td colSpan={cols - 1} className="px-2 py-1 text-right font-bold">Всего к оплате:</td>
                     <td className="border border-black px-2 py-1 text-right font-bold">{nfmt.format(total)}</td></tr>
                 </>
               );
@@ -1095,7 +1114,7 @@ function InvoiceView() {
             name: it.name,
             unit: p?.unit || (it.kind === "service" ? "усл" : "шт"),
             quantity: it.quantity,
-            price: it.price,
+            price: it.quantity ? Math.round((netSum(it.quantity, it.price, it.discount_kind, it.discount_value) / it.quantity) * 100) / 100 : it.price,
           };
         });
         return (
