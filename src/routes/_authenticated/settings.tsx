@@ -15,13 +15,21 @@ import { Save, Search, Loader2, Plus, Trash2, Database, Check, Pencil } from "lu
 import { lookupOrgByInn, lookupBankByBik } from "@/lib/dadata.functions";
 import { useActiveWorkspaceId, activeWorkspace } from "@/lib/workspace";
 import { WarehousesRef, ProductTypesRef, PriceTypesRef, MyPriceTypeRef, CashflowItemsRef, BanksRef, DiscountsRef } from "@/components/settings-simple-refs";
-import { BankAccountsEditor } from "@/components/bank-accounts-editor";
 import { Import1CPanel } from "@/components/import-1c-panel";
 import { PriceImportPanel } from "@/components/price-import-panel";
 import { KktSettingsPanel } from "@/components/kkt-settings-panel";
 
 export const Route = createFileRoute("/_authenticated/settings")({
-  head: () => ({ meta: [{ title: "Настройки — КабинетCRM" }] }),
+  head: () => ({
+    meta: [
+      { title: "Настройки — КабинетCRM" },
+      { name: "description", content: "Настройки организации, справочников и кассы в КабинетCRM." },
+      { property: "og:title", content: "Настройки — КабинетCRM" },
+      { property: "og:description", content: "Настройки организации, справочников и кассы в КабинетCRM." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+    ],
+  }),
   validateSearch: (s: Record<string, unknown>) => ({ tab: typeof s.tab === "string" ? s.tab : undefined }),
   component: SettingsPage,
 });
@@ -213,12 +221,6 @@ function SettingsPage() {
             <div className="space-y-1 md:col-span-2"><Label>Расчётный счёт</Label><Input className="h-8" value={form.bank_account} onChange={e => upd("bank_account", e.target.value)} /></div>
           </div>
         </div>
-
-        {form.id && (
-          <div className="border-t pt-3">
-            <BankAccountsEditor ownerType="organization" ownerId={form.id} />
-          </div>
-        )}
 
         <div>
           <h2 className="font-medium text-xs uppercase tracking-wide text-muted-foreground mb-2">Ответственные лица</h2>
