@@ -167,12 +167,12 @@ function ProductsPage() {
     setEditing({ ...editing, ...patch });
   };
   useEffect(() => {
-    if (editing && activePriceType == null && priceTypes.length) {
+    if (open && editing && activePriceType == null && priceTypes.length) {
       const id = priceTypes.find((t) => t.is_default)?.id ?? priceTypes[0].id;
       setActivePriceType(id);
       setActivePriceInput(getTypePrice(id));
     }
-  }, [editing, priceTypes, activePriceType]);
+  }, [open, editing, activePriceType, priceTypes]);
 
   const childrenOf = useMemo(() => {
     const map = new Map<string | null, FolderRow[]>();
