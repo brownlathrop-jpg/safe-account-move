@@ -340,9 +340,9 @@ function ProductsPage() {
   const safePage = Math.min(page, pageCount - 1);
   const pageItems = filtered.slice(safePage * PAGE_SIZE, safePage * PAGE_SIZE + PAGE_SIZE);
 
-  const exportCsv = () => {
+  const listColumns = (): CsvColumn<Product>[] => {
     const folderName = new Map((folders as FolderRow[]).map(f => [f.id, f.name]));
-    downloadCsv("товары", filtered, [
+    return [
       { header: "Артикул", value: p => p.sku },
       { header: "Название", value: p => p.name },
       { header: "Папка", value: p => (p.folder_id ? folderName.get(p.folder_id) ?? "" : "") },
