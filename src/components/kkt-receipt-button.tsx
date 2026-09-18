@@ -134,14 +134,38 @@ export function KktReceiptButton({
                   <p className="text-destructive">{(shift.error as Error).message}</p>
                   <Button variant="outline" size="sm" onClick={() => shift.refetch()}>Проверить снова</Button>
                 </>
-              ) : shiftOk ? (
+              ) : shiftState === "opened" ? (
                 <p className="text-muted-foreground">
                   Касса {shift.data?.model} · смена {shift.data?.shiftNumber ?? "—"} открыта — можно пробивать чек.
                 </p>
+              ) : shiftState === "unknown" ? (
+                <>
+                  <p className="text-muted-foreground">
+                    Касса {shift.data?.model} на связи, но состояние смены она не сообщила. Можно пробивать чек — если
+                    смена закрыта, касса откроет её сама.
+                  </p>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={() => shift.refetch()}>Проверить снова</Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={shiftAction.isPending}
+                      onClick={() =>
+                        shiftAction.mutate("open", {
+                          onSuccess: () => toast.success("Смена открыта"),
+                          onError: (e: Error) => toast.error(e.message),
+                        })
+                      }
+                    >
+                      {shiftAction.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+                      Открыть смену
+                    </Button>
+                  </div>
+                </>
               ) : (
                 <>
                   <p className="font-medium">
-                    {shift.data?.shiftState === "expired"
+                    {shiftState === "expired"
                       ? "Смена открыта больше 24 часов — по закону чек пробить нельзя. Нужно закрыть смену и открыть новую."
                       : "Смена на кассе закрыта — чек пробить нельзя. Откройте смену."}
                   </p>
@@ -149,17 +173,18 @@ export function KktReceiptButton({
                     size="sm"
                     disabled={shiftAction.isPending}
                     onClick={() =>
-                      shiftAction.mutate(shift.data?.shiftState === "expired" ? "reopen" : "open", {
+                      shiftAction.mutate(shiftState === "expired" ? "reopen" : "open", {
                         onSuccess: () => toast.success("Смена открыта"),
                         onError: (e: Error) => toast.error(e.message),
                       })
                     }
                   >
                     {shiftAction.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
-                    {shift.data?.shiftState === "expired" ? "Закрыть смену и открыть новую" : "Открыть смену"}
+                    {shiftState === "expired" ? "Закрыть смену и открыть новую" : "Открыть смену"}
                   </Button>
                 </>
               )}
+
             </div>
             <div className="flex items-center justify-between rounded-md border p-3">
               <span className="text-muted-foreground">Сумма чека</span>
