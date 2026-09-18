@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+// Кнопки «Excel» и «Печать» выгружают весь отфильтрованный список, не только текущую страницу.
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useRef, useState, type DragEvent } from "react";
 import { toast } from "sonner";
@@ -544,6 +545,9 @@ function ProductsPage() {
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" onClick={exportCsv} disabled={!filtered.length} title="Выгрузить в Excel">
             <Download className="h-4 w-4 mr-1" /> Excel
+          </Button>
+          <Button variant="outline" onClick={printProducts} disabled={!filtered.length} title="Печать списка / сохранить в PDF">
+            <Printer className="h-4 w-4 mr-1" /> Печать
           </Button>
           <Button variant="outline" onClick={() => {
             const target = getNewFolderTarget();
