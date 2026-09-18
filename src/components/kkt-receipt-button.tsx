@@ -89,9 +89,12 @@ export function KktReceiptButton({
 
   return (
     <>
-      <Button variant="outline" onClick={() => setOpen(true)}>
-        <Receipt className="h-4 w-4 mr-1" /> Пробить чек
-      </Button>
+      <div className="flex items-center gap-2">
+        <Badge variant="outline" className="text-muted-foreground">Чек не пробит</Badge>
+        <Button variant="outline" onClick={() => setOpen(true)}>
+          <Receipt className="h-4 w-4 mr-1" /> Пробить чек
+        </Button>
+      </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
