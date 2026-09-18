@@ -124,6 +124,14 @@ export type KktDeviceInfo = {
   regNumber: string;
   shiftState: "opened" | "closed" | "expired" | "unknown";
   shiftNumber: number | null;
+  /** Системы налогообложения, зарегистрированные в кассе (из отчёта о регистрации). */
+  taxSystems: string[];
+  /** Рекомендуемая СНО для подстановки в настройки (первая из зарегистрированных). */
+  suggestedSno: KktSno | null;
+  /** Рекомендуемая ставка НДС (20% при ОСН, иначе «без НДС»). */
+  suggestedVat: KktVat | null;
+  /** ИНН организации из регистрации кассы. */
+  orgVatin: string | null;
 };
 
 /** Ошибка кассы с понятным для продавца текстом. */
@@ -301,6 +309,22 @@ function deepFind(obj: any, keys: string[], depth = 0): string | null {
   return null;
 }
 
+/** То же, но для массива строк — так касса отдаёт список систем налогообложения. */
+function deepFindArray(obj: any, keys: string[], depth = 0): string[] | null {
+  if (!obj || typeof obj !== "object" || depth > 5) return null;
+  for (const k of keys) {
+    const v = (obj as any)[k];
+    if (Array.isArray(v) && v.length && v.every((x) => typeof x === "string")) return v as string[];
+  }
+  for (const v of Object.values(obj)) {
+    const found = deepFindArray(v, keys, depth + 1);
+    if (found) return found;
+  }
+  return null;
+}
+
+const SNO_VALUES: KktSno[] = ["osn", "usnIncome", "usnIncomeOutcome", "esn", "patent"];
+
 /** Модель кассы, номер ФН и состояние смены — для кнопки «Проверить связь». */
 export async function kktDeviceInfo(s: KktSettings): Promise<KktDeviceInfo> {
   const info: any = await runTask(s.url, { type: "getDeviceInfo" }, 15000).catch(async (e) => {
@@ -320,6 +344,18 @@ export async function kktDeviceInfo(s: KktSettings): Promise<KktDeviceInfo> {
     }
     return null;
   };
+  const findArr = (keys: string[]) => {
+    for (const src of all) {
+      const v = deepFindArray(src, keys);
+      if (v) return v;
+    }
+    return null;
+  };
+  const taxSystems = findArr(["taxationTypes", "taxSystems", "snoList"]) ?? [];
+  const suggestedSno = (taxSystems.find((t) => SNO_VALUES.includes(t as KktSno)) as KktSno | undefined) ?? null;
+  // При ОСН почти всегда НДС 20%; при спецрежимах — «без НДС» (у плательщика УСН с НДС
+  // ставку всё равно надо выбрать вручную, касса её не сообщает).
+  const suggestedVat: KktVat | null = suggestedSno ? (suggestedSno === "osn" ? "vat20" : "none") : null;
   return {
     model: find(["modelName", "model", "deviceName", "modelDescription"]) ?? "—",
     serial: find(["serialNumber", "serial", "deviceSerial", "ecrSerial"]) ?? "—",
@@ -327,6 +363,10 @@ export async function kktDeviceInfo(s: KktSettings): Promise<KktDeviceInfo> {
     regNumber: find(["regNumber", "ecrRegistrationNumber", "registrationNumber", "rnm"]) ?? "—",
     shiftState: parseShiftState(shift),
     shiftNumber: Number(find(["shiftNumber"]) ?? shift?.shiftStatus?.number ?? shift?.number ?? 0) || null,
+    taxSystems,
+    suggestedSno,
+    suggestedVat,
+    orgVatin: find(["vatin", "orgVatin", "inn", "orgInn"]),
   };
 }
 
