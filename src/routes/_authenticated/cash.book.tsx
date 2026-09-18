@@ -181,10 +181,6 @@ function CashBookPage() {
               book,
               {
                 name: org?.name ?? "",
-                print_name: org?.print_name ?? "",
-                logo_url: org?.logo_url ?? null,
-                inn: org?.inn ?? "",
-                phone: org?.phone ?? "",
                 okpo: org?.okpo ?? "",
                 director_name: org?.director_name ?? "",
                 accountant_name: org?.accountant_name ?? "",

@@ -1,4 +1,4 @@
-import { type PrintBrand, printHeaderHtml } from "./print-header";
+import type { PrintBrand } from "./print-header";
 // КУДиР — книга учёта доходов и расходов при УСН.
 // Форма и порядок заполнения: приказ ФНС России от 07.11.2023 № ЕА-7-3/816@.
 // Раздел I заполняется в хронологическом порядке по первичным документам,
@@ -178,7 +178,6 @@ export function printKudir(
   .signs { margin-top: 14px; line-height: 2; }
   @media print { body { margin: 10mm; } }
 </style></head><body>
-  ${printHeaderHtml(org)}
   <div class="top">Форма по КНД 1152017 · приказ ФНС России от 07.11.2023 № ЕА-7-3/816@</div>
   <h1>КНИГА УЧЁТА ДОХОДОВ И РАСХОДОВ</h1>
   <div class="meta">организаций и индивидуальных предпринимателей, применяющих упрощённую систему налогообложения, на ${book.year} год</div>
