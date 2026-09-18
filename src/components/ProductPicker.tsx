@@ -4,20 +4,23 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Check, Minus, PackageSearch, Plus, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { priceOf } from "@/lib/price-types";
 
-export type PickerProduct = { id: string; name: string; price: number; cost: number; unit?: string; stock?: number; kind?: "product" | "service" };
+export type PickerProduct = { id: string; name: string; price: number; cost: number; unit?: string; stock?: number; kind?: "product" | "service"; prices?: Record<string, number> | null };
 export type PickedItem = { product_id: string; name: string; quantity: number; price: number; kind: "product" | "service" };
 
 const fmt = new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB" });
 
 export function ProductPicker({
-  products, kind, onAdd, disabled,
+  products, kind, onAdd, disabled, priceTypeId,
 }: {
   products: PickerProduct[];
   kind: "outgoing" | "incoming";
   onAdd: (items: PickedItem[]) => void;
   disabled?: boolean;
+  priceTypeId?: string | null;
 }) {
+  const priceFor = (p: PickerProduct) => (kind === "outgoing" ? priceOf(p, priceTypeId) : Number(p.cost ?? 0));
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [picked, setPicked] = useState<Record<string, number>>({});
@@ -65,7 +68,7 @@ export function ProductPicker({
       const p = products.find(x => x.id === pid)!;
       return {
         product_id: p.id, name: p.name, quantity: qty,
-        price: kind === "outgoing" ? Number(p.price) : Number(p.cost),
+        price: priceFor(p),
         kind: (p.kind ?? "product") as "product" | "service",
       };
     });
@@ -77,7 +80,7 @@ export function ProductPicker({
   const total = Object.entries(picked).reduce((s, [pid, qty]) => {
     const p = products.find(x => x.id === pid);
     if (!p) return s;
-    return s + qty * Number(kind === "outgoing" ? p.price : p.cost);
+    return s + qty * priceFor(p);
   }, 0);
 
   const onSearchKey = (e: React.KeyboardEvent) => {
@@ -118,7 +121,7 @@ export function ProductPicker({
           {filtered.map(p => {
             const qty = picked[p.id];
             const isPicked = qty !== undefined;
-            const price = Number(kind === "outgoing" ? p.price : p.cost);
+            const price = priceFor(p);
             return (
               <div
                 key={p.id}

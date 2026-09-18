@@ -64,7 +64,7 @@ function InvoiceView() {
   const { data: products = [] } = useQuery({
     queryKey: ["products", wsId],
     enabled: !!wsId,
-    queryFn: async () => (await (db as any).from("products").select("id,name,price,cost,unit,kind").eq("workspace_id", wsId).order("name")).data ?? [],
+    queryFn: async () => (await (db as any).from("products").select("id,name,price,cost,unit,kind,prices").eq("workspace_id", wsId).order("name")).data ?? [],
   });
   const { data: partners = [] } = useQuery({
     queryKey: ["partners", wsId],
@@ -185,7 +185,7 @@ function InvoiceView() {
   const pickProduct = (idx: number, productId: string) => {
     const p: any = products.find((x: any) => x.id === productId);
     if (!p) return;
-    updateItem(idx, { product_id: p.id, name: p.name, price: kind === "outgoing" ? Number(p.price) : Number(p.cost), kind: (p.kind ?? "product") as "product" | "service" });
+    updateItem(idx, { product_id: p.id, name: p.name, price: kind === "outgoing" ? priceOf(p, priceTypeId) : Number(p.cost), kind: (p.kind ?? "product") as "product" | "service" });
   };
 
   const save = useMutation({

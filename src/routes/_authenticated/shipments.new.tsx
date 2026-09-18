@@ -39,7 +39,7 @@ function NewShipment() {
   const { data: products = [] } = useQuery({
     queryKey: ["products", wsId],
     enabled: !!wsId,
-    queryFn: async () => (await (db as any).from("products").select("id,name,price,cost,unit,kind").eq("workspace_id", wsId).order("name")).data ?? [],
+    queryFn: async () => (await (db as any).from("products").select("id,name,price,cost,unit,kind,prices").eq("workspace_id", wsId).order("name")).data ?? [],
   });
   const { data: partners = [] } = useQuery({
     queryKey: ["partners", wsId],
