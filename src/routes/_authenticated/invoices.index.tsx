@@ -131,7 +131,12 @@ function InvoicesPage() {
               const ships = (i.children ?? []).filter((c: any) => c.doc_type === "shipment").length;
               const pkos = (i.children ?? []).filter((c: any) => c.doc_type === "cash_receipt").length;
               return (
-                <TableRow key={i.id} className="cursor-pointer hover:bg-muted/40">
+                <TableRow
+                  key={i.id}
+                  className="cursor-pointer hover:bg-muted/40"
+                  title="Открыть заявку"
+                  onClick={() => navigate({ to: "/invoices/$id", params: { id: i.id } })}
+                >
                   <TableCell><Link to="/invoices/$id" params={{ id: i.id }} className="font-medium text-primary hover:underline">{i.number}</Link></TableCell>
                   <TableCell>{dfmt.format(new Date(i.issue_date))}</TableCell>
                   <TableCell>
@@ -152,8 +157,12 @@ function InvoicesPage() {
                   </TableCell>
                   <TableCell>
                     <div className="flex gap-3 text-xs text-muted-foreground">
-                      <span className="inline-flex items-center gap-1"><Truck className="h-3.5 w-3.5" /> {ships}</span>
-                      <span className="inline-flex items-center gap-1"><Receipt className="h-3.5 w-3.5" /> {pkos}</span>
+                      <span className="inline-flex items-center gap-1" title={`Накладных по этой заявке: ${ships}`}>
+                        <Truck className="h-3.5 w-3.5" /> {ships}
+                      </span>
+                      <span className="inline-flex items-center gap-1" title={`Кассовых документов (ПКО/РКО): ${pkos}`}>
+                        <span className="text-sm leading-none">₽</span> {pkos}
+                      </span>
                     </div>
                   </TableCell>
                   <TableCell className="text-right font-medium">{fmt.format(Number(i.total))}</TableCell>

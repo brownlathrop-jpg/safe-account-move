@@ -166,7 +166,12 @@ function ShipmentsPage() {
               </TableCell></TableRow>
             )}
             {filtered.map(i => (
-              <TableRow key={i.id} className="hover:bg-muted/40">
+              <TableRow
+                key={i.id}
+                className="cursor-pointer hover:bg-muted/40"
+                title="Открыть накладную"
+                onClick={() => navigate({ to: "/invoices/$id", params: { id: i.id } })}
+              >
                 <TableCell>
                   <Link to="/invoices/$id" params={{ id: i.id }} className="font-medium text-primary hover:underline">{i.number}</Link>
                 </TableCell>
