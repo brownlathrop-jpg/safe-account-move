@@ -241,6 +241,9 @@ async function runTaskInner(url: string, task: Record<string, unknown>, timeoutM
     body: JSON.stringify({ uuid, request: [task] }),
   });
   let state = first;
+  // Частый опрос в начале (большинство заданий готовы за десятки миллисекунд),
+  // затем интервал плавно растёт — чтобы не грузить драйвер при долгой печати.
+  let delay = 60;
   while (Date.now() - started < timeoutMs) {
     const p = pickResult(state, uuid);
     if (p.done) {
@@ -249,7 +252,8 @@ async function runTaskInner(url: string, task: Record<string, unknown>, timeoutM
       }
       return p.result ?? {};
     }
-    await sleep(400);
+    await sleep(delay);
+    delay = Math.min(Math.round(delay * 1.5), 500);
     state = await driverFetch(url, `/requests/${uuid}`);
   }
   throw new KktError(
