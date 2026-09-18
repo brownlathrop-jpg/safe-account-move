@@ -125,10 +125,51 @@ function InvoiceView() {
   const [cashBasis, setCashBasis] = useState<string>("");
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "card">("card");
 
+  // Автоподгонка ТОРГ-12 / УПД под один лист A4 (альбомная)
+  const landscapeRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const fit = () => {
+      const el = landscapeRef.current;
+      if (!el) return;
+      // печатная область A4 landscape при поле 10 мм ≈ 1047 x 718 px (96 dpi)
+      const PAGE_W = 1047, PAGE_H = 718;
+      const prev = { display: el.style.display, position: el.style.position, left: el.style.left, width: el.style.width, transform: el.style.transform };
+      el.style.transform = "none";
+      el.style.display = "block";
+      el.style.position = "absolute";
+      el.style.left = "-20000px";
+      el.style.width = `${PAGE_W}px`;
+      const h = el.scrollHeight;
+      el.style.display = prev.display;
+      el.style.position = prev.position;
+      el.style.left = prev.left;
+      const scale = h > 0 ? Math.min(1, PAGE_H / h) : 1;
+      if (scale < 1) {
+        el.style.width = `${100 / scale}%`;
+        el.style.transformOrigin = "top left";
+        el.style.transform = `scale(${scale})`;
+      } else {
+        el.style.width = prev.width;
+        el.style.transform = "none";
+      }
+    };
+    const after = () => {
+      const el = landscapeRef.current;
+      if (el) { el.style.transform = "none"; el.style.width = ""; }
+    };
+    window.addEventListener("beforeprint", fit);
+    window.addEventListener("afterprint", after);
+    return () => {
+      window.removeEventListener("beforeprint", fit);
+      window.removeEventListener("afterprint", after);
+    };
+  }, []);
+
   const doPrint = (mode: PrintMode) => {
     setPrintMode(mode);
     setTimeout(() => window.print(), 50);
   };
+
 
 
   useEffect(() => {
