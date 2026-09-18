@@ -37,13 +37,26 @@ export function KktReceiptButton({
   const [open, setOpen] = useState(false);
   const [paymentType, setPaymentType] = useState<KktPaymentType>("cash");
   const [contact, setContact] = useState("");
+  const [mergeServices, setMergeServices] = useState(false);
   const print = useKktPrintReceipt(settings, invoiceId);
 
   if (!enabled) return null;
 
-  const positions: KktPosition[] = items.map((i) => ({
+  const allPositions: KktPosition[] = items.map((i) => ({
     name: i.name, quantity: Number(i.quantity) || 0, price: Number(i.price) || 0, unit: i.unit,
+    kind: i.kind ?? "product",
   }));
+  const hasServices = allPositions.some((p) => p.kind === "service" && p.quantity > 0);
+  let positions = allPositions;
+  let mergeError = "";
+  if (mergeServices && hasServices) {
+    try {
+      positions = mergeServicesIntoGoods(allPositions);
+    } catch (e) {
+      mergeError = (e as Error).message;
+      positions = allPositions;
+    }
+  }
   const total = receiptTotal(positions);
 
   if (fiscal?.receiptNumber || fiscal?.fiscalDocNumber) {
