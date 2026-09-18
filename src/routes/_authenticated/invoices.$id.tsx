@@ -618,7 +618,7 @@ function InvoiceView() {
         {inv.parent_id && (
           <p className="text-sm text-muted-foreground mt-1">
             На основании{" "}
-            {parent?.doc_type === "order" ? "заявки" : parent?.doc_type === "shipment" ? "накладной" : "документа"}
+            {docTitleOf(parent?.doc_type, parent?.kind).toLowerCase()}
             {" — "}
             <Link to="/invoices/$id" params={{ id: inv.parent_id }} className="text-primary hover:underline">
               {parent?.number ? `№ ${parent.number}` : "открыть"}
@@ -628,58 +628,33 @@ function InvoiceView() {
         )}
       </div>
 
-      {/* Связанные документы: для заявки — с кнопками создания, для остальных — просто список */}
-      {(isOrder || children.length > 0) && (
-        <Card className="p-5 print:hidden">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-medium">Связанные документы</h3>
-            {isOrder && <div className="flex gap-2">
-              <Button size="sm" variant="outline" onClick={() => createShipment.mutate()} disabled={createShipment.isPending || items.length === 0}>
-                <Plus className="h-4 w-4 mr-1" /> Накладная
-              </Button>
+      {/* Иерархия документов: заявка → накладная/поступление → ПКО/РКО */}
+      <DocTreeCard
+        docId={id}
+        hint={
+          isOrder
+            ? (kind === "incoming"
+                ? "Создайте на основании заявки поступление товара — по его ценам считается себестоимость — и РКО на оплату поставщику."
+                : "Создайте на основании заявки расходную накладную для списания остатков и ПКО на оплату.")
+            : isShipment
+              ? "Создайте на основании этого документа кассовый ордер на оплату."
+              : "Связанных документов пока нет."
+        }
+        actions={
+          (isOrder || isShipment) && inv.status !== "cancelled" ? (
+            <div className="flex flex-wrap gap-2">
+              {isOrder && (
+                <Button size="sm" variant="outline" onClick={() => createShipment.mutate()} disabled={createShipment.isPending || items.length === 0}>
+                  <Plus className="h-4 w-4 mr-1" /> {kind === "incoming" ? "Поступление товара" : "Расходная накладная"}
+                </Button>
+              )}
               <Button size="sm" variant="outline" onClick={() => createReceipt.mutate()} disabled={createReceipt.isPending}>
-                <Plus className="h-4 w-4 mr-1" /> ПКО
+                <Plus className="h-4 w-4 mr-1" /> {kind === "incoming" ? "РКО (оплата поставщику)" : "ПКО (оплата от покупателя)"}
               </Button>
-            </div>}
-          </div>
-          {children.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Создайте накладную для списания остатков или ПКО для квитанции об оплате.
-            </p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Документ</TableHead>
-                  <TableHead>№</TableHead>
-                  <TableHead>Дата</TableHead>
-                  <TableHead>Статус</TableHead>
-                  <TableHead className="text-right">Сумма</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {children.map(c => (
-                  <TableRow key={c.id}>
-                    <TableCell>{c.doc_type === "shipment" ? "Накладная" : c.doc_type === "order" ? "Заявка" : "ПКО/РКО"}</TableCell>
-                    <TableCell>
-                      <Link to="/invoices/$id" params={{ id: c.id }} className="text-primary hover:underline">{c.number}</Link>
-                    </TableCell>
-                    <TableCell>{dfmt.format(new Date(c.issue_date))}</TableCell>
-                    <TableCell className="text-sm">
-                      {c.doc_type === "shipment"
-                        ? (c.status === "posted" ? "Проведена" : c.status === "cancelled" ? "Отменена" : "Черновик")
-                        : "—"}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {fmt.format(Number(c.doc_type === "cash_receipt" ? (c.cash_received ?? 0) : c.total))}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </Card>
-      )}
+            </div>
+          ) : null
+        }
+      />
 
 
       {/* Оплаты по документу */}
