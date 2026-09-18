@@ -2,17 +2,24 @@
 // или «только с чеками», печать по форме приказа ФНС № ЕА-7-3/816@.
 import { createFileRoute } from "@tanstack/react-router";
 import { Fragment, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { db } from "@/integrations/db";
 import { useActiveWorkspaceId } from "@/lib/workspace";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { BookText, Download, Printer, Receipt } from "lucide-react";
+import { BookText, Download, Plus, Printer, Receipt, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { downloadCsv } from "@/lib/export-csv";
-import { buildKudir, filterKudirByMode, printKudir, type KudirMode, type KudirRow } from "@/lib/kudir";
+import {
+  buildContribBook, buildKudir, filterKudirByMode, printKudir,
+  CONTRIB_KINDS, CONTRIB_LABEL,
+  type KudirContrib, type KudirContribKind, type KudirMode, type KudirRow,
+} from "@/lib/kudir";
+
 
 export const Route = createFileRoute("/_authenticated/cash/kudir")({
   head: () => ({
