@@ -793,12 +793,12 @@ function InvoiceView() {
                       ) : (it.name)}
                     </TableCell>
                     <TableCell>
-                      <Input type="number" step="1" inputMode="decimal" className="xls-cell text-right" value={it.quantity}
-                        onChange={e => updateItem(idx, { quantity: Number(e.target.value) })} disabled={!editable} />
+                      <NumCell grid="inv" row={idx} col={0} step="0.001" className="xls-cell" value={it.quantity}
+                        onCommit={(v) => updateItem(idx, { quantity: v })} disabled={!editable} />
                     </TableCell>
                     <TableCell>
-                      <Input type="number" step="0.01" className="xls-cell text-right" value={it.price}
-                        onChange={e => updateItem(idx, { price: Number(e.target.value) })} disabled={!editable} />
+                      <NumCell grid="inv" row={idx} col={1} step="0.01" className="xls-cell" value={it.price}
+                        onCommit={(v) => updateItem(idx, { price: v })} disabled={!editable} />
                     </TableCell>
                     <TableCell className="text-right font-medium">{fmt.format(it.quantity * it.price)}</TableCell>
                     <TableCell>
