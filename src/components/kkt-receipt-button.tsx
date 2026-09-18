@@ -10,13 +10,20 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Receipt, Loader2, Copy } from "lucide-react";
 import { useKktPrintReceipt, useKktSettings } from "@/hooks/use-kkt";
-import { fnsCheckUrl, printLastReceiptCopy, receiptTotal, type KktPaymentType, type KktPosition } from "@/lib/kkt-atol";
+import {
+  fnsCheckUrl, mergeServicesIntoGoods, printLastReceiptCopy, receiptTotal,
+  type KktPaymentType, type KktPosition,
+} from "@/lib/kkt-atol";
 
 const fmt = new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB" });
 
-export type KktDocItem = { name: string; quantity: number; price: number; unit?: string };
+export type KktDocItem = {
+  name: string; quantity: number; price: number; unit?: string;
+  kind?: "product" | "service";
+};
 
 export function KktReceiptButton({
   wsId, invoiceId, items, fiscal,
