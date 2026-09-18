@@ -55,7 +55,7 @@ export function useSetMyPriceType(wsId: string | null | undefined) {
       const prefs = (await userPrefsGet()).prefs ?? {};
       const map = { ...((prefs as any).default_price_type ?? {}) };
       if (priceTypeId) map[wsId] = priceTypeId; else delete map[wsId];
-      await userPrefsSet({ patch: { default_price_type: map } });
+      await userPrefsSet({ data: { patch: { default_price_type: map } } });
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["user_prefs"] }),
   });
