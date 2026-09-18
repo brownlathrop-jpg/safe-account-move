@@ -108,8 +108,19 @@ export function useKktShiftAction(settings: KktSettings) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (action: "open" | "reopen") => {
-      if (action === "reopen") await kktCloseShift(settings);
-      await kktOpenShift(settings);
+      if (action === "reopen") {
+        try {
+          await kktCloseShift(settings);
+        } catch (error) {
+          throw new Error(`Не удалось закрыть смену: ${(error as Error).message}`);
+        }
+      }
+      try {
+        await kktOpenShift(settings);
+      } catch (error) {
+        const prefix = action === "reopen" ? "Смена закрыта, но новую открыть не удалось" : "Не удалось открыть смену";
+        throw new Error(`${prefix}: ${(error as Error).message}`);
+      }
     },
     onSettled: () => qc.invalidateQueries({ queryKey: ["kkt-shift", settings.url] }),
   });
