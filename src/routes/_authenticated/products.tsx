@@ -228,6 +228,19 @@ function ProductsPage() {
     return { parent_id: null };
   };
 
+  // Папка внутри раздела «Услуги» (на любой глубине) — новая позиция там по умолчанию услуга.
+  const isInServiceTree = (folderId: string | null): boolean => {
+    if (!folderId || !serviceRootFolder) return false;
+    const byId = new Map(folders.map(f => [f.id, f] as const));
+    let cur = byId.get(folderId);
+    let guard = 0;
+    while (cur && guard++ < 50) {
+      if (cur.id === serviceRootFolder.id) return true;
+      cur = cur.parent_id ? byId.get(cur.parent_id) : undefined;
+    }
+    return false;
+  };
+
   const descendantsOf = (id: string): string[] => {
     const result: string[] = [];
     const seen = new Set<string>();
