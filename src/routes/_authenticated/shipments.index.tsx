@@ -191,6 +191,11 @@ function ShipmentsPage() {
                   )}>
                     {i.status === "posted" ? "Проведена" : i.status === "cancelled" ? "Отменена" : "Черновик"}
                   </span>
+                  {(i.fiscal?.receiptNumber || i.fiscal?.fiscalDocNumber) && (
+                    <span className="ml-2 inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                      Чек № {i.fiscal.receiptNumber ?? i.fiscal.fiscalDocNumber}
+                    </span>
+                  )}
                 </TableCell>
                 <TableCell className="text-right font-medium">{fmt.format(Number(i.total))}</TableCell>
                 <TableCell className="text-right text-sm">
