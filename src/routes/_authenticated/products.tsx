@@ -408,7 +408,7 @@ function ProductsPage() {
       { header: "Папка", value: p => (p.folder_id ? folderName.get(p.folder_id) ?? "" : "") },
       { header: "Вид", value: p => (p.kind === "service" ? "Услуга" : "Товар") },
       { header: "Ед.", value: p => p.unit },
-      { header: "Цена", value: p => Number(p.price || 0) },
+      { header: "Цена", value: p => priceOf(p, myPriceTypeId) },
       { header: "Себестоимость", value: p => Number(p.cost || 0) },
       { header: "Остаток", value: p => Number(p.stock || 0) },
       { header: "НДС", value: p => p.vat_rate ?? "" },
@@ -830,7 +830,7 @@ function ProductsPage() {
                   <TableCell className="font-medium">{p.name}</TableCell>
                   <TableCell>{p.unit}</TableCell>
                   <TableCell className="text-right">{fmt.format(Number(p.cost))}</TableCell>
-                  <TableCell className="text-right font-medium">{fmt.format(Number(p.price))}</TableCell>
+                  <TableCell className="text-right font-medium">{fmt.format(priceOf(p, myPriceTypeId))}</TableCell>
                   <TableCell className="text-right">{Number(p.stock)}</TableCell>
                   <TableCell className="text-right">
                     <Button size="icon" variant="ghost" onClick={() => openEdit(p)}><Pencil className="h-4 w-4" /></Button>
