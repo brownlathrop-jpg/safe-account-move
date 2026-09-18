@@ -394,9 +394,10 @@ function InvoiceView() {
     },
     onSuccess: (newId) => {
       qc.invalidateQueries({ queryKey: ["invoice-children", id] });
+      qc.invalidateQueries({ queryKey: ["doc-chain"] });
       qc.invalidateQueries({ queryKey: ["invoices"] });
       qc.invalidateQueries({ queryKey: ["cash"] });
-      toast.success("ПКО создан");
+      toast.success(inv?.kind === "outgoing" ? "ПКО создан" : "РКО создан");
       navigate({ to: "/invoices/$id", params: { id: newId } });
     },
     onError: (e: Error) => toast.error(e.message),
