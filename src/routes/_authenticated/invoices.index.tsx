@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { downloadCsv, csvDate } from "@/lib/export-csv";
 import { printList } from "@/lib/print-list";
+import { usePrintBrand } from "@/hooks/use-print-brand";
 
 export const Route = createFileRoute("/_authenticated/invoices/")({
   head: () => ({ meta: [{ title: "Заявки — КабинетCRM" }] }),
@@ -23,6 +24,7 @@ const dfmt = new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit"
 function InvoicesPage() {
   const navigate = useNavigate();
   const wsId = useActiveWorkspaceId();
+  const brand = usePrintBrand();
   const [search, setSearch] = useState("");
   const [kind, setKind] = useState<"all" | "incoming" | "outgoing">("all");
   const [statusName, setStatusName] = useState("all");
@@ -69,7 +71,7 @@ function InvoicesPage() {
     { header: "Сумма", value: (i: any) => Number(i.total || 0) },
   ];
   const exportCsv = () => downloadCsv("заявки", filtered, listColumns);
-  const printInvoices = () => printList("Заявки", filtered, listColumns);
+  const printInvoices = () => printList("Заявки", filtered, listColumns, brand);
 
   return (
     <div className="space-y-5">

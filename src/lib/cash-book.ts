@@ -1,3 +1,4 @@
+import type { PrintBrand } from "./print-header";
 // Кассовая книга (унифицированная форма КО-4, ОКУД 0310004).
 // Правила: Указание Банка России от 11.03.2014 № 3210-У — записи вносятся
 // по каждому приходному и расходному кассовому документу, за каждый день
@@ -120,7 +121,7 @@ export function buildCashBook(
   };
 }
 
-export type CashBookOrg = {
+export type CashBookOrg = PrintBrand & {
   name: string;
   okpo?: string;
   director_name?: string;

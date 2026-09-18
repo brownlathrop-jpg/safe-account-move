@@ -18,6 +18,7 @@ import { Plus, Pencil, Trash2, Search, Loader2, Download, Printer } from "lucide
 import { BankAccountsEditor } from "@/components/bank-accounts-editor";
 import { downloadCsv, type CsvColumn } from "@/lib/export-csv";
 import { printList } from "@/lib/print-list";
+import { usePrintBrand } from "@/hooks/use-print-brand";
 
 export const Route = createFileRoute("/_authenticated/partners")({
   head: () => ({ meta: [{ title: "Контрагенты — КабинетCRM" }] }),
@@ -42,6 +43,7 @@ type Partner = {
 function PartnersPage() {
   const qc = useQueryClient();
   const wsId = useActiveWorkspaceId();
+  const brand = usePrintBrand();
   const [editing, setEditing] = useState<Partial<Partner> | null>(null);
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -135,7 +137,7 @@ function PartnersPage() {
     { header: "Комментарий", value: p => p.comment },
   ];
   const exportCsv = () => downloadCsv("контрагенты", filtered, listColumns);
-  const printPartners = () => printList("Контрагенты", filtered, listColumns);
+  const printPartners = () => printList("Контрагенты", filtered, listColumns, brand);
 
   return (
     <div className="space-y-5">

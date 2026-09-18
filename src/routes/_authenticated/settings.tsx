@@ -18,6 +18,8 @@ import { WarehousesRef, ProductTypesRef, PriceTypesRef, CashflowItemsRef, BanksR
 import { Import1CPanel } from "@/components/import-1c-panel";
 import { PriceImportPanel } from "@/components/price-import-panel";
 import { KktSettingsPanel } from "@/components/kkt-settings-panel";
+import { prepareLogo } from "@/lib/logo-image";
+import { PrintHeader } from "@/components/print/PrintHeader";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({
@@ -54,6 +56,10 @@ type Org = {
   taxation_system: string;
   is_primary: boolean;
   invoice_number_mask: string;
+  /** Логотип для печати (картинка, приведённая к единому размеру). */
+  logo_url?: string | null;
+  /** Название, которое печатается в шапке документов (если пусто — краткое название). */
+  print_name?: string | null;
 };
 
 const empty: Org = {
@@ -62,6 +68,7 @@ const empty: Org = {
   bank_name: "", bank_bik: "", bank_corr_account: "", bank_account: "",
   director_name: "", accountant_name: "", taxation_system: "usn_6", is_primary: true,
   invoice_number_mask: "{YYYY}-{MM}-{DD}-{NNN}",
+  logo_url: null, print_name: "",
 };
 
 function SettingsPage() {
@@ -230,6 +237,58 @@ function SettingsPage() {
           </div>
         </div>
 
+        <div>
+          <h2 className="font-medium text-xs uppercase tracking-wide text-muted-foreground mb-2">Логотип и шапка документов</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <div className="space-y-1">
+                <Label>Название в шапке документов</Label>
+                <Input
+                  className="h-8"
+                  value={form.print_name ?? ""}
+                  onChange={e => upd("print_name", e.target.value)}
+                  placeholder={form.name || 'Например: Мебельный салон "Ромашка"'}
+                />
+                <p className="text-[11px] text-muted-foreground">Если пусто — печатается краткое название организации.</p>
+              </div>
+              <div className="space-y-1">
+                <Label>Логотип</Label>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                    className="h-8 w-auto text-xs"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      e.target.value = "";
+                      if (!file) return;
+                      try {
+                        const { dataUrl } = await prepareLogo(file);
+                        setForm(f => ({ ...f, logo_url: dataUrl }));
+                        toast.success("Логотип загружен — не забудьте сохранить");
+                      } catch (err) {
+                        toast.error((err as Error).message);
+                      }
+                    }}
+                  />
+                  {form.logo_url && (
+                    <Button type="button" size="sm" variant="outline" onClick={() => setForm(f => ({ ...f, logo_url: null }))}>
+                      <Trash2 className="h-3.5 w-3.5 mr-1" /> Убрать
+                    </Button>
+                  )}
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  PNG, JPG, WEBP или SVG. Картинка автоматически подгоняется под единый размер шапки — во всех документах логотип будет одинаковым.
+                </p>
+              </div>
+            </div>
+            <div className="rounded-md border bg-white p-3 text-black">
+              <p className="mb-2 text-[11px] uppercase tracking-wide text-neutral-500">Как будет выглядеть в документах</p>
+              <PrintHeader org={{ ...form, name: form.name || "Ваша организация" }} />
+              <p className="text-[11px] text-neutral-500">Ниже печатается название документа, стороны, таблица товаров и итоги.</p>
+            </div>
+          </div>
+        </div>
 
         <div className="flex justify-end">
           <Button size="sm" onClick={() => save.mutate()} disabled={save.isPending}>
