@@ -245,7 +245,7 @@ function KudirPage() {
           <Download className="h-4 w-4 mr-1" /> Excel
         </Button>
         <Button
-          disabled={!flat.length}
+          disabled={!flat.length && !contribBook.total}
           onClick={() =>
             printKudir(
               book,
@@ -256,10 +256,11 @@ function KudirPage() {
                 legal_address: org?.legal_address ?? "",
                 director_name: org?.director_name ?? "",
               },
-              { mode, objectIncomeOnly: object === "income" },
+              { mode, objectIncomeOnly: object === "income", contribs: contribBook },
             )
           }
         >
+
           <Printer className="h-4 w-4 mr-1" /> Печать КУДиР
         </Button>
       </div>
