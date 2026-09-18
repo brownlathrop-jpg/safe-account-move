@@ -368,6 +368,7 @@ export function PriceTypesRef() {
           </div>
         ))}
       </div>
+      <MyPriceTypeRef embedded />
     </Card>
   );
 }
@@ -456,17 +457,17 @@ export function CashflowItemsRef() {
 // ============================================================
 // Мой тип цены по умолчанию (личная настройка пользователя)
 // ============================================================
-export function MyPriceTypeRef() {
+export function MyPriceTypeRef({ embedded = false }: { embedded?: boolean }) {
   const wsId = useActiveWorkspaceId();
   const { data: types = [] } = usePriceTypes(wsId);
   const current = useMyPriceTypeId(wsId);
   const save = useSetMyPriceType(wsId);
 
-  return (
-    <Card className="p-3 space-y-2 text-sm">
-      <h2 className="font-medium text-xs uppercase tracking-wide text-muted-foreground">Мой тип цены по умолчанию</h2>
-      <div className="flex items-end gap-2">
-        <div className="space-y-1 w-64">
+  const content = (
+    <>
+      <h3 className="font-medium text-xs uppercase tracking-wide text-muted-foreground">Для новых документов</h3>
+      <div className="grid grid-cols-1 items-end gap-2 sm:grid-cols-[16rem_minmax(0,1fr)]">
+        <div className="space-y-1 min-w-0">
           <Label className="text-xs">Тип цены</Label>
           <Select
             value={current ?? undefined}
@@ -482,10 +483,20 @@ export function MyPriceTypeRef() {
             </SelectContent>
           </Select>
         </div>
-        <p className="text-xs text-muted-foreground flex-1">
+        <p className="min-w-0 text-xs text-muted-foreground">
           Этот тип цены подставляется вам в новые накладные и заявки. У каждого пользователя может быть свой.
         </p>
       </div>
+    </>
+  );
+
+  if (embedded) {
+    return <div className="space-y-2 border-t pt-3">{content}</div>;
+  }
+
+  return (
+    <Card className="p-3 space-y-2 text-sm">
+      {content}
     </Card>
   );
 }

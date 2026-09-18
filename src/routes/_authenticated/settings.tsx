@@ -14,7 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { Save, Search, Loader2, Plus, Trash2, Database, Check, Pencil } from "lucide-react";
 import { lookupOrgByInn, lookupBankByBik } from "@/lib/dadata.functions";
 import { useActiveWorkspaceId, activeWorkspace } from "@/lib/workspace";
-import { WarehousesRef, ProductTypesRef, PriceTypesRef, MyPriceTypeRef, CashflowItemsRef, BanksRef, DiscountsRef } from "@/components/settings-simple-refs";
+import { WarehousesRef, ProductTypesRef, PriceTypesRef, CashflowItemsRef, BanksRef, DiscountsRef } from "@/components/settings-simple-refs";
 import { Import1CPanel } from "@/components/import-1c-panel";
 import { PriceImportPanel } from "@/components/price-import-panel";
 import { KktSettingsPanel } from "@/components/kkt-settings-panel";
@@ -137,13 +137,13 @@ function SettingsPage() {
       </div>
 
       <Tabs defaultValue={tab || "org"}>
-        <div className="sticky top-0 z-20 -mx-2 px-2 py-1 bg-background/95 backdrop-blur border-b">
-        <TabsList className="h-8">
-          <TabsTrigger value="workspaces">База данных</TabsTrigger>
+        <div className="sticky top-0 z-20 -mx-2 overflow-x-auto border-b bg-background/95 px-2 py-1 backdrop-blur">
+        <TabsList className="h-8 w-max min-w-full justify-start">
           <TabsTrigger value="org">Организация</TabsTrigger>
           <TabsTrigger value="refs">Справочники</TabsTrigger>
           <TabsTrigger value="kkt">Касса</TabsTrigger>
-          <TabsTrigger value="import">Импорт из 1С</TabsTrigger>
+          <TabsTrigger value="import">Обмен</TabsTrigger>
+          <TabsTrigger value="workspaces">Базы</TabsTrigger>
         </TabsList>
         </div>
 
@@ -239,26 +239,63 @@ function SettingsPage() {
       </Card>
         </TabsContent>
 
-        <TabsContent value="refs" className="mt-3 space-y-2">
-          <NumberingRef />
-          <WarehousesRef />
-          <ProductTypesRef />
-          <PriceTypesRef />
-          <MyPriceTypeRef />
-          <DiscountsRef />
-          <UnitsRef />
-          <BanksRef />
-          <CashflowItemsRef />
-          <InvoiceStatusesRef />
+        <TabsContent value="refs" className="mt-3">
+          <Tabs defaultValue="products" orientation="vertical" className="grid items-start gap-3 md:grid-cols-[180px_minmax(0,1fr)]">
+            <div className="overflow-x-auto md:overflow-visible">
+              <TabsList className="h-9 w-max justify-start md:h-auto md:w-full md:flex-col md:items-stretch md:bg-transparent md:p-0">
+                <TabsTrigger value="products" className="md:justify-start md:data-[state=active]:bg-accent md:data-[state=active]:shadow-none">Товары и цены</TabsTrigger>
+                <TabsTrigger value="documents" className="md:justify-start md:data-[state=active]:bg-accent md:data-[state=active]:shadow-none">Документы</TabsTrigger>
+                <TabsTrigger value="money" className="md:justify-start md:data-[state=active]:bg-accent md:data-[state=active]:shadow-none">Деньги</TabsTrigger>
+                <TabsTrigger value="storage" className="md:justify-start md:data-[state=active]:bg-accent md:data-[state=active]:shadow-none">Склады и банки</TabsTrigger>
+              </TabsList>
+            </div>
+            <div className="min-w-0">
+              <TabsContent value="products" className="mt-0">
+                <Tabs defaultValue="prices">
+                  <div className="mb-2 overflow-x-auto">
+                    <TabsList className="h-8 w-max justify-start">
+                      <TabsTrigger value="prices">Цены</TabsTrigger>
+                      <TabsTrigger value="discounts">Скидки</TabsTrigger>
+                      <TabsTrigger value="types">Номенклатура</TabsTrigger>
+                      <TabsTrigger value="units">Единицы</TabsTrigger>
+                    </TabsList>
+                  </div>
+                  <TabsContent value="prices" className="mt-0"><PriceTypesRef /></TabsContent>
+                  <TabsContent value="discounts" className="mt-0"><DiscountsRef /></TabsContent>
+                  <TabsContent value="types" className="mt-0"><ProductTypesRef /></TabsContent>
+                  <TabsContent value="units" className="mt-0"><UnitsRef /></TabsContent>
+                </Tabs>
+              </TabsContent>
+              <TabsContent value="documents" className="mt-0 space-y-2">
+                <NumberingRef />
+                <InvoiceStatusesRef />
+              </TabsContent>
+              <TabsContent value="money" className="mt-0 space-y-2">
+                <CashflowItemsRef />
+              </TabsContent>
+              <TabsContent value="storage" className="mt-0 space-y-2">
+                <WarehousesRef />
+                <BanksRef />
+              </TabsContent>
+            </div>
+          </Tabs>
         </TabsContent>
 
         <TabsContent value="kkt" className="mt-3 space-y-2">
           <KktSettingsPanel />
         </TabsContent>
 
-        <TabsContent value="import" className="mt-3 space-y-4">
-          <Import1CPanel />
-          <PriceImportPanel />
+        <TabsContent value="import" className="mt-3">
+          <Tabs defaultValue="prices">
+            <div className="overflow-x-auto">
+              <TabsList className="h-8 w-max justify-start">
+                <TabsTrigger value="prices">Прайсы и остатки</TabsTrigger>
+                <TabsTrigger value="onec">Импорт из 1С</TabsTrigger>
+              </TabsList>
+            </div>
+            <TabsContent value="prices" className="mt-3"><PriceImportPanel /></TabsContent>
+            <TabsContent value="onec" className="mt-3"><Import1CPanel /></TabsContent>
+          </Tabs>
         </TabsContent>
       </Tabs>
     </div>
