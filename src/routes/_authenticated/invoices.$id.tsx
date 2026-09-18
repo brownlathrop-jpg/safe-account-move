@@ -980,23 +980,17 @@ function InvoiceView() {
         <h1 className="text-center text-xl font-bold mb-5">{title}</h1>
         {supplierLine && (
           <p className="mb-2 text-sm"><span className="font-bold">Поставщик:</span> {supplierLine.name}
-            {supplierLine.inn ? `, ИНН ${supplierLine.inn}` : ""}
-            {supplierLine.kpp ? `, КПП ${supplierLine.kpp}` : ""}
-            {supplierLine.address ? `, ${supplierLine.address}` : ""}
-            {supplierLine.phone ? `, тел.: ${supplierLine.phone}` : ""}
-            {supplierLine.bank_name ? `. Банк: ${supplierLine.bank_name}` : ""}
-            {supplierLine.bank_bik ? `, БИК ${supplierLine.bank_bik}` : ""}
-            {supplierLine.bank_account ? `, р/с ${supplierLine.bank_account}` : ""}
-            {supplierLine.bank_corr_account ? `, к/с ${supplierLine.bank_corr_account}` : ""}
+            {printMode === "invoice" && supplierLine.inn ? `, ИНН ${supplierLine.inn}` : ""}
+            {printMode === "invoice" && supplierLine.kpp ? `, КПП ${supplierLine.kpp}` : ""}
           </p>
         )}
-        {buyerLine
-          ? <p className="mb-4 text-sm"><span className="font-bold">Покупатель:</span> {buyerLine.name}
-              {buyerLine.inn ? `, ИНН ${buyerLine.inn}` : ""}
-              {buyerLine.kpp ? `, КПП ${buyerLine.kpp}` : ""}
-              {buyerLine.address ? `, ${buyerLine.address}` : ""}
-              {buyerLine.phone ? `, тел.: ${buyerLine.phone}` : ""}</p>
-          : <p className="mb-4 text-sm"><span className="font-bold">Покупатель:</span> Частное лицо</p>}
+        <p className="mb-4 text-sm"><span className="font-bold">Покупатель:</span> {buyerLine
+          ? <>
+              {buyerLine.name}
+              {printMode === "invoice" && buyerLine.inn ? `, ИНН ${buyerLine.inn}` : ""}
+              {printMode === "invoice" && buyerLine.kpp ? `, КПП ${buyerLine.kpp}` : ""}
+            </>
+          : "Частное лицо"}</p>
 
         <table className="w-full border-collapse text-sm">
           <thead>
