@@ -336,7 +336,7 @@ function InvoiceView() {
       const { data: ship, error } = await (db as any).from("invoices").insert({
         user_id: user.id,
         workspace_id: inv!.workspace_id ?? wsId,
-        number: `Н-${cleanNum}`,
+        number: `${inv!.kind === "incoming" ? "П" : "Н"}-${cleanNum}`,
         kind: inv!.kind,
         partner_id: inv!.partner_id,
         warehouse_id: defaultWh,
