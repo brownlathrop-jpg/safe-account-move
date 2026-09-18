@@ -398,15 +398,9 @@ function ProductsPage() {
   const moveProducts = useMutation({
     mutationFn: async ({ ids, folderId }: { ids: string[]; folderId: string | null }) => {
       if (!ids.length) throw new Error("Не выбраны товары");
-      // Пачками по 25, чтобы большой перенос шёл быстро.
-      for (let i = 0; i < ids.length; i += 25) {
-        const chunk = ids.slice(i, i + 25);
-        const results = await Promise.all(
-          chunk.map(id => db.from("products").update({ folder_id: folderId } as never).eq("id", id)),
-        );
-        const bad = results.find(r => r.error);
-        if (bad?.error) throw bad.error;
-      }
+      // Один массовый запрос вместо поштучного перебора.
+      const { error } = await db.from("products").update({ folder_id: folderId } as never).in("id", ids);
+      if (error) throw error;
       return ids.length;
     },
     onSuccess: (count) => {
