@@ -42,6 +42,7 @@ const TABLES = new Set([
   "price_types",
   "units",
   "invoice_payments",
+  "discounts",
 ]);
 
 function assertTable(t: string) {
