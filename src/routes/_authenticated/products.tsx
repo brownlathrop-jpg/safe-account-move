@@ -687,6 +687,8 @@ function ProductsPage() {
                   className={`cursor-pointer hover:bg-muted/40 ${dropFolder === `row-${f.id}` ? "bg-primary/10" : ""}`}
                   onClick={() => selectFolder(f.id)}
                   {...dropProps(f.id, `row-${f.id}`)}
+                  {...folderDragProps(f.id)}
+
                 >
                   <TableCell></TableCell>
                   <TableCell className="text-muted-foreground"></TableCell>
