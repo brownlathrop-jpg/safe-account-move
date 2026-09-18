@@ -100,7 +100,6 @@ export function WarehousesRef() {
           </div>
         ))}
       </div>
-      <MyPriceTypeRef embedded />
     </Card>
   );
 }
@@ -369,6 +368,7 @@ export function PriceTypesRef() {
           </div>
         ))}
       </div>
+      <MyPriceTypeRef embedded />
     </Card>
   );
 }
