@@ -468,7 +468,7 @@ function InvoiceView() {
   const supplierLine: any = kind === "outgoing" ? orgAsParty : partnerObj;
   const buyerLine: any = kind === "outgoing" ? partnerObj : orgAsParty;
   const cleanNumber = String(inv.number).replace(/^№\s*/, "");
-  const docTitle = isPKO ? (kind === "outgoing" ? "РКО" : "ПКО") : docLabels[docType].title;
+  const docTitle = docTitleOf(docType, kind, inv.is_return);
   const title = printMode === "pko"
     ? `${kind === "outgoing" ? "Расходный" : "Приходный"} кассовый ордер № ${cleanNumber}`
     : printMode === "invoice"
