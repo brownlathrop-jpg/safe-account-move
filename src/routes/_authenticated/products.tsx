@@ -1083,6 +1083,32 @@ function ProductsPage() {
         </AlertDialogContent>
       </AlertDialog>
 
+      <AlertDialog open={deleteManyOpen} onOpenChange={setDeleteManyOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Удалить выбранное?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {selectedFolderIds.length > 0 && selectedIds.length > 0
+                ? `Будут удалены: товаров — ${selectedIds.length}, папок — ${selectedFolderIds.length} (со всем содержимым).`
+                : selectedFolderIds.length > 0
+                  ? `Будет удалено папок — ${selectedFolderIds.length}, включая все вложенные папки и товары в них.`
+                  : `Будет удалено товаров — ${selectedIds.length}.`}
+              {" "}Действие нельзя отменить.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeleteManyOpen(false)}>Отмена</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={removeMany.isPending}
+              onClick={(e) => { e.preventDefault(); removeMany.mutate({ productIds: selectedIds, folderIds: selectedFolderIds }); }}
+            >
+              {removeMany.isPending ? "Удаляем…" : "Удалить"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
     </div>
   );
 }
