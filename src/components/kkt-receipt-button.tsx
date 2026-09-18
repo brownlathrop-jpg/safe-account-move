@@ -117,6 +117,7 @@ export function KktReceiptButton({
           </DialogHeader>
 
           <div className="space-y-3 text-sm">
+            <ShiftPanel settings={settings} open={open} />
             <div className="flex items-center justify-between rounded-md border p-3">
               <span className="text-muted-foreground">Сумма чека</span>
               <span className="text-lg font-semibold">{fmt.format(total)}</span>
