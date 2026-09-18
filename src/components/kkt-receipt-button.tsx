@@ -64,6 +64,8 @@ export function KktReceiptButton({
     }
   }
   const total = receiptTotal(positions);
+  const received = Number(String(cashReceived).replace(",", ".")) || 0;
+  const change = paymentType === "cash" && received > total ? Math.round((received - total) * 100) / 100 : 0;
 
   if (fiscal?.receiptNumber || fiscal?.fiscalDocNumber) {
     const link = fnsCheckUrl(fiscal);
