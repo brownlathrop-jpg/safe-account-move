@@ -264,6 +264,25 @@ async function runTaskInner(url: string, task: Record<string, unknown>, timeoutM
 }
 
 
+function parseShiftState(shift: any): KktDeviceInfo["shiftState"] {
+  const rawState = shift?.shiftStatus?.state ?? shift?.shift?.state ?? shift?.state;
+  const st = String(rawState ?? "").toLowerCase();
+  // Разные версии драйвера отдают состояние смены словом или числом (0/1/2).
+  return st === "opened" || st === "open" || st === "1"
+    ? "opened"
+    : st === "closed" || st === "close" || st === "0"
+      ? "closed"
+      : st === "expired" || st === "2"
+        ? "expired"
+        : "unknown";
+}
+
+/** Только состояние смены — один короткий запрос к кассе. */
+export async function kktShiftState(s: KktSettings): Promise<KktDeviceInfo["shiftState"]> {
+  const shift = await runTask(s.url, { type: "queryShiftStatus" }, 15000).catch(() => null);
+  return parseShiftState(shift);
+}
+
 /** Модель кассы, номер ФН и состояние смены — для кнопки «Проверить связь». */
 export async function kktDeviceInfo(s: KktSettings): Promise<KktDeviceInfo> {
   const info: any = await runTask(s.url, { type: "getDeviceInfo" }, 15000).catch(async (e) => {
@@ -271,23 +290,12 @@ export async function kktDeviceInfo(s: KktSettings): Promise<KktDeviceInfo> {
     throw e;
   });
   const shift: any = await runTask(s.url, { type: "queryShiftStatus" }, 15000).catch(() => null);
-  const rawState = shift?.shiftStatus?.state ?? shift?.shift?.state ?? shift?.state;
-  const st = String(rawState ?? "").toLowerCase();
-  // Разные версии драйвера отдают состояние смены словом или числом (0/1/2).
-  const shiftState: KktDeviceInfo["shiftState"] =
-    st === "opened" || st === "open" || st === "1"
-      ? "opened"
-      : st === "closed" || st === "close" || st === "0"
-        ? "closed"
-        : st === "expired" || st === "2"
-          ? "expired"
-          : "unknown";
   return {
     model: info?.modelName ?? info?.model ?? "—",
     serial: info?.serialNumber ?? "—",
     fnNumber: info?.fnSerial ?? info?.fnNumber ?? "—",
     regNumber: info?.regNumber ?? info?.ecrRegistrationNumber ?? "—",
-    shiftState,
+    shiftState: parseShiftState(shift),
     shiftNumber: Number(shift?.shiftStatus?.number ?? shift?.number ?? 0) || null,
   };
 }
