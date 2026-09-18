@@ -153,6 +153,39 @@ function ProductsPage() {
   const { data: priceTypes = [] } = usePriceTypes(wsId);
   const myPriceTypeId = useMyPriceTypeId(wsId);
 
+  const getTypePrice = (typeId: string) => {
+    const map = editing?.prices ?? {};
+    if (map[typeId] != null && map[typeId] !== 0) return String(map[typeId]);
+    const t = priceTypes.find((x) => x.id === typeId);
+    if (t?.is_default && (editing?.price ?? 0) !== 0) return String(editing.price);
+    return "";
+  };
+  const applyActivePrice = () => {
+    if (!activePriceType || !editing) return;
+    const val = activePriceInput.trim() === "" ? 0 : Number(activePriceInput);
+    const map = { ...(editing.prices ?? {}), [activePriceType]: val };
+    const patch: Partial<Product> = { prices: map };
+    const t = priceTypes.find((x) => x.id === activePriceType);
+    if (t?.is_default) patch.price = val;
+    setEditing({ ...editing, ...patch });
+  };
+  const removePrice = (typeId: string) => {
+    if (!editing) return;
+    const map = { ...(editing.prices ?? {}) };
+    delete map[typeId];
+    const patch: Partial<Product> = { prices: map };
+    const t = priceTypes.find((x) => x.id === typeId);
+    if (t?.is_default) patch.price = 0;
+    setEditing({ ...editing, ...patch });
+  };
+  useEffect(() => {
+    if (editing && activePriceType == null && priceTypes.length) {
+      const id = priceTypes.find((t) => t.is_default)?.id ?? priceTypes[0].id;
+      setActivePriceType(id);
+      setActivePriceInput(getTypePrice(id));
+    }
+  }, [editing, priceTypes, activePriceType]);
+
   const childrenOf = useMemo(() => {
     const map = new Map<string | null, FolderRow[]>();
     const ids = new Set(folders.map(f => f.id));
