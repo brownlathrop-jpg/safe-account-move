@@ -73,6 +73,8 @@ function ProductsPage() {
   const [moveTarget, setMoveTarget] = useState<string>(ROOT);
   const lastClickedRef = useRef<string | null>(null);
   const dragIdsRef = useRef<string[]>([]);
+  const dragFolderRef = useRef<string | null>(null);
+
   const [dropFolder, setDropFolder] = useState<string | null>(null);
   const [deleteFolder, setDeleteFolder] = useState<FolderRow | null>(null);
   const [page, setPage] = useState(0);
