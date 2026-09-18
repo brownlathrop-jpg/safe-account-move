@@ -16,7 +16,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Plus, Pencil, Trash2, Search, Loader2, Download, Printer } from "lucide-react";
 import { BankAccountsEditor } from "@/components/bank-accounts-editor";
-import { downloadCsv } from "@/lib/export-csv";
+import { downloadCsv, type CsvColumn } from "@/lib/export-csv";
+import { printList } from "@/lib/print-list";
 
 export const Route = createFileRoute("/_authenticated/partners")({
   head: () => ({ meta: [{ title: "Контрагенты — КабинетCRM" }] }),
