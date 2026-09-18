@@ -599,7 +599,7 @@ function InvoiceView() {
       {/* Header label */}
       <div className="print:hidden">
         <h1 className="text-2xl font-semibold">
-          {inv.is_return ? "Возврат — " : ""}{docTitle} № {cleanNumber}
+          {docTitle} № {cleanNumber}
         </h1>
         {isShipment && inv.status === "posted" && kind === "outgoing" && (
           <p className="text-sm mt-1">
