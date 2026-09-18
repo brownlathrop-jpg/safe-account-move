@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+// Кнопки «Excel» и «Печать» выгружают весь отфильтрованный список, не только текущую страницу.
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useRef, useState, type DragEvent } from "react";
 import { toast } from "sonner";
@@ -9,13 +10,14 @@ import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Pencil, Trash2, Search, Folder, FolderPlus, FolderOpen, ChevronRight, ChevronDown, Upload, X, ImageIcon, MoreHorizontal, Download } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, Folder, FolderPlus, FolderOpen, ChevronRight, ChevronDown, Upload, X, ImageIcon, MoreHorizontal, Download, Printer } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { useActiveWorkspaceId } from "@/lib/workspace";
-import { downloadCsv } from "@/lib/export-csv";
+import { downloadCsv, type CsvColumn } from "@/lib/export-csv";
+import { printList } from "@/lib/print-list";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 
@@ -73,6 +75,7 @@ function ProductsPage() {
   const dragIdsRef = useRef<string[]>([]);
   const [dropFolder, setDropFolder] = useState<string | null>(null);
   const [deleteFolder, setDeleteFolder] = useState<FolderRow | null>(null);
+  const [page, setPage] = useState(0);
 
 
   const { data: products = [] } = useQuery({
@@ -163,6 +166,7 @@ function ProductsPage() {
   const selectFolder = (id: string) => {
     selectedFolderRef.current = id;
     setSelectedFolder(id);
+    setPage(0);
   };
   const getSelectedRealFolderId = () => folderIds.has(selectedFolderRef.current) ? selectedFolderRef.current : null;
   const getNewFolderTarget = (): { parent_id: string | null; parentKind?: FolderKind } => {
@@ -316,6 +320,7 @@ function ProductsPage() {
   }, [selectedFolder, childrenOf, search, productCategoryFolders, serviceCategoryFolders, visibleRootFolders]);
 
   // Products shown in the right pane
+  const PAGE_SIZE = 50;
   const filtered = products.filter(p => {
     if (search) {
       const s = search.toLowerCase();
@@ -332,9 +337,14 @@ function ProductsPage() {
     return p.folder_id === selectedFolder;
   });
 
-  const exportCsv = () => {
+  // Постраничный показ: длинные списки не рендерим целиком.
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(page, pageCount - 1);
+  const pageItems = filtered.slice(safePage * PAGE_SIZE, safePage * PAGE_SIZE + PAGE_SIZE);
+
+  const listColumns = (): CsvColumn<Product>[] => {
     const folderName = new Map((folders as FolderRow[]).map(f => [f.id, f.name]));
-    downloadCsv("товары", filtered, [
+    return [
       { header: "Артикул", value: p => p.sku },
       { header: "Название", value: p => p.name },
       { header: "Папка", value: p => (p.folder_id ? folderName.get(p.folder_id) ?? "" : "") },
@@ -345,8 +355,10 @@ function ProductsPage() {
       { header: "Остаток", value: p => Number(p.stock || 0) },
       { header: "НДС", value: p => p.vat_rate ?? "" },
       { header: "Описание", value: p => p.description },
-    ]);
+    ];
   };
+  const exportCsv = () => downloadCsv("товары", filtered, listColumns());
+  const printProducts = () => printList("Товары и услуги", filtered, listColumns());
 
 
   const productCountIn = (folderId: string) => {
@@ -534,6 +546,9 @@ function ProductsPage() {
           <Button variant="outline" onClick={exportCsv} disabled={!filtered.length} title="Выгрузить в Excel">
             <Download className="h-4 w-4 mr-1" /> Excel
           </Button>
+          <Button variant="outline" onClick={printProducts} disabled={!filtered.length} title="Печать списка / сохранить в PDF">
+            <Printer className="h-4 w-4 mr-1" /> Печать
+          </Button>
           <Button variant="outline" onClick={() => {
             const target = getNewFolderTarget();
             openFolderDialog(target.parent_id, undefined, target.parentKind);
@@ -584,7 +599,7 @@ function ProductsPage() {
           </div>
           <div className="p-3 border-b flex items-center gap-2">
             <Search className="h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Поиск по названию или артикулу" value={search} onChange={e => setSearch(e.target.value)} className="border-0 focus-visible:ring-0 shadow-none h-8" />
+            <Input placeholder="Поиск по названию или артикулу" value={search} onChange={e => { setSearch(e.target.value); setPage(0); }} className="border-0 focus-visible:ring-0 shadow-none h-8" />
           </div>
           {selectedIds.length > 0 && (
             <div className="p-3 border-b flex items-center gap-3 bg-muted/40 text-sm">
@@ -646,7 +661,7 @@ function ProductsPage() {
                   </TableCell>
                 </TableRow>
               ))}
-              {filtered.map(p => (
+              {pageItems.map(p => (
                 <TableRow
                   key={p.id}
                   data-state={selectedIds.includes(p.id) ? "selected" : undefined}
@@ -677,6 +692,18 @@ function ProductsPage() {
               ))}
             </TableBody>
           </Table>
+          {filtered.length > PAGE_SIZE && (
+            <div className="p-3 border-t flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">
+                Показаны {safePage * PAGE_SIZE + 1}–{Math.min(filtered.length, (safePage + 1) * PAGE_SIZE)} из {filtered.length}
+              </span>
+              <div className="flex items-center gap-1">
+                <Button size="sm" variant="outline" disabled={safePage === 0} onClick={() => setPage(safePage - 1)}>Назад</Button>
+                <span className="px-2 text-muted-foreground">{safePage + 1} / {pageCount}</span>
+                <Button size="sm" variant="outline" disabled={safePage >= pageCount - 1} onClick={() => setPage(safePage + 1)}>Вперёд</Button>
+              </div>
+            </div>
+          )}
         </Card>
       </div>
 

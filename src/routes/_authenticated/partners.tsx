@@ -14,9 +14,10 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Pencil, Trash2, Search, Loader2, Download } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, Loader2, Download, Printer } from "lucide-react";
 import { BankAccountsEditor } from "@/components/bank-accounts-editor";
-import { downloadCsv } from "@/lib/export-csv";
+import { downloadCsv, type CsvColumn } from "@/lib/export-csv";
+import { printList } from "@/lib/print-list";
 
 export const Route = createFileRoute("/_authenticated/partners")({
   head: () => ({ meta: [{ title: "Контрагенты — КабинетCRM" }] }),
@@ -122,7 +123,7 @@ function PartnersPage() {
     });
   }, [partners, search, kindFilter]);
 
-  const exportCsv = () => downloadCsv("контрагенты", filtered, [
+  const listColumns: CsvColumn<Partner>[] = [
     { header: "Название", value: p => p.name },
     { header: "Полное наименование", value: p => p.full_name },
     { header: "Тип", value: p => (p.kind === "customer" ? "Клиент" : "Поставщик") },
@@ -132,7 +133,9 @@ function PartnersPage() {
     { header: "Email", value: p => p.email },
     { header: "Адрес", value: p => p.address },
     { header: "Комментарий", value: p => p.comment },
-  ]);
+  ];
+  const exportCsv = () => downloadCsv("контрагенты", filtered, listColumns);
+  const printPartners = () => printList("Контрагенты", filtered, listColumns);
 
   return (
     <div className="space-y-5">
@@ -144,6 +147,9 @@ function PartnersPage() {
         <div className="flex items-center gap-2">
           <Button variant="outline" onClick={exportCsv} disabled={!filtered.length} title="Выгрузить в Excel">
             <Download className="h-4 w-4 mr-1" /> Excel
+          </Button>
+          <Button variant="outline" onClick={printPartners} disabled={!filtered.length} title="Печать списка / сохранить в PDF">
+            <Printer className="h-4 w-4 mr-1" /> Печать
           </Button>
           <Button onClick={() => { setEditing({ kind: "customer", name: "" }); setOpen(true); }}>
             <Plus className="h-4 w-4 mr-1" /> Добавить
