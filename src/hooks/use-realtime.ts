@@ -30,12 +30,17 @@ export function useRealtime() {
     if (typeof window === "undefined") return;
     let es: EventSource | null = null;
     let retry: ReturnType<typeof setTimeout> | null = null;
+    let flush: ReturnType<typeof setTimeout> | null = null;
+    const pending = new Set<string>();
     let closed = false;
 
     const connect = () => {
       if (closed) return;
       es = new EventSource("/api/realtime");
 
+      // События приходят по одному на каждую изменённую строку. При массовых
+      // операциях (удаление папки, перенос товаров) их сотни — копим их и
+      // обновляем кэш один раз, иначе список перезагружается сотни раз.
       es.onmessage = (e) => {
         let event: ChangeEvent;
         try {
@@ -44,8 +49,15 @@ export function useRealtime() {
           return;
         }
         if (!event?.table) return;
-        const keys = [event.table, ...(EXTRA_KEYS[event.table] ?? [])];
-        for (const key of keys) qc.invalidateQueries({ queryKey: [key] });
+        pending.add(event.table);
+        for (const extra of EXTRA_KEYS[event.table] ?? []) pending.add(extra);
+        if (flush) return;
+        flush = setTimeout(() => {
+          flush = null;
+          const keys = Array.from(pending);
+          pending.clear();
+          for (const key of keys) qc.invalidateQueries({ queryKey: [key] });
+        }, 250);
       };
 
       es.onerror = () => {
@@ -59,6 +71,7 @@ export function useRealtime() {
     return () => {
       closed = true;
       if (retry) clearTimeout(retry);
+      if (flush) clearTimeout(flush);
       es?.close();
     };
   }, [qc]);
