@@ -124,7 +124,7 @@ function InvoiceView() {
   const [printMode, setPrintMode] = useState<PrintMode>("standard");
   const [cashReceived, setCashReceived] = useState<number>(0);
   const [cashBasis, setCashBasis] = useState<string>("");
-  const [paymentMethod, setPaymentMethod] = useState<"cash" | "card">("cash");
+  const [paymentMethod, setPaymentMethod] = useState<"cash" | "card">("card");
 
   const doPrint = (mode: PrintMode) => {
     setPrintMode(mode);
@@ -142,7 +142,7 @@ function InvoiceView() {
     setNote(inv.note ?? "");
     setCashReceived(Number(inv.cash_received ?? 0));
     setCashBasis(inv.cash_basis ?? "");
-    setPaymentMethod(inv.payment_method === "card" ? "card" : "cash");
+    setPaymentMethod(inv.payment_method === "cash" ? "cash" : "card");
     setItems((inv.items ?? []).map((it: any) => ({
       id: it.id, product_id: it.product_id, name: it.name,
       quantity: Number(it.quantity), price: Number(it.price),
