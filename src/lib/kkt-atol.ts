@@ -182,14 +182,27 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
  *  - сам результат задания в корне ответа.
  * Возвращаем результат, как только он появился, либо null — задание ещё в работе.
  */
-function pickResult(state: any): { done: boolean; result?: any; error?: any } {
+function pickResult(state: any, uuid: string): { done: boolean; result?: any; error?: any } {
   if (!state || typeof state !== "object") return { done: false };
   const arr: any[] = Array.isArray(state) ? state : (state.results ?? []);
-  const r = arr[0];
+  // В некоторых версиях ДТО10 GET /requests/{uuid} возвращает общую очередь.
+  // Берём ответ именно нашего задания, а не первый элемент предыдущей операции.
+  const r = arr.find((item) => item?.uuid === uuid || item?.requestUuid === uuid) ??
+    (arr.length === 1 ? arr[0] : undefined);
   if (r) {
     if (r.error && (r.error.code || r.error.description || r.error.message)) return { done: true, error: r.error };
     const st = String(r.status ?? "").toLowerCase();
     if (st && !["ready", "completed", "done", "success"].includes(st)) return { done: false };
+    const errorCode = Number(r.errorCode ?? 0);
+    if (errorCode) {
+      return {
+        done: true,
+        error: {
+          code: errorCode,
+          description: r.errorDescription ?? r.description ?? r.message ?? `Ошибка кассы ${errorCode}`,
+        },
+      };
+    }
     if (r.result !== undefined && r.result !== null) return { done: true, result: r.result };
     // Нет status и нет result — задание выполнено без данных (например openShift).
     if (!st) return { done: true, result: r };
@@ -202,8 +215,25 @@ function pickResult(state: any): { done: boolean; result?: any; error?: any } {
   return { done: false };
 }
 
+const taskQueues = new Map<string, Promise<void>>();
+
 /** Отправить задание драйверу и дождаться результата. */
 async function runTask(url: string, task: Record<string, unknown>, timeoutMs = 60000) {
+  const queueKey = base(url);
+  const previous = taskQueues.get(queueKey) ?? Promise.resolve();
+  let release: (() => void) | undefined;
+  const current = new Promise<void>((resolve) => { release = resolve; });
+  taskQueues.set(queueKey, previous.then(() => current));
+  await previous.catch(() => undefined);
+  try {
+    return await runTaskInner(url, task, timeoutMs);
+  } finally {
+    release?.();
+    if (taskQueues.get(queueKey) === current) taskQueues.delete(queueKey);
+  }
+}
+
+async function runTaskInner(url: string, task: Record<string, unknown>, timeoutMs: number) {
   const uuid = crypto.randomUUID();
   const started = Date.now();
   const first = await driverFetch(url, "/requests", {
@@ -212,7 +242,7 @@ async function runTask(url: string, task: Record<string, unknown>, timeoutMs = 6
   });
   let state = first;
   while (Date.now() - started < timeoutMs) {
-    const p = pickResult(state);
+    const p = pickResult(state, uuid);
     if (p.done) {
       if (p.error) {
         throw new KktError(humanize(p.error.description ?? p.error.message ?? ""), p.error.code ?? null);
@@ -223,7 +253,7 @@ async function runTask(url: string, task: Record<string, unknown>, timeoutMs = 6
     state = await driverFetch(url, `/requests/${uuid}`);
   }
   throw new KktError(
-    "Касса не ответила за минуту. Проверьте, что в «Драйвере ККТ АТОЛ 10» выбрана эта касса и она не занята другой программой (тест драйвера, 1С).",
+    "Ответ о результате чека не получен. Если чек напечатался, не пробивайте его повторно — сначала проверьте последний чек на кассе. Если чек не печатался, проверьте, что касса не занята тестом драйвера или 1С.",
   );
 }
 
@@ -327,7 +357,11 @@ export function buildSellReceipt(s: KktSettings, input: KktReceiptInput) {
       ? round2(input.cashReceived)
       : total;
   return {
-    type: input.isReturn ? "sellReturnReceipt" : "sellReceipt",
+    // В API веб-сервера ДТО10 операции называются sell / sellReturn.
+    // sellReceipt / sellReturnReceipt не являются допустимыми типами заданий
+    // и в некоторых версиях драйвера навсегда остаются в очереди.
+    type: input.isReturn ? "sellReturn" : "sell",
+    ignoreNonFiscalPrintErrors: false,
     taxationType: s.sno || KKT_DEFAULTS.sno,
     electronically: !!input.clientContact,
     ...(s.place ? { paymentsPlace: s.place } : {}),
