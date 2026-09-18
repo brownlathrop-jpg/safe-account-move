@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { db } from "@/integrations/db";
 import { userPrefsGet, userPrefsSet } from "@/lib/db.functions";
 import {
-  KKT_DEFAULTS, kktDeviceInfo, printSellReceipt,
+  KKT_DEFAULTS, kktDeviceInfo, printSellReceipt, kktOpenShift, kktCloseShift,
   type KktSettings, type KktReceiptInput, type KktFiscalResult,
 } from "@/lib/kkt-atol";
 
@@ -88,6 +88,31 @@ export function useSaveKktSettings(wsId: string | null | undefined) {
 /** Проверка связи с кассой. */
 export function useKktCheck(settings: KktSettings) {
   return useMutation({ mutationFn: () => kktDeviceInfo(settings) });
+}
+
+/** Состояние кассы и смены — чтобы до печати чека было видно, что не так. */
+export function useKktShift(settings: KktSettings, enabled: boolean) {
+  return useQuery({
+    queryKey: ["kkt-shift", settings.url],
+    enabled,
+    retry: false,
+    gcTime: 0,
+    staleTime: 0,
+    refetchOnWindowFocus: false,
+    queryFn: () => kktDeviceInfo(settings),
+  });
+}
+
+/** Открыть смену / закрыть смену и открыть новую. */
+export function useKktShiftAction(settings: KktSettings) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (action: "open" | "reopen") => {
+      if (action === "reopen") await kktCloseShift(settings);
+      await kktOpenShift(settings);
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ["kkt-shift", settings.url] }),
+  });
 }
 
 /** Пробить чек по документу и сохранить фискальные данные в накладной. */

@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Receipt, Loader2, Copy, QrCode } from "lucide-react";
 import QRCode from "qrcode";
-import { useKktPrintReceipt, useKktSettings } from "@/hooks/use-kkt";
+import { useKktPrintReceipt, useKktSettings, useKktShift, useKktShiftAction } from "@/hooks/use-kkt";
 import {
   fnsCheckUrl, fnsQrPayload, mergeServicesIntoGoods, printLastReceiptCopy, receiptTotal,
   type KktPaymentType, type KktPosition,
@@ -45,6 +45,9 @@ export function KktReceiptButton({
   const [cashReceived, setCashReceived] = useState("");
   const [mergeServices, setMergeServices] = useState(false);
   const print = useKktPrintReceipt(settings, invoiceId);
+  const shift = useKktShift(settings, open);
+  const shiftAction = useKktShiftAction(settings);
+  const shiftOk = shift.data?.shiftState === "opened";
 
   if (!enabled) return null;
 
@@ -117,6 +120,43 @@ export function KktReceiptButton({
           </DialogHeader>
 
           <div className="space-y-3 text-sm">
+            <div className="rounded-md border p-3 space-y-2">
+              {shift.isLoading ? (
+                <p className="flex items-center gap-2 text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Проверяем кассу и смену…
+                </p>
+              ) : shift.isError ? (
+                <>
+                  <p className="text-destructive">{(shift.error as Error).message}</p>
+                  <Button variant="outline" size="sm" onClick={() => shift.refetch()}>Проверить снова</Button>
+                </>
+              ) : shiftOk ? (
+                <p className="text-muted-foreground">
+                  Касса {shift.data?.model} · смена {shift.data?.shiftNumber ?? "—"} открыта — можно пробивать чек.
+                </p>
+              ) : (
+                <>
+                  <p className="font-medium">
+                    {shift.data?.shiftState === "expired"
+                      ? "Смена открыта больше 24 часов — по закону чек пробить нельзя. Нужно закрыть смену и открыть новую."
+                      : "Смена на кассе закрыта — чек пробить нельзя. Откройте смену."}
+                  </p>
+                  <Button
+                    size="sm"
+                    disabled={shiftAction.isPending}
+                    onClick={() =>
+                      shiftAction.mutate(shift.data?.shiftState === "expired" ? "reopen" : "open", {
+                        onSuccess: () => toast.success("Смена открыта"),
+                        onError: (e: Error) => toast.error(e.message),
+                      })
+                    }
+                  >
+                    {shiftAction.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+                    {shift.data?.shiftState === "expired" ? "Закрыть смену и открыть новую" : "Открыть смену"}
+                  </Button>
+                </>
+              )}
+            </div>
             <div className="flex items-center justify-between rounded-md border p-3">
               <span className="text-muted-foreground">Сумма чека</span>
               <span className="text-lg font-semibold">{fmt.format(total)}</span>
@@ -178,7 +218,7 @@ export function KktReceiptButton({
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Отмена</Button>
             <Button
-              disabled={print.isPending || total <= 0 || !!mergeError}
+              disabled={print.isPending || total <= 0 || !!mergeError || !shiftOk}
               onClick={() =>
                 print.mutate(
                   {

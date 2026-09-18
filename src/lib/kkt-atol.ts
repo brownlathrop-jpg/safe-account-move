@@ -338,6 +338,18 @@ export async function printSellReceipt(s: KktSettings, input: KktReceiptInput): 
   };
 }
 
+/** Закрыть смену (печать Z-отчёта). */
+export async function kktCloseShift(s: KktSettings) {
+  return runTask(
+    s.url,
+    {
+      type: "closeShift",
+      operator: { name: s.cashier || "Кассир", ...(s.cashierVatin ? { vatin: s.cashierVatin } : {}) },
+    },
+    60000,
+  );
+}
+
 /** Повторная печать копии последнего чека (если касса поддерживает). */
 export async function printLastReceiptCopy(s: KktSettings) {
   return runTask(s.url, { type: "printLastReceiptCopy" }, 30000);
