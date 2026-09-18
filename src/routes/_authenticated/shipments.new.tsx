@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { db } from "@/integrations/db";
 import { useActiveWorkspaceId } from "@/lib/workspace";
@@ -26,6 +26,7 @@ type Row = { product_id: string | null; name: string; quantity: number; price: n
 
 function NewShipment() {
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const wsId = useActiveWorkspaceId();
   const myPriceTypeId = useMyPriceTypeId(wsId);
 
@@ -127,6 +128,8 @@ function NewShipment() {
       return inv.id as string;
     },
     onSuccess: (id) => {
+      qc.invalidateQueries({ queryKey: ["shipments"] });
+      qc.invalidateQueries({ queryKey: ["invoices"] });
       toast.success("Накладная создана");
       navigate({ to: "/invoices/$id", params: { id } });
     },

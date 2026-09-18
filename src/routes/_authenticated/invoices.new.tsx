@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 import { db } from "@/integrations/db";
@@ -47,6 +47,7 @@ function useDraft() {
 
 function NewInvoice() {
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const wsId = useActiveWorkspaceId();
   const draft = useDraft();
   const { kind, number, date, partnerId, statusId, note, items, numberTouched } = draft;
@@ -80,6 +81,7 @@ function NewInvoice() {
   }, [org, invoiceCount, mask, numberTouched, number]);
 
   const [pickRow, setPickRow] = useState<number | null>(null);
+  const [showMore, setShowMore] = useState(false);
   const { data: priceTypes = [] } = usePriceTypes(wsId);
   const myPriceTypeId = useMyPriceTypeId(wsId);
   const [priceTypeOverride, setPriceTypeOverride] = useState<string | null>(null);
@@ -181,6 +183,8 @@ function NewInvoice() {
     },
     onSuccess: (id) => {
       invoiceDraft.reset();
+      qc.invalidateQueries({ queryKey: ["invoices"] });
+      qc.invalidateQueries({ queryKey: ["invoices-count"] });
       toast.success("Заявка сохранена");
       navigate({ to: "/invoices/$id", params: { id } });
     },
@@ -203,7 +207,7 @@ function NewInvoice() {
       </div>
 
       <Card className="p-3">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           <div className="space-y-1">
             <Label className="text-xs">Тип</Label>
             <Select value={kind} onValueChange={(v) => invoiceDraft.set({ kind: v as any })}>
@@ -215,24 +219,6 @@ function NewInvoice() {
             </Select>
           </div>
           <div className="space-y-1">
-              <Label className="text-xs">Тип цены</Label>
-              <Select value={priceTypeId ?? "__none"} onValueChange={applyPriceType} disabled={kind !== "outgoing"}>
-                <SelectTrigger className="h-8"><SelectValue placeholder="Не задан" /></SelectTrigger>
-                <SelectContent>
-                  {priceTypes.length === 0 && <div className="px-2 py-1.5 text-sm text-muted-foreground">Нет типов цен — добавьте в Настройках</div>}
-                  {priceTypes.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-          <div className="space-y-1">
-            <Label className="text-xs">Номер</Label>
-            <Input className="h-8" value={number} onChange={(e) => invoiceDraft.set({ number: e.target.value, numberTouched: true })} />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs">Дата</Label>
-            <Input className="h-8" type="date" value={date} onChange={(e) => invoiceDraft.set({ date: e.target.value })} />
-          </div>
-          <div className="space-y-1">
             <Label className="text-xs">{kind === "outgoing" ? "Покупатель" : "Поставщик"}</Label>
             <Select value={partnerId} onValueChange={(v) => invoiceDraft.set({ partnerId: v })}>
               <SelectTrigger className="h-8"><SelectValue placeholder="Не выбран" /></SelectTrigger>
@@ -242,32 +228,61 @@ function NewInvoice() {
               </SelectContent>
             </Select>
           </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Дата</Label>
+            <Input className="h-8" type="date" value={date} onChange={(e) => invoiceDraft.set({ date: e.target.value })} />
+          </div>
         </div>
-        {statuses.length > 0 && (
-          <div className="mt-3 space-y-1 max-w-xs">
-            <Label className="text-xs">Статус</Label>
-            <Select value={statusId || undefined} onValueChange={(v) => invoiceDraft.set({ statusId: v })}>
-              <SelectTrigger className="h-8">
-                <SelectValue>
-                  {statusId && (
-                    <div className="flex items-center gap-2">
-                      <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: (statuses.find((s: any) => s.id === statusId) as any)?.color ?? "#cbd5e1" }} />
-                      {(statuses.find((s: any) => s.id === statusId) as any)?.name}
-                    </div>
-                  )}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {statuses.map((s: any) => (
-                  <SelectItem key={s.id} value={s.id}>
-                    <div className="flex items-center gap-2">
-                      <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: s.color }} />
-                      {s.name}
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+
+        <button type="button" onClick={() => setShowMore(v => !v)}
+          className="mt-2 text-xs text-muted-foreground hover:text-foreground underline">
+          {showMore ? "Скрыть" : `Ещё: № ${number}${statusId ? `, статус` : ""}${priceTypes.length > 1 ? ", тип цены" : ""}`}
+        </button>
+
+        {showMore && (
+          <div className="mt-2 grid grid-cols-2 md:grid-cols-3 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Номер</Label>
+              <Input className="h-8" value={number} onChange={(e) => invoiceDraft.set({ number: e.target.value, numberTouched: true })} />
+            </div>
+            {priceTypes.length > 1 && (
+              <div className="space-y-1">
+                <Label className="text-xs">Тип цены</Label>
+                <Select value={priceTypeId ?? "__none"} onValueChange={applyPriceType} disabled={kind !== "outgoing"}>
+                  <SelectTrigger className="h-8"><SelectValue placeholder="Не задан" /></SelectTrigger>
+                  <SelectContent>
+                    {priceTypes.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            {statuses.length > 0 && (
+              <div className="space-y-1">
+                <Label className="text-xs">Статус</Label>
+                <Select value={statusId || undefined} onValueChange={(v) => invoiceDraft.set({ statusId: v })}>
+                  <SelectTrigger className="h-8">
+                    <SelectValue>
+                      {statusId && (
+                        <div className="flex items-center gap-2">
+                          <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: (statuses.find((s: any) => s.id === statusId) as any)?.color ?? "#cbd5e1" }} />
+                          {(statuses.find((s: any) => s.id === statusId) as any)?.name}
+                        </div>
+                      )}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {statuses.map((s: any) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        <div className="flex items-center gap-2">
+                          <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: s.color }} />
+                          {s.name}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
         )}
       </Card>

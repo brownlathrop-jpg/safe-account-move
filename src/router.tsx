@@ -3,15 +3,15 @@ import { createRouter } from "@tanstack/react-router";
 import { routeTree } from "./routeTree.gen";
 
 export const getRouter = () => {
-  // Кэш держим дольше по умолчанию: справочники и списки не перечитываются
-  // из базы при каждом переходе между страницами — меньше обращений к базе.
+  // Короткий кэш: списки перечитываются при возврате на страницу, чтобы
+  // только что созданные документы сразу были видны.
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
-        staleTime: 5 * 60 * 1000,
+        staleTime: 10 * 1000,
         gcTime: 30 * 60 * 1000,
         refetchOnWindowFocus: false,
-        refetchOnMount: false,
+        refetchOnMount: true,
         retry: 1,
       },
     },

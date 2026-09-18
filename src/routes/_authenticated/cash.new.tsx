@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { db } from "@/integrations/db";
 import { useActiveWorkspaceId } from "@/lib/workspace";
@@ -18,6 +18,7 @@ export const Route = createFileRoute("/_authenticated/cash/new")({
 
 function NewCashDoc() {
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const wsId = useActiveWorkspaceId();
 
   const [kind, setKind] = useState<"incoming" | "outgoing">("incoming");
@@ -84,6 +85,9 @@ function NewCashDoc() {
       return data.id as string;
     },
     onSuccess: (id) => {
+      qc.invalidateQueries({ queryKey: ["cash"] });
+      qc.invalidateQueries({ queryKey: ["cash-count"] });
+      qc.invalidateQueries({ queryKey: ["invoices"] });
       toast.success(kind === "incoming" ? "ПКО создан" : "РКО создан");
       navigate({ to: "/invoices/$id", params: { id } });
     },
