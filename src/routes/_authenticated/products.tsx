@@ -254,7 +254,6 @@ function ProductsPage() {
         image_url: p.image_url ?? null,
         is_service: (p.kind ?? "product") === "service",
         vat_rate: p.vat_rate || "none",
-        product_type_id: p.product_type_id ?? null,
       };
       if (p.id) {
         const { error } = await db.from("products").update(payload as never).eq("id", p.id);
