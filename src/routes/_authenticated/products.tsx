@@ -83,6 +83,8 @@ function ProductsPage() {
   const [deleteFolder, setDeleteFolder] = useState<FolderRow | null>(null);
   const [deleteManyOpen, setDeleteManyOpen] = useState(false);
   const [page, setPage] = useState(0);
+  const [activePriceType, setActivePriceType] = useState<string | null>(null);
+  const [activePriceInput, setActivePriceInput] = useState("");
 
 
   const { data: products = [] } = useQuery({
