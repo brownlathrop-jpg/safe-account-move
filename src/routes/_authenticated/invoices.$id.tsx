@@ -26,6 +26,7 @@ import { usePriceTypes, useMyPriceTypeId, priceOf } from "@/lib/price-types";
 import { Torg12 } from "@/components/print/Torg12";
 import { Upd } from "@/components/print/Upd";
 import type { PrintItem } from "@/components/print/print-types";
+import { PrintHeader } from "@/components/print/PrintHeader";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useDiscounts, grossSum, discountSum, netSum, discountLabel, type DiscountKind } from "@/lib/discounts";
 import { DocTreeCard } from "@/components/DocTreeCard";
@@ -913,6 +914,7 @@ function InvoiceView() {
       {/* Print layout (hidden on screen) */}
       {(printMode === "standard" || printMode === "invoice") && (
       <div className="invoice-print hidden print:block bg-white text-black mx-auto" style={{ maxWidth: 900 }}>
+        <PrintHeader org={myOrg as any} />
         {printMode === "invoice" && orgAsParty && (
           <>
             <p className="text-center font-bold text-sm mb-2">Образец заполнения платежного поручения</p>
@@ -1079,6 +1081,7 @@ function InvoiceView() {
         });
         return (
           <div className="invoice-print hidden print:block bg-white text-black mx-auto" style={{ maxWidth: 1000 }}>
+            <PrintHeader org={myOrg as any} />
             {printMode === "torg12"
               ? <Torg12 supplier={supplierLine} buyer={buyerLine} number={cleanNumber} date={inv.issue_date} items={printItems} note={note} />
               : <Upd supplier={supplierLine} buyer={buyerLine} number={cleanNumber} date={inv.issue_date} items={printItems} note={note} />}
@@ -1088,6 +1091,7 @@ function InvoiceView() {
 
       {printMode === "pko" && (
       <div className="invoice-print hidden print:block bg-white text-black mx-auto" style={{ maxWidth: 900, fontSize: 12 }}>
+        <PrintHeader org={myOrg as any} />
         <div className="text-right text-xs mb-1">Унифицированная форма № КО-1<br/>Утверждена постановлением Госкомстата России от 18.08.98 № 88</div>
         <table className="w-full border-collapse text-xs mb-2">
           <tbody>
