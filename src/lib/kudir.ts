@@ -117,8 +117,9 @@ const ROMAN = ["I", "II", "III", "IV"];
 export function printKudir(
   book: Kudir,
   org: KudirOrg,
-  opts: { mode: KudirMode; objectIncomeOnly: boolean },
+  opts: { mode: KudirMode; objectIncomeOnly: boolean; contribs?: KudirContribBook },
 ) {
+
   const blocks = book.quarters
     .filter((q) => q.rows.length)
     .map((q) => {
