@@ -56,6 +56,57 @@ function KudirPage() {
         .order("is_primary", { ascending: false }).limit(1).maybeSingle()).data,
   });
 
+  // Раздел IV: уплаченные взносы. Храним в настройках базы данных.
+  const qc = useQueryClient();
+  const { data: contribs = [] } = useQuery<KudirContrib[]>({
+    queryKey: ["kudir-contribs", wsId],
+    enabled: !!wsId,
+    queryFn: async () => {
+      const { data } = await (db as any).from("workspaces").select("*").eq("id", wsId).maybeSingle();
+      const list = (data as any)?.kudir_contributions;
+      return Array.isArray(list) ? (list as KudirContrib[]) : [];
+    },
+  });
+
+  const saveContribs = useMutation({
+    mutationFn: async (list: KudirContrib[]) => {
+      if (!wsId) throw new Error("Не выбрана база данных");
+      const { error } = await (db as any).from("workspaces").update({ kudir_contributions: list }).eq("id", wsId);
+      if (error) throw error;
+      return list;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["kudir-contribs", wsId] }),
+    onError: (e: any) => toast.error(e?.message ?? "Не удалось сохранить взносы"),
+  });
+
+  const [form, setForm] = useState<{ date: string; doc: string; period: string; kind: KudirContribKind; amount: string }>({
+    date: new Date().toISOString().slice(0, 10),
+    doc: "",
+    period: "",
+    kind: "opc",
+    amount: "",
+  });
+
+  const addContrib = () => {
+    const amount = Number(String(form.amount).replace(",", "."));
+    if (!form.date || !amount) {
+      toast.error("Укажите дату и сумму взноса");
+      return;
+    }
+    const row: KudirContrib = {
+      id: crypto.randomUUID(),
+      date: form.date,
+      doc: form.doc || undefined,
+      period: form.period || undefined,
+      kind: form.kind,
+      amount: Math.round(amount * 100) / 100,
+    };
+    saveContribs.mutate([...contribs, row]);
+    setForm((f) => ({ ...f, doc: "", amount: "" }));
+  };
+
+
+
   const { data: rows = [], isLoading } = useQuery<KudirRow[]>({
     queryKey: ["kudir", wsId],
     enabled: !!wsId,
