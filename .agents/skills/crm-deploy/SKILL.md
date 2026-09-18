@@ -64,14 +64,20 @@ scp -i /tmp/sshkey/id -o StrictHostKeyChecking=accept-new /tmp/crm.tgz crmdeploy
 $SSH 'cd /home/crmadmin/htdocs/crm.skladnow.ru && rm -rf dist.old && { [ -d dist ] && mv dist dist.old; }; tar -xzf /tmp/crm.tgz -C .; rm -f /tmp/crm.tgz; pm2 restart ecosystem.config.cjs && pm2 save   # НЕ `pm2 restart crm --update-env` — это стирает переменные из .env'
 ```
 
-5. Verify — do not report success without this:
+5. Verify — do not report success without this. HTTP 200 сам по себе НЕ доказывает,
+   что залилась новая версия: проверь, что свежий чанк лежит в папке сайта и отдаётся по HTTP.
 
 ```bash
 curl -skI --resolve crm.skladnow.ru:443:178.212.13.144 https://crm.skladnow.ru/ | head -20
 $SSH 'pm2 describe crm | grep -E "status|uptime|restarts"'
+$SSH 'ls -la /home/crmadmin/htdocs/crm.skladnow.ru/dist; ls /home/crmdeploy/dist 2>/dev/null && echo "ВНИМАНИЕ: мусорный dist в домашней папке"'
+# новый чанк изменённого маршрута действительно отдаётся:
+CHUNK=$($SSH 'ls /home/crmadmin/htdocs/crm.skladnow.ru/dist/client/assets | grep <route>')
+curl -s https://crm.skladnow.ru/assets/$CHUNK | grep -c "<строка из твоих правок>"
 ```
 
-Expect `HTTP/2 200` and pm2 status `online`.
+Expect `HTTP/2 200`, pm2 status `online`, свежую дату у `dist/` и `grep -c` > 0.
+
 
 ## If it fails
 
