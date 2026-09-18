@@ -28,6 +28,8 @@ import { Upd } from "@/components/print/Upd";
 import type { PrintItem } from "@/components/print/print-types";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useDiscounts, grossSum, discountSum, netSum, discountLabel, type DiscountKind } from "@/lib/discounts";
+import { DocTreeCard } from "@/components/DocTreeCard";
+import { docTitle as docTitleOf, docTitleAccusative } from "@/lib/doc-tree";
 
 export const Route = createFileRoute("/_authenticated/invoices/$id")({
   head: () => ({ meta: [{ title: "Накладная — КабинетCRM" }] }),
@@ -48,11 +50,6 @@ type Item = {
 type DocType = "order" | "shipment" | "cash_receipt";
 type PrintMode = "standard" | "invoice" | "pko" | "torg12" | "upd";
 
-const docLabels: Record<DocType, { title: string; one: string; createLabel: string }> = {
-  order: { title: "Заявка", one: "заявку", createLabel: "Заявка" },
-  shipment: { title: "Накладная", one: "накладную", createLabel: "Накладная" },
-  cash_receipt: { title: "ПКО", one: "ПКО", createLabel: "ПКО" },
-};
 
 function InvoiceView() {
   const { id } = Route.useParams();
@@ -158,20 +155,6 @@ function InvoiceView() {
   const isShipment = docType === "shipment";
   const isPKO = docType === "cash_receipt";
 
-  // Children documents (shipments + PKO) of this order
-  const { data: children = [] } = useQuery({
-    queryKey: ["invoice-children", id],
-    queryFn: async () => {
-      const { data, error } = await (db as any)
-        .from("invoices")
-        .select("id,number,doc_type,issue_date,total,status,cash_received")
-        .eq("parent_id", id)
-        .order("created_at", { ascending: true });
-      if (error) throw error;
-      return (data ?? []) as any[];
-    },
-    // Показываем связанные для любого документа, не только для заявки
-  });
 
   const { data: parent } = useQuery({
     queryKey: ["invoice-parent", inv?.parent_id],
@@ -339,7 +322,7 @@ function InvoiceView() {
       const { data: ship, error } = await (db as any).from("invoices").insert({
         user_id: user.id,
         workspace_id: inv!.workspace_id ?? wsId,
-        number: `Н-${cleanNum}`,
+        number: `${inv!.kind === "incoming" ? "П" : "Н"}-${cleanNum}`,
         kind: inv!.kind,
         partner_id: inv!.partner_id,
         warehouse_id: defaultWh,
@@ -364,9 +347,10 @@ function InvoiceView() {
     },
     onSuccess: (newId) => {
       qc.invalidateQueries({ queryKey: ["invoice-children", id] });
+      qc.invalidateQueries({ queryKey: ["doc-chain"] });
       qc.invalidateQueries({ queryKey: ["invoices"] });
       qc.invalidateQueries({ queryKey: ["shipments"] });
-      toast.success("Накладная создана");
+      toast.success(inv?.kind === "incoming" ? "Поступление создано" : "Накладная создана");
       navigate({ to: "/invoices/$id", params: { id: newId } });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -389,16 +373,17 @@ function InvoiceView() {
         doc_type: "cash_receipt",
         parent_id: id,
         cash_received: Number(inv!.total) || total || 0,
-        cash_basis: `Оплата по заявке № ${cleanNum} от ${dfmt.format(new Date(inv!.issue_date))}`,
+        cash_basis: `Оплата по ${docTitleAccusative(inv!.doc_type, inv!.kind)} № ${cleanNum} от ${dfmt.format(new Date(inv!.issue_date))}`,
       }).select().single();
       if (error) throw error;
       return pko.id as string;
     },
     onSuccess: (newId) => {
       qc.invalidateQueries({ queryKey: ["invoice-children", id] });
+      qc.invalidateQueries({ queryKey: ["doc-chain"] });
       qc.invalidateQueries({ queryKey: ["invoices"] });
       qc.invalidateQueries({ queryKey: ["cash"] });
-      toast.success("ПКО создан");
+      toast.success(inv?.kind === "outgoing" ? "ПКО создан" : "РКО создан");
       navigate({ to: "/invoices/$id", params: { id: newId } });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -471,7 +456,7 @@ function InvoiceView() {
   const supplierLine: any = kind === "outgoing" ? orgAsParty : partnerObj;
   const buyerLine: any = kind === "outgoing" ? partnerObj : orgAsParty;
   const cleanNumber = String(inv.number).replace(/^№\s*/, "");
-  const docTitle = isPKO ? (kind === "outgoing" ? "РКО" : "ПКО") : docLabels[docType].title;
+  const docTitle = docTitleOf(docType, kind, inv.is_return);
   const title = printMode === "pko"
     ? `${kind === "outgoing" ? "Расходный" : "Приходный"} кассовый ордер № ${cleanNumber}`
     : printMode === "invoice"
@@ -556,7 +541,7 @@ function InvoiceView() {
           {isShipment && inv.status === "posted" && <Button variant="outline" onClick={() => setStatus.mutate("draft")}><FileEdit className="h-4 w-4 mr-1" /> Распровести</Button>}
           {inv.status !== "cancelled" && (
             <Button variant="outline" onClick={() => {
-              if (!confirm(`Отменить ${docLabels[docType].one}?`)) return;
+              if (!confirm(`Отменить ${docTitleAccusative(docType, kind)}?`)) return;
               setStatus.mutate("cancelled", { onSuccess: () => navigate({ to: "/invoices" }) });
             }}><XCircle className="h-4 w-4 mr-1" /> Отменить</Button>
           )}
@@ -602,7 +587,7 @@ function InvoiceView() {
       {/* Header label */}
       <div className="print:hidden">
         <h1 className="text-2xl font-semibold">
-          {inv.is_return ? "Возврат — " : ""}{docTitle} № {cleanNumber}
+          {docTitle} № {cleanNumber}
         </h1>
         {isShipment && inv.status === "posted" && kind === "outgoing" && (
           <p className="text-sm mt-1">
@@ -621,7 +606,7 @@ function InvoiceView() {
         {inv.parent_id && (
           <p className="text-sm text-muted-foreground mt-1">
             На основании{" "}
-            {parent?.doc_type === "order" ? "заявки" : parent?.doc_type === "shipment" ? "накладной" : "документа"}
+            {docTitleOf(parent?.doc_type, parent?.kind).toLowerCase()}
             {" — "}
             <Link to="/invoices/$id" params={{ id: inv.parent_id }} className="text-primary hover:underline">
               {parent?.number ? `№ ${parent.number}` : "открыть"}
@@ -631,58 +616,33 @@ function InvoiceView() {
         )}
       </div>
 
-      {/* Связанные документы: для заявки — с кнопками создания, для остальных — просто список */}
-      {(isOrder || children.length > 0) && (
-        <Card className="p-5 print:hidden">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-medium">Связанные документы</h3>
-            {isOrder && <div className="flex gap-2">
-              <Button size="sm" variant="outline" onClick={() => createShipment.mutate()} disabled={createShipment.isPending || items.length === 0}>
-                <Plus className="h-4 w-4 mr-1" /> Накладная
-              </Button>
+      {/* Иерархия документов: заявка → накладная/поступление → ПКО/РКО */}
+      <DocTreeCard
+        docId={id}
+        hint={
+          isOrder
+            ? (kind === "incoming"
+                ? "Создайте на основании заявки поступление товара — по его ценам считается себестоимость — и РКО на оплату поставщику."
+                : "Создайте на основании заявки расходную накладную для списания остатков и ПКО на оплату.")
+            : isShipment
+              ? "Создайте на основании этого документа кассовый ордер на оплату."
+              : "Связанных документов пока нет."
+        }
+        actions={
+          (isOrder || isShipment) && inv.status !== "cancelled" ? (
+            <div className="flex flex-wrap gap-2">
+              {isOrder && (
+                <Button size="sm" variant="outline" onClick={() => createShipment.mutate()} disabled={createShipment.isPending || items.length === 0}>
+                  <Plus className="h-4 w-4 mr-1" /> {kind === "incoming" ? "Поступление товара" : "Расходная накладная"}
+                </Button>
+              )}
               <Button size="sm" variant="outline" onClick={() => createReceipt.mutate()} disabled={createReceipt.isPending}>
-                <Plus className="h-4 w-4 mr-1" /> ПКО
+                <Plus className="h-4 w-4 mr-1" /> {kind === "incoming" ? "РКО (оплата поставщику)" : "ПКО (оплата от покупателя)"}
               </Button>
-            </div>}
-          </div>
-          {children.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Создайте накладную для списания остатков или ПКО для квитанции об оплате.
-            </p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Документ</TableHead>
-                  <TableHead>№</TableHead>
-                  <TableHead>Дата</TableHead>
-                  <TableHead>Статус</TableHead>
-                  <TableHead className="text-right">Сумма</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {children.map(c => (
-                  <TableRow key={c.id}>
-                    <TableCell>{c.doc_type === "shipment" ? "Накладная" : c.doc_type === "order" ? "Заявка" : "ПКО/РКО"}</TableCell>
-                    <TableCell>
-                      <Link to="/invoices/$id" params={{ id: c.id }} className="text-primary hover:underline">{c.number}</Link>
-                    </TableCell>
-                    <TableCell>{dfmt.format(new Date(c.issue_date))}</TableCell>
-                    <TableCell className="text-sm">
-                      {c.doc_type === "shipment"
-                        ? (c.status === "posted" ? "Проведена" : c.status === "cancelled" ? "Отменена" : "Черновик")
-                        : "—"}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {fmt.format(Number(c.doc_type === "cash_receipt" ? (c.cash_received ?? 0) : c.total))}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </Card>
-      )}
+            </div>
+          ) : null
+        }
+      />
 
 
       {/* Оплаты по документу */}
