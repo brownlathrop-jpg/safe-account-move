@@ -37,7 +37,7 @@ function ShipmentsPage() {
     queryFn: async () => {
       let q = (db as any)
         .from("invoices")
-        .select("id,number,kind,status,total,issue_date,is_return,partner:partners(name)")
+        .select("id,number,kind,status,total,issue_date,is_return,fiscal,partner:partners(name)")
         .eq("doc_type", "shipment")
         .eq("workspace_id", wsId)
         .order("issue_date", { ascending: false });
