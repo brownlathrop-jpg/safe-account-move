@@ -1026,7 +1026,17 @@ function ProductsPage() {
               <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label>Себестоимость</Label>
-                  <Input type="number" step="0.01" value={editing.cost ?? 0} onChange={e => setEditing({ ...editing, cost: Number(e.target.value) })} />
+                  <Input type="number" step="0.01" value={editing.cost ?? 0}
+                    onChange={e => setEditing({ ...editing, cost: Number(e.target.value) })}
+                    readOnly={!!editing.id && costInfo.hasBatches}
+                    className={!!editing.id && costInfo.hasBatches ? "bg-muted" : undefined} />
+                  <p className="text-xs text-muted-foreground">
+                    {editing.id
+                      ? costInfo.hasBatches
+                        ? `По партиям поступлений: остаток ${costInfo.qty}, себестоимость ${fmt.format(costInfo.cost)}`
+                        : "Поступлений ещё нет — значение можно указать вручную, дальше оно считается по поступлениям"
+                      : "Дальше считается автоматически по поступлениям (партиями, FIFO)"}
+                  </p>
                 </div>
                 {priceTypes.length === 0 && (
                   <div className="space-y-2">

@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { db } from "@/integrations/db";
@@ -502,8 +502,8 @@ function BatchesTab({ products }: { products: Product[] }) {
             const sum = r.batches.reduce((s2, b) => s2 + b.qty * b.unit, 0);
             const isOpen = openRow === r.product_id;
             return (
-              <>
-                <TableRow key={r.product_id}>
+              <Fragment key={r.product_id}>
+                <TableRow>
                   <TableCell className="font-medium">{p?.name ?? "—"}</TableCell>
                   <TableCell className="text-right font-mono">{fmtQty.format(r.qty)}</TableCell>
                   <TableCell className="text-right font-mono">{fmtMoney.format(r.cost)}</TableCell>
@@ -527,7 +527,7 @@ function BatchesTab({ products }: { products: Product[] }) {
                     <TableCell />
                   </TableRow>
                 ))}
-              </>
+              </Fragment>
             );
           })}
         </TableBody>
