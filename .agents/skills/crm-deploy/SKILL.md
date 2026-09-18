@@ -14,6 +14,17 @@ Do it yourself end to end. Never hand the user shell commands.
 - App dir: `/home/crmadmin/htdocs/crm.skladnow.ru/` — contains `dist/`, `node-server.js`, `.env`, `node_modules`, `ecosystem.config.cjs`
 - pm2 process: `crm`, node listens on port `3001`; nginx (CloudPanel vhost) proxies https://crm.skladnow.ru to `127.0.0.1:3001`
 
+### НИКОГДА не распаковывать в домашнюю папку `crmdeploy`
+
+`ssh crmdeploy@...` логинится в `/home/crmdeploy`, а сайт работает из
+`/home/crmadmin/htdocs/crm.skladnow.ru` (доступна как `~/htdocs/crm.skladnow.ru`).
+Если распаковать архив без `cd`, появится `/home/crmdeploy/dist` — pm2 перезапустится,
+сайт ответит 200, но пользователь не увидит изменений (это уже случалось 18.09.2026).
+
+Every remote command MUST start with `cd /home/crmadmin/htdocs/crm.skladnow.ru &&`.
+После деплоя обязательно проверить, что новый чанк реально отдаётся сайтом (см. шаг 5),
+и что в `/home/crmdeploy/` нет папки `dist` (если есть — удалить, это мусор).
+
 NEVER deploy to `186.246.48.162` / `delivery.skladnow.ru` — different project. `$VPS_SSH_HOST` and `$VPS_SSH_USER` point there; ignore them. Only `$VPS_SSH_PRIVATE_KEY` is shared with this host.
 Do not touch other CloudPanel sites, databases, or vhosts on the server.
 
