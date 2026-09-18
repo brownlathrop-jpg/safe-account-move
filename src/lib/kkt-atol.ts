@@ -98,6 +98,8 @@ export type KktReceiptInput = {
   isReturn?: boolean;
   /** Получено наличными — для расчёта сдачи. */
   cashReceived?: number;
+  /** Состояние смены, уже проверенное в окне печати — чтобы не опрашивать кассу снова. */
+  knownShiftState?: "opened" | "closed" | "expired" | "unknown";
 };
 
 export type KktFiscalResult = {
