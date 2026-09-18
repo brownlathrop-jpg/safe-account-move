@@ -79,6 +79,7 @@ function ProductsPage() {
 
   const [dropFolder, setDropFolder] = useState<string | null>(null);
   const [deleteFolder, setDeleteFolder] = useState<FolderRow | null>(null);
+  const [deleteManyOpen, setDeleteManyOpen] = useState(false);
   const [page, setPage] = useState(0);
 
 
@@ -240,6 +241,45 @@ function ProductsPage() {
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["products"] }); toast.success("Удалено"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const removeMany = useMutation({
+    mutationFn: async ({ productIds, folderIds }: { productIds: string[]; folderIds: string[] }) => {
+      if (!productIds.length && !folderIds.length) throw new Error("Ничего не выбрано");
+      // Удаляем папки рекурсивно: потомки + содержимое.
+      const allFolderIds = new Set<string>();
+      folderIds.forEach(id => descendantsOf(id).forEach(d => allFolderIds.add(d)));
+      if (allFolderIds.size) {
+        const folderIdList = [...allFolderIds];
+        const { error: prodErr } = await db.from("products").delete().in("folder_id", folderIdList);
+        if (prodErr) throw prodErr;
+        const { error: foldErr } = await db.from("product_folders").delete().in("id", folderIdList);
+        if (foldErr) throw foldErr;
+      }
+      if (productIds.length) {
+        const { error } = await db.from("products").delete().in("id", productIds);
+        if (error) throw error;
+      }
+      return { productIds, folderIds: [...allFolderIds] };
+    },
+    onSuccess: ({ productIds, folderIds }) => {
+      const goneFolders = new Set(folderIds);
+      const goneProducts = new Set(productIds);
+      qc.setQueryData(["product_folders", wsId], (old?: FolderRow[]) =>
+        old ? old.filter(f => !goneFolders.has(f.id)) : old);
+      qc.setQueryData(["products", wsId], (old?: Product[]) =>
+        old ? old.filter(p => !goneProducts.has(p.id) && !(p.folder_id && goneFolders.has(p.folder_id))) : old);
+      qc.invalidateQueries({ queryKey: ["products"] });
+      qc.invalidateQueries({ queryKey: ["product_folders"] });
+      if (selectedFolder !== ALL && selectedFolder !== ROOT && goneFolders.has(selectedFolder)) {
+        setSelectedFolder(ALL);
+      }
+      setSelectedIds([]);
+      setSelectedFolderIds([]);
+      setDeleteManyOpen(false);
+      toast.success("Удалено");
+    },
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -690,6 +730,9 @@ function ProductsPage() {
               <Button size="sm" variant="outline" onClick={() => { setMoveTarget(getSelectedRealFolderId() ?? ROOT); setMoveOpen(true); }}>
                 <FolderOpen className="h-4 w-4 mr-1" /> Перенести в папку
               </Button>
+              <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" onClick={() => setDeleteManyOpen(true)}>
+                <Trash2 className="h-4 w-4 mr-1" /> Удалить
+              </Button>
               <Button size="sm" variant="ghost" onClick={() => { setSelectedIds([]); setSelectedFolderIds([]); }}>Снять выделение</Button>
               <span className="text-xs text-muted-foreground ml-auto hidden md:inline">
                 Можно перетащить все выбранные строки на папку. Shift+клик — выбрать диапазон.
@@ -1035,6 +1078,32 @@ function ProductsPage() {
               onClick={(e) => { e.preventDefault(); if (deleteFolder) removeFolder.mutate(deleteFolder.id); }}
             >
               {removeFolder.isPending ? "Удаляем…" : "Удалить всё"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={deleteManyOpen} onOpenChange={setDeleteManyOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Удалить выбранное?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {selectedFolderIds.length > 0 && selectedIds.length > 0
+                ? `Будут удалены: товаров — ${selectedIds.length}, папок — ${selectedFolderIds.length} (со всем содержимым).`
+                : selectedFolderIds.length > 0
+                  ? `Будет удалено папок — ${selectedFolderIds.length}, включая все вложенные папки и товары в них.`
+                  : `Будет удалено товаров — ${selectedIds.length}.`}
+              {" "}Действие нельзя отменить.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeleteManyOpen(false)}>Отмена</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={removeMany.isPending}
+              onClick={(e) => { e.preventDefault(); removeMany.mutate({ productIds: selectedIds, folderIds: selectedFolderIds }); }}
+            >
+              {removeMany.isPending ? "Удаляем…" : "Удалить"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
