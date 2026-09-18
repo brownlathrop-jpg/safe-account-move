@@ -41,9 +41,23 @@ export const adminStats = createServerFn({ method: "POST" }).handler(async () =>
       union all select 'Пользователи', count(*) from app_users`;
     const size = await s`select pg_size_pretty(pg_database_size(current_database())) as size`;
     const sessions = await s`select count(*) from app_sessions where expires_at > now()`;
+    // Разбивка по базам (workspaces)
+    const byWorkspace = await s`
+      select w.id, coalesce(w.name, 'Без названия') as name, u.email as owner,
+             (select count(*) from products p where p.workspace_id = w.id) as products,
+             (select count(*) from product_folders f where f.workspace_id = w.id) as folders,
+             (select count(*) from partners pt where pt.workspace_id = w.id) as partners,
+             (select count(*) from invoices i where i.workspace_id = w.id) as invoices,
+             (select count(*) from invoice_items ii where ii.workspace_id = w.id) as invoice_items,
+             (select count(*) from stock_movements sm where sm.workspace_id = w.id) as stock_movements,
+             (select count(*) from stock_receipts sr where sr.workspace_id = w.id) as stock_receipts
+      from workspaces w
+      left join app_users u on u.id = w.user_id
+      order by w.name`;
     return {
       data: {
         counts: counts as any[],
+        byWorkspace: byWorkspace as any[],
         size: (size[0] as any)?.size ?? "",
         sessions: Number((sessions[0] as any)?.count ?? 0),
       },
