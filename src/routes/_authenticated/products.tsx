@@ -19,6 +19,7 @@ import { useActiveWorkspaceId } from "@/lib/workspace";
 import { downloadCsv, type CsvColumn } from "@/lib/export-csv";
 import { printList } from "@/lib/print-list";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { usePriceTypes, useMyPriceTypeId, priceOf } from "@/lib/price-types";
 
 
 export const Route = createFileRoute("/_authenticated/products")({
@@ -41,6 +42,7 @@ type Product = {
   is_service?: boolean;
   vat_rate?: string | null;
   product_type_id?: string | null;
+  prices?: Record<string, number> | null;
 };
 
 type FolderRow = { id: string; name: string; parent_id: string | null };
@@ -145,6 +147,9 @@ function ProductsPage() {
       return (data ?? []) as { id: string; name: string; is_service: boolean }[];
     },
   });
+
+  const { data: priceTypes = [] } = usePriceTypes(wsId);
+  const myPriceTypeId = useMyPriceTypeId(wsId);
 
   const childrenOf = useMemo(() => {
     const map = new Map<string | null, FolderRow[]>();
