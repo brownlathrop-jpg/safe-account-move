@@ -689,39 +689,48 @@ function InvoiceView() {
               <h3 className="font-medium text-sm">Позиции</h3>
               <div className="flex flex-wrap items-center gap-2">
                 {editable && items.length > 0 && (
-                  <div className="flex flex-wrap items-center gap-1 text-xs">
-                    <span className="text-muted-foreground">
-                      {selected.length ? `Скидка на ${selected.length} поз.:` : "Скидка на все позиции:"}
-                    </span>
-                    {discountRefs.length > 0 && (
-                      <Select value="" onValueChange={(v) => {
-                        const d = discountRefs.find(x => x.id === v);
-                        if (d) applyDiscount(d.kind, d.value, d.name);
-                      }}>
-                        <SelectTrigger className="h-7 w-40 text-xs"><SelectValue placeholder="Из справочника" /></SelectTrigger>
-                        <SelectContent>
-                          {discountRefs.map(d => (
-                            <SelectItem key={d.id} value={d.id}>{d.name} — {discountLabel(d.kind, d.value)}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-                    <Select value={manualKind} onValueChange={(v) => setManualKind(v as DiscountKind)}>
-                      <SelectTrigger className="h-7 w-24 text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="percent">%</SelectItem>
-                        <SelectItem value="amount">₽</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Input className="h-7 w-20 text-xs" placeholder="0" value={manualValue}
-                      onChange={e => setManualValue(e.target.value)} />
-                    <Button size="sm" variant="outline" className="h-7 text-xs"
-                      onClick={() => applyDiscount(manualKind, Number(String(manualValue).replace(",", ".")) || 0, null)}>
-                      Применить
-                    </Button>
-                    <Button size="sm" variant="ghost" className="h-7 text-xs"
-                      onClick={() => applyDiscount("percent", 0, null)}>Снять</Button>
-                  </div>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button size="sm" variant="outline" className="h-8">
+                        Скидка{selected.length ? ` (${selected.length})` : ""} <ChevronDown className="h-4 w-4 ml-1" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent align="end" className="w-72 space-y-2">
+                      <p className="text-xs text-muted-foreground">
+                        {selected.length ? `Применить к отмеченным позициям: ${selected.length}` : "Применить ко всем позициям"}
+                      </p>
+                      {discountRefs.length > 0 && (
+                        <Select value="" onValueChange={(v) => {
+                          const d = discountRefs.find(x => x.id === v);
+                          if (d) applyDiscount(d.kind, d.value, d.name);
+                        }}>
+                          <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Из справочника скидок" /></SelectTrigger>
+                          <SelectContent>
+                            {discountRefs.map(d => (
+                              <SelectItem key={d.id} value={d.id}>{d.name} — {discountLabel(d.kind, d.value)}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                      <div className="flex items-center gap-1">
+                        <Select value={manualKind} onValueChange={(v) => setManualKind(v as DiscountKind)}>
+                          <SelectTrigger className="h-8 w-20 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="percent">%</SelectItem>
+                            <SelectItem value="amount">₽</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Input className="h-8 w-20 text-xs" placeholder="0" value={manualValue}
+                          onChange={e => setManualValue(e.target.value)} />
+                        <Button size="sm" variant="outline" className="h-8 text-xs"
+                          onClick={() => applyDiscount(manualKind, Number(String(manualValue).replace(",", ".")) || 0, null)}>
+                          Применить
+                        </Button>
+                        <Button size="sm" variant="ghost" className="h-8 text-xs"
+                          onClick={() => applyDiscount("percent", 0, null)}>Снять</Button>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
                 )}
                 {editable && (
                   <ProductPicker
