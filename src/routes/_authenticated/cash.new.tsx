@@ -1,3 +1,4 @@
+import { NumCell } from "@/components/NumCell";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -144,8 +145,7 @@ function NewCashDoc() {
           </div>
           <div className="space-y-1">
             <Label className="text-xs">Сумма</Label>
-            <Input className="h-8 text-right" type="number" step="0.01" value={amount}
-              onChange={(e) => setAmount(Number(e.target.value))} />
+            <NumCell className="h-8" step="0.01" value={amount} onCommit={setAmount} />
           </div>
         </div>
       </Card>

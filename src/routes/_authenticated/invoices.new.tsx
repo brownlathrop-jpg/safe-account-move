@@ -1,3 +1,4 @@
+import { NumCell } from "@/components/NumCell";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
@@ -331,8 +332,8 @@ function NewInvoice() {
                     {it.name || <span className="text-muted-foreground">Выберите товар</span>}
                   </button>
                 </TableCell>
-                <TableCell><Input type="number" step="0.001" className="xls-cell text-right" value={it.quantity} onChange={(e) => updateItem(idx, { quantity: Number(e.target.value) })} /></TableCell>
-                <TableCell><Input type="number" step="0.01" className="xls-cell text-right" value={it.price} onChange={(e) => updateItem(idx, { price: Number(e.target.value) })} /></TableCell>
+                <TableCell><NumCell grid="invnew" row={idx} col={0} step="0.001" className="xls-cell" value={it.quantity} onCommit={(v) => updateItem(idx, { quantity: v })} /></TableCell>
+                <TableCell><NumCell grid="invnew" row={idx} col={1} step="0.01" className="xls-cell" value={it.price} onCommit={(v) => updateItem(idx, { price: v })} /></TableCell>
                 <TableCell className="text-right font-medium">{fmt.format(it.quantity * it.price)}</TableCell>
                 <TableCell><Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => removeItem(idx)}><Trash2 className="h-3.5 w-3.5" /></Button></TableCell>
               </TableRow>
