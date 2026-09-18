@@ -287,7 +287,7 @@ function parseShiftState(shift: any): KktDeviceInfo["shiftState"] {
 
 /** Только состояние смены — один короткий запрос к кассе. */
 export async function kktShiftState(s: KktSettings): Promise<KktDeviceInfo["shiftState"]> {
-  const shift = await runTask(s.url, { type: "queryShiftStatus" }, 15000).catch(() => null);
+  const shift = await runTask(s.url, { type: "getShiftStatus" }, 15000).catch(() => null);
   return parseShiftState(shift);
 }
 
@@ -375,9 +375,9 @@ export async function kktDeviceInfo(s: KktSettings): Promise<KktDeviceInfo> {
   // Таймаут короткий: неподдерживаемое задание иначе «висит» и опрос длится минуту.
   const opt = (type: string) => runTask(s.url, { type }, 4000).catch(() => null);
   const status: any = await opt("getDeviceStatus");
-  const fn: any = await opt("fnInfo");
-  const reg: any = await opt("regInfo");
-  const shift: any = await opt("queryShiftStatus");
+  const fn: any = await opt("getFnInfo");
+  const reg: any = await opt("getRegistrationInfo");
+  const shift: any = await opt("getShiftStatus");
   const all = [info, status, fn, reg, shift];
   const find = (keys: string[]) => {
     for (const src of all) {
