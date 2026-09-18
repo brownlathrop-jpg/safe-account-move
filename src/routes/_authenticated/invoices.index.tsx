@@ -5,11 +5,12 @@ import { db } from "@/integrations/db";
 import { useActiveWorkspaceId } from "@/lib/workspace";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowDownToLine, ArrowUpFromLine, Receipt, Truck, Search, Download } from "lucide-react";
+import { ArrowDownToLine, ArrowUpFromLine, Receipt, Truck, Search, Download, Printer } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { downloadCsv, csvDate } from "@/lib/export-csv";
+import { printList } from "@/lib/print-list";
 
 export const Route = createFileRoute("/_authenticated/invoices/")({
   head: () => ({ meta: [{ title: "Заявки — КабинетCRM" }] }),
@@ -58,14 +59,16 @@ function InvoicesPage() {
 
   const total = useMemo(() => filtered.reduce((s, i) => s + Number(i.total || 0), 0), [filtered]);
 
-  const exportCsv = () => downloadCsv("заявки", filtered, [
-    { header: "№", value: i => i.number },
-    { header: "Дата", value: i => csvDate(i.issue_date) },
-    { header: "Тип", value: i => (i.kind === "incoming" ? "Приход" : "Расход") },
-    { header: "Контрагент", value: i => i.partner?.name ?? "" },
-    { header: "Статус", value: i => i.status_ref?.name ?? "" },
-    { header: "Сумма", value: i => Number(i.total || 0) },
-  ]);
+  const listColumns = [
+    { header: "№", value: (i: any) => i.number },
+    { header: "Дата", value: (i: any) => csvDate(i.issue_date) },
+    { header: "Тип", value: (i: any) => (i.kind === "incoming" ? "Приход" : "Расход") },
+    { header: "Контрагент", value: (i: any) => i.partner?.name ?? "" },
+    { header: "Статус", value: (i: any) => i.status_ref?.name ?? "" },
+    { header: "Сумма", value: (i: any) => Number(i.total || 0) },
+  ];
+  const exportCsv = () => downloadCsv("заявки", filtered, listColumns);
+  const printInvoices = () => printList("Заявки", filtered, listColumns);
 
   return (
     <div className="space-y-5">
@@ -74,8 +77,11 @@ function InvoicesPage() {
           <h1 className="text-2xl font-semibold">Заявки</h1>
           <p className="text-sm text-muted-foreground">Заявки покупателей и поставщикам. Накладные и ПКО создаются на их основании.</p>
         </div>
-        <Button variant="outline" className="ml-auto" onClick={exportCsv} disabled={!filtered.length}>
+        <Button variant="outline" className="ml-auto" onClick={exportCsv} disabled={!filtered.length} title="Выгрузить в Excel">
           <Download className="h-4 w-4 mr-1" /> Excel
+        </Button>
+        <Button variant="outline" onClick={printInvoices} disabled={!filtered.length} title="Печать списка / сохранить в PDF">
+          <Printer className="h-4 w-4 mr-1" /> Печать
         </Button>
       </div>
 
