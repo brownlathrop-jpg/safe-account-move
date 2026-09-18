@@ -264,7 +264,7 @@ export function buildSellReceipt(s: KktSettings, input: KktReceiptInput) {
       name: String(p.name || "Товар").slice(0, 128),
       price: round2(p.price),
       quantity: Number(p.quantity) || 0,
-      amount: round2(p.price * p.quantity),
+      amount: positionAmount(p),
       measurementUnit: p.unit || "шт",
       paymentMethod: s.paymentMethod || KKT_DEFAULTS.paymentMethod,
       paymentObject: s.paymentObject || KKT_DEFAULTS.paymentObject,
