@@ -98,6 +98,8 @@ export type KktReceiptInput = {
   isReturn?: boolean;
   /** Получено наличными — для расчёта сдачи. */
   cashReceived?: number;
+  /** Состояние смены, уже проверенное в окне печати — чтобы не опрашивать кассу снова. */
+  knownShiftState?: "opened" | "closed" | "expired" | "unknown";
 };
 
 export type KktFiscalResult = {
@@ -241,6 +243,9 @@ async function runTaskInner(url: string, task: Record<string, unknown>, timeoutM
     body: JSON.stringify({ uuid, request: [task] }),
   });
   let state = first;
+  // Частый опрос в начале (большинство заданий готовы за десятки миллисекунд),
+  // затем интервал плавно растёт — чтобы не грузить драйвер при долгой печати.
+  let delay = 60;
   while (Date.now() - started < timeoutMs) {
     const p = pickResult(state, uuid);
     if (p.done) {
@@ -249,7 +254,8 @@ async function runTaskInner(url: string, task: Record<string, unknown>, timeoutM
       }
       return p.result ?? {};
     }
-    await sleep(400);
+    await sleep(delay);
+    delay = Math.min(Math.round(delay * 1.5), 500);
     state = await driverFetch(url, `/requests/${uuid}`);
   }
   throw new KktError(
@@ -258,6 +264,25 @@ async function runTaskInner(url: string, task: Record<string, unknown>, timeoutM
 }
 
 
+function parseShiftState(shift: any): KktDeviceInfo["shiftState"] {
+  const rawState = shift?.shiftStatus?.state ?? shift?.shift?.state ?? shift?.state;
+  const st = String(rawState ?? "").toLowerCase();
+  // Разные версии драйвера отдают состояние смены словом или числом (0/1/2).
+  return st === "opened" || st === "open" || st === "1"
+    ? "opened"
+    : st === "closed" || st === "close" || st === "0"
+      ? "closed"
+      : st === "expired" || st === "2"
+        ? "expired"
+        : "unknown";
+}
+
+/** Только состояние смены — один короткий запрос к кассе. */
+export async function kktShiftState(s: KktSettings): Promise<KktDeviceInfo["shiftState"]> {
+  const shift = await runTask(s.url, { type: "queryShiftStatus" }, 15000).catch(() => null);
+  return parseShiftState(shift);
+}
+
 /** Модель кассы, номер ФН и состояние смены — для кнопки «Проверить связь». */
 export async function kktDeviceInfo(s: KktSettings): Promise<KktDeviceInfo> {
   const info: any = await runTask(s.url, { type: "getDeviceInfo" }, 15000).catch(async (e) => {
@@ -265,23 +290,12 @@ export async function kktDeviceInfo(s: KktSettings): Promise<KktDeviceInfo> {
     throw e;
   });
   const shift: any = await runTask(s.url, { type: "queryShiftStatus" }, 15000).catch(() => null);
-  const rawState = shift?.shiftStatus?.state ?? shift?.shift?.state ?? shift?.state;
-  const st = String(rawState ?? "").toLowerCase();
-  // Разные версии драйвера отдают состояние смены словом или числом (0/1/2).
-  const shiftState: KktDeviceInfo["shiftState"] =
-    st === "opened" || st === "open" || st === "1"
-      ? "opened"
-      : st === "closed" || st === "close" || st === "0"
-        ? "closed"
-        : st === "expired" || st === "2"
-          ? "expired"
-          : "unknown";
   return {
     model: info?.modelName ?? info?.model ?? "—",
     serial: info?.serialNumber ?? "—",
     fnNumber: info?.fnSerial ?? info?.fnNumber ?? "—",
     regNumber: info?.regNumber ?? info?.ecrRegistrationNumber ?? "—",
-    shiftState,
+    shiftState: parseShiftState(shift),
     shiftNumber: Number(shift?.shiftStatus?.number ?? shift?.number ?? 0) || null,
   };
 }
@@ -389,11 +403,13 @@ export async function kktOpenShift(s: KktSettings) {
 export async function printSellReceipt(s: KktSettings, input: KktReceiptInput): Promise<KktFiscalResult> {
   const task = buildSellReceipt(s, input);
   // Смена должна быть открыта, иначе чек по закону пробить нельзя.
-  const info = await kktDeviceInfo(s).catch(() => null);
-  if (info?.shiftState === "expired") {
+  // Если окно печати только что проверило смену и она открыта — не опрашиваем
+  // кассу повторно: каждый лишний запрос к драйверу добавляет секунды ожидания.
+  const state = input.knownShiftState ?? (await kktShiftState(s).catch(() => "unknown" as const));
+  if (state === "expired") {
     throw new KktError("Смена открыта больше 24 часов — закройте смену на кассе, затем пробейте чек.");
   }
-  if (info?.shiftState === "closed") await kktOpenShift(s);
+  if (state === "closed") await kktOpenShift(s);
   const res: any = await runTask(s.url, task);
   const doc = res?.fiscalParams ?? res ?? {};
   return {

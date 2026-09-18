@@ -283,6 +283,8 @@ export function KktReceiptButton({
                     operationId: invoiceId,
                     isReturn,
                     cashReceived: received || undefined,
+                    // Смена уже проверена этим окном — касса не опрашивается повторно.
+                    knownShiftState: shiftState,
                   },
                   {
                     onSuccess: (f) => {
