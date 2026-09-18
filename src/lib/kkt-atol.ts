@@ -81,6 +81,8 @@ export type KktPosition = {
   unit?: string;
   /** Товар или услуга — нужно для режима «услуги в стоимость товара». */
   kind?: "product" | "service";
+  /** Ставка НДС по позиции; если не задана — берётся из настроек кассы. */
+  vat?: KktVat;
   /** Итог по строке; если задан, в чек попадёт именно он. */
   amount?: number;
 };
@@ -92,6 +94,10 @@ export type KktReceiptInput = {
   clientContact?: string;
   /** Идентификатор операции: защита от повторного чека. */
   operationId: string;
+  /** Чек возврата продажи (возвратная накладная). */
+  isReturn?: boolean;
+  /** Получено наличными — для расчёта сдачи. */
+  cashReceived?: number;
 };
 
 export type KktFiscalResult = {
@@ -255,7 +261,7 @@ export function mergeServicesIntoGoods(positions: KktPosition[]): KktPosition[] 
   });
 }
 
-/** Сборка задания «чек продажи» для драйвера ДТО10. */
+/** Сборка задания «чек продажи» (или «чек возврата продажи») для драйвера ДТО10. */
 export function buildSellReceipt(s: KktSettings, input: KktReceiptInput) {
   const items = input.positions
     .filter((p) => (Number(p.quantity) || 0) > 0)
@@ -267,27 +273,52 @@ export function buildSellReceipt(s: KktSettings, input: KktReceiptInput) {
       amount: positionAmount(p),
       measurementUnit: p.unit || "шт",
       paymentMethod: s.paymentMethod || KKT_DEFAULTS.paymentMethod,
-      paymentObject: s.paymentObject || KKT_DEFAULTS.paymentObject,
-      tax: { type: s.vat || "none" },
+      // Признак предмета расчёта — по каждой строке: услуга или товар (тег 1212).
+      paymentObject:
+        p.kind === "service" ? "service" : s.paymentObject || KKT_DEFAULTS.paymentObject,
+      tax: { type: p.vat || s.vat || "none" },
     }));
   if (!items.length) throw new KktError("В документе нет позиций с количеством — чек пробить нельзя.");
-  const total = items.reduce((sum, i) => sum + i.amount, 0);
+  const total = round2(items.reduce((sum, i) => sum + i.amount, 0));
+  // Наличными можно принять больше суммы чека — касса напечатает сдачу.
+  const paid =
+    input.paymentType === "cash" && input.cashReceived && input.cashReceived > total
+      ? round2(input.cashReceived)
+      : total;
   return {
-    type: "sellReceipt",
+    type: input.isReturn ? "sellReturnReceipt" : "sellReceipt",
     taxationType: s.sno || KKT_DEFAULTS.sno,
     electronically: !!input.clientContact,
     ...(s.place ? { paymentsPlace: s.place } : {}),
     ...(input.clientContact ? { clientInfo: { emailOrPhone: input.clientContact } } : {}),
     operator: { name: s.cashier || "Кассир", ...(s.cashierVatin ? { vatin: s.cashierVatin } : {}) },
     items,
-    payments: [{ type: input.paymentType, sum: round2(total) }],
-    total: round2(total),
+    payments: [{ type: input.paymentType, sum: paid }],
+    total,
   };
+}
+
+/** Открыть смену на кассе. */
+export async function kktOpenShift(s: KktSettings) {
+  return runTask(
+    s.url,
+    {
+      type: "openShift",
+      operator: { name: s.cashier || "Кассир", ...(s.cashierVatin ? { vatin: s.cashierVatin } : {}) },
+    },
+    30000,
+  );
 }
 
 /** Пробить чек продажи. Возвращает фискальные данные чека. */
 export async function printSellReceipt(s: KktSettings, input: KktReceiptInput): Promise<KktFiscalResult> {
   const task = buildSellReceipt(s, input);
+  // Смена должна быть открыта, иначе чек по закону пробить нельзя.
+  const info = await kktDeviceInfo(s).catch(() => null);
+  if (info?.shiftState === "expired") {
+    throw new KktError("Смена открыта больше 24 часов — закройте смену на кассе, затем пробейте чек.");
+  }
+  if (info?.shiftState === "closed") await kktOpenShift(s);
   const res: any = await runTask(s.url, task);
   const doc = res?.fiscalParams ?? res ?? {};
   return {
