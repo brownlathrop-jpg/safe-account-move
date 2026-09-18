@@ -26,16 +26,17 @@ export type KktDocItem = {
 };
 
 export function KktReceiptButton({
-  wsId, invoiceId, items, fiscal,
+  wsId, invoiceId, items, fiscal, defaultPaymentType = "cash",
 }: {
   wsId: string | null | undefined;
   invoiceId: string;
   items: KktDocItem[];
   fiscal: any;
+  defaultPaymentType?: KktPaymentType;
 }) {
   const { settings, enabled } = useKktSettings(wsId);
   const [open, setOpen] = useState(false);
-  const [paymentType, setPaymentType] = useState<KktPaymentType>("cash");
+  const [paymentType, setPaymentType] = useState<KktPaymentType>(defaultPaymentType);
   const [contact, setContact] = useState("");
   const [mergeServices, setMergeServices] = useState(false);
   const print = useKktPrintReceipt(settings, invoiceId);

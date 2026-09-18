@@ -476,7 +476,12 @@ function InvoiceView() {
           {editable && <Button variant="outline" onClick={() => save.mutate()} disabled={save.isPending}><Save className="h-4 w-4 mr-1" /> Сохранить</Button>}
           {isShipment && kind === "outgoing" && inv.status !== "cancelled" && (
             <>
-              <Select value={paymentMethod} onValueChange={(v) => { setPaymentMethod(v as "cash" | "card"); save.mutate(); }}>
+              <Select value={paymentMethod} onValueChange={(v) => {
+                const m = v as "cash" | "card";
+                setPaymentMethod(m);
+                (db as any).from("invoices").update({ payment_method: m }).eq("id", id)
+                  .then(() => queryClient.invalidateQueries({ queryKey: ["invoice", id] }));
+              }}>
                 <SelectTrigger className="w-[170px] h-9">
                   <SelectValue />
                 </SelectTrigger>
