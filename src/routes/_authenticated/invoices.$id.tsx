@@ -577,9 +577,16 @@ function InvoiceView() {
 
       {/* Header label */}
       <div className="print:hidden">
-        <h1 className="text-2xl font-semibold">
-          {docTitle} № {cleanNumber}
-        </h1>
+        <div className="flex items-center gap-2 flex-wrap">
+          <h1 className="text-2xl font-semibold">
+            {docTitle} № {cleanNumber}
+          </h1>
+          {isShipment && (
+            <Badge variant={inv.status === "posted" ? "default" : inv.status === "draft" ? "secondary" : "destructive"}>
+              {inv.status === "posted" ? "Проведена" : inv.status === "draft" ? "Черновик" : "Отменена"}
+            </Badge>
+          )}
+        </div>
         {isShipment && inv.status === "posted" && kind === "outgoing" && (
           <p className="text-sm mt-1">
             Себестоимость: <b>{fmt.format(Number(inv.cost_total ?? 0))}</b>{" · "}
