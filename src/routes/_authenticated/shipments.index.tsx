@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { db } from "@/integrations/db";
@@ -24,6 +24,7 @@ const dfmt = new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit"
 type Tab = "all" | "outgoing" | "incoming";
 
 function ShipmentsPage() {
+  const navigate = useNavigate();
   const wsId = useActiveWorkspaceId();
   const [tab, setTab] = useState<Tab>("all");
   const [search, setSearch] = useState("");
@@ -166,7 +167,12 @@ function ShipmentsPage() {
               </TableCell></TableRow>
             )}
             {filtered.map(i => (
-              <TableRow key={i.id} className="hover:bg-muted/40">
+              <TableRow
+                key={i.id}
+                className="cursor-pointer hover:bg-muted/40"
+                title="Открыть накладную"
+                onClick={() => navigate({ to: "/invoices/$id", params: { id: i.id } })}
+              >
                 <TableCell>
                   <Link to="/invoices/$id" params={{ id: i.id }} className="font-medium text-primary hover:underline">{i.number}</Link>
                 </TableCell>

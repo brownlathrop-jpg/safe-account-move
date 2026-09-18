@@ -1,11 +1,11 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { db } from "@/integrations/db";
 import { useActiveWorkspaceId } from "@/lib/workspace";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowDownToLine, ArrowUpFromLine, Receipt, Truck, Search, Download, Printer } from "lucide-react";
+import { ArrowDownToLine, ArrowUpFromLine, Truck, Search, Download, Printer } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -21,6 +21,7 @@ const fmt = new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB" 
 const dfmt = new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" });
 
 function InvoicesPage() {
+  const navigate = useNavigate();
   const wsId = useActiveWorkspaceId();
   const [search, setSearch] = useState("");
   const [kind, setKind] = useState<"all" | "incoming" | "outgoing">("all");
@@ -131,7 +132,12 @@ function InvoicesPage() {
               const ships = (i.children ?? []).filter((c: any) => c.doc_type === "shipment").length;
               const pkos = (i.children ?? []).filter((c: any) => c.doc_type === "cash_receipt").length;
               return (
-                <TableRow key={i.id} className="cursor-pointer hover:bg-muted/40">
+                <TableRow
+                  key={i.id}
+                  className="cursor-pointer hover:bg-muted/40"
+                  title="Открыть заявку"
+                  onClick={() => navigate({ to: "/invoices/$id", params: { id: i.id } })}
+                >
                   <TableCell><Link to="/invoices/$id" params={{ id: i.id }} className="font-medium text-primary hover:underline">{i.number}</Link></TableCell>
                   <TableCell>{dfmt.format(new Date(i.issue_date))}</TableCell>
                   <TableCell>
@@ -152,8 +158,12 @@ function InvoicesPage() {
                   </TableCell>
                   <TableCell>
                     <div className="flex gap-3 text-xs text-muted-foreground">
-                      <span className="inline-flex items-center gap-1"><Truck className="h-3.5 w-3.5" /> {ships}</span>
-                      <span className="inline-flex items-center gap-1"><Receipt className="h-3.5 w-3.5" /> {pkos}</span>
+                      <span className="inline-flex items-center gap-1" title={`Накладных по этой заявке: ${ships}`}>
+                        <Truck className="h-3.5 w-3.5" /> {ships}
+                      </span>
+                      <span className="inline-flex items-center gap-1" title={`Кассовых документов (ПКО/РКО): ${pkos}`}>
+                        <span className="text-sm leading-none">₽</span> {pkos}
+                      </span>
                     </div>
                   </TableCell>
                   <TableCell className="text-right font-medium">{fmt.format(Number(i.total))}</TableCell>

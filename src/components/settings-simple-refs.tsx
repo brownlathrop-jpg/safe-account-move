@@ -489,3 +489,86 @@ export function MyPriceTypeRef() {
     </Card>
   );
 }
+
+// ============================================================
+// Скидки
+// ============================================================
+export function DiscountsRef() {
+  const qc = useQueryClient();
+  const wsId = useActiveWorkspaceId();
+  const [name, setName] = useState("");
+  const [kind, setKind] = useState<"percent" | "amount">("percent");
+  const [value, setValue] = useState("");
+
+  const { data: items = [] } = useQuery({
+    queryKey: ["discounts", wsId],
+    enabled: !!wsId,
+    queryFn: async () => {
+      const { data, error } = await (db as any).from("discounts")
+        .select("id,name,kind,value").eq("workspace_id", wsId).order("name");
+      if (error) throw error;
+      return (data ?? []) as { id: string; name: string; kind: string; value: number }[];
+    },
+  });
+
+  const add = useMutation({
+    mutationFn: async () => {
+      const n = name.trim();
+      const v = Number(String(value).replace(",", "."));
+      if (!n) throw new Error("Введите название скидки");
+      if (!v || v <= 0) throw new Error("Введите размер скидки");
+      if (kind === "percent" && v > 100) throw new Error("Процент скидки не может быть больше 100");
+      const user = await getUserOrThrow();
+      if (!wsId) throw new Error("Не выбрана база данных");
+      const { error } = await (db as any).from("discounts").insert({
+        user_id: user.id, workspace_id: wsId, name: n, kind, value: v,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["discounts"] }); setName(""); setValue(""); toast.success("Добавлено"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const del = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await (db as any).from("discounts").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["discounts"] }); toast.success("Удалено"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  return (
+    <Card className="p-3 space-y-2 text-sm">
+      <h2 className="font-medium text-xs uppercase tracking-wide text-muted-foreground">Скидки</h2>
+      <form className="flex gap-1 items-end" onSubmit={(e) => { e.preventDefault(); add.mutate(); }}>
+        <div className="space-y-1 flex-1"><Label className="text-xs">Название</Label><Input className="h-8" placeholder="Постоянный покупатель" value={name} onChange={e => setName(e.target.value)} /></div>
+        <div className="space-y-1 w-36">
+          <Label className="text-xs">Вид</Label>
+          <Select value={kind} onValueChange={v => setKind(v as any)}>
+            <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="percent">Процент</SelectItem>
+              <SelectItem value="amount">Сумма, ₽</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1 w-24"><Label className="text-xs">Размер</Label><Input className="h-8" value={value} onChange={e => setValue(e.target.value)} /></div>
+        <Button size="sm" type="submit" disabled={add.isPending}><Plus className="h-4 w-4" /></Button>
+      </form>
+      <div className="divide-y border-t">
+        {items.length === 0 && <div className="py-2 text-center text-xs text-muted-foreground">Пока нет скидок</div>}
+        {items.map(d => (
+          <div key={d.id} className="flex items-center py-1 gap-2">
+            <div className="flex-1 font-medium">{d.name}</div>
+            <div className="w-28 text-muted-foreground">{d.kind === "amount" ? `${d.value} ₽` : `${d.value} %`}</div>
+            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { if (confirm(`Удалить скидку "${d.name}"?`)) del.mutate(d.id); }}>
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        ))}
+      </div>
+      <p className="text-xs text-muted-foreground">Эти скидки можно выбирать в заявках и накладных для отмеченных позиций.</p>
+    </Card>
+  );
+}

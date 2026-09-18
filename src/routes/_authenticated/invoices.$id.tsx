@@ -26,6 +26,8 @@ import { usePriceTypes, useMyPriceTypeId, priceOf } from "@/lib/price-types";
 import { Torg12 } from "@/components/print/Torg12";
 import { Upd } from "@/components/print/Upd";
 import type { PrintItem } from "@/components/print/print-types";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useDiscounts, grossSum, discountSum, netSum, discountLabel, type DiscountKind } from "@/lib/discounts";
 
 export const Route = createFileRoute("/_authenticated/invoices/$id")({
   head: () => ({ meta: [{ title: "Накладная — КабинетCRM" }] }),
@@ -36,7 +38,13 @@ const fmt = new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB" 
 const nfmt = new Intl.NumberFormat("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const dfmt = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric" });
 
-type Item = { id?: string; product_id: string | null; name: string; quantity: number; price: number; kind: "product" | "service" };
+type Item = {
+  id?: string; product_id: string | null; name: string; quantity: number; price: number;
+  kind: "product" | "service";
+  discount_kind?: DiscountKind | null;
+  discount_value?: number | null;
+  discount_name?: string | null;
+};
 type DocType = "order" | "shipment" | "cash_receipt";
 type PrintMode = "standard" | "invoice" | "pko" | "torg12" | "upd";
 
@@ -139,6 +147,9 @@ function InvoiceView() {
       id: it.id, product_id: it.product_id, name: it.name,
       quantity: Number(it.quantity), price: Number(it.price),
       kind: (it.kind ?? "product") as "product" | "service",
+      discount_kind: (it.discount_kind === "amount" ? "amount" : "percent") as DiscountKind,
+      discount_value: Number(it.discount_value ?? 0),
+      discount_name: it.discount_name ?? null,
     })));
   }, [inv]);
 
@@ -175,7 +186,12 @@ function InvoiceView() {
     },
   });
 
-  const total = useMemo(() => items.reduce((s, i) => s + i.quantity * i.price, 0), [items]);
+  const lineGross = (it: Item) => grossSum(it.quantity, it.price);
+  const lineDiscount = (it: Item) => discountSum(it.quantity, it.price, it.discount_kind, it.discount_value);
+  const lineNet = (it: Item) => netSum(it.quantity, it.price, it.discount_kind, it.discount_value);
+  const totalGross = useMemo(() => items.reduce((s, i) => s + lineGross(i), 0), [items]);
+  const totalDiscount = useMemo(() => items.reduce((s, i) => s + lineDiscount(i), 0), [items]);
+  const total = useMemo(() => items.reduce((s, i) => s + lineNet(i), 0), [items]);
   const filteredPartners = partners.filter((p: any) => kind === "outgoing" ? p.kind === "customer" : p.kind === "supplier");
   const editable = inv?.status !== "cancelled";
   const { data: priceTypes = [] } = usePriceTypes(wsId);
@@ -183,10 +199,26 @@ function InvoiceView() {
   const [priceTypeOverride, setPriceTypeOverride] = useState<string | null>(null);
   const priceTypeId = priceTypeOverride ?? myPriceTypeId;
 
-  const addItem = () => setItems([...items, { product_id: null, name: "", quantity: 1, price: 0, kind: "product" }]);
+  /* ---- Скидки по позициям ---- */
+  const { data: discountRefs = [] } = useDiscounts(wsId);
+  const [selected, setSelected] = useState<number[]>([]);
+  const [manualKind, setManualKind] = useState<DiscountKind>("percent");
+  const [manualValue, setManualValue] = useState("");
+  const toggleSel = (idx: number) =>
+    setSelected(sel => sel.includes(idx) ? sel.filter(i => i !== idx) : [...sel, idx]);
+  const applyDiscount = (kind: DiscountKind, value: number, name: string | null) => {
+    const target = selected.length ? selected : items.map((_, i) => i);
+    setItems(items.map((it, i) => target.includes(i)
+      ? { ...it, discount_kind: kind, discount_value: value, discount_name: name }
+      : it));
+    if (value > 0) toast.success(`Скидка ${discountLabel(kind, value)} применена к ${target.length} позициям`);
+    else toast.success("Скидка снята");
+  };
+
+  const addItem = () => setItems([...items, { product_id: null, name: "", quantity: 1, price: 0, kind: "product", discount_kind: "percent", discount_value: 0 }]);
   const addItemAndPick = () => {
     const newIdx = items.length;
-    setItems([...items, { product_id: null, name: "", quantity: 1, price: 0, kind: "product" }]);
+    setItems([...items, { product_id: null, name: "", quantity: 1, price: 0, kind: "product", discount_kind: "percent", discount_value: 0 }]);
     setTimeout(() => setPickRow(newIdx), 0);
   };
   const updateItem = (idx: number, patch: Partial<Item>) => setItems(items.map((it, i) => i === idx ? { ...it, ...patch } : it));
@@ -226,8 +258,11 @@ function InvoiceView() {
       const rows = items.map(it => ({
         id: it.id,
         invoice_id: id, product_id: it.product_id, name: it.name,
-        quantity: it.quantity, price: it.price, sum: it.quantity * it.price,
+        quantity: it.quantity, price: it.price, sum: lineNet(it),
         kind: it.kind ?? "product",
+        discount_kind: it.discount_kind ?? "percent",
+        discount_value: Number(it.discount_value) || 0,
+        discount_name: it.discount_name ?? null,
       }));
 
       const existingRows = rows.filter((row) => Boolean(row.id));
@@ -505,7 +540,12 @@ function InvoiceView() {
               <KktReceiptButton
                 wsId={wsId}
                 invoiceId={id}
-                items={items.map((it) => ({ name: it.name, quantity: it.quantity, price: it.price, kind: it.kind }))}
+                items={items.map((it) => ({
+                  name: it.name,
+                  quantity: it.quantity,
+                  price: it.quantity ? Math.round((lineNet(it) / it.quantity) * 100) / 100 : it.price,
+                  kind: it.kind,
+                }))}
                 fiscal={inv.fiscal}
                 isReturn={!!inv.is_return}
                 defaultPaymentType={paymentMethod === "card" ? "electronically" : "cash"}
@@ -740,7 +780,42 @@ function InvoiceView() {
           <Card className="p-0 overflow-hidden">
             <div className="px-3 py-2 border-b flex items-center justify-between">
               <h3 className="font-medium text-sm">Позиции</h3>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                {editable && items.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1 text-xs">
+                    <span className="text-muted-foreground">
+                      {selected.length ? `Скидка на ${selected.length} поз.:` : "Скидка на все позиции:"}
+                    </span>
+                    {discountRefs.length > 0 && (
+                      <Select value="" onValueChange={(v) => {
+                        const d = discountRefs.find(x => x.id === v);
+                        if (d) applyDiscount(d.kind, d.value, d.name);
+                      }}>
+                        <SelectTrigger className="h-7 w-40 text-xs"><SelectValue placeholder="Из справочника" /></SelectTrigger>
+                        <SelectContent>
+                          {discountRefs.map(d => (
+                            <SelectItem key={d.id} value={d.id}>{d.name} — {discountLabel(d.kind, d.value)}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                    <Select value={manualKind} onValueChange={(v) => setManualKind(v as DiscountKind)}>
+                      <SelectTrigger className="h-7 w-24 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="percent">%</SelectItem>
+                        <SelectItem value="amount">₽</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Input className="h-7 w-20 text-xs" placeholder="0" value={manualValue}
+                      onChange={e => setManualValue(e.target.value)} />
+                    <Button size="sm" variant="outline" className="h-7 text-xs"
+                      onClick={() => applyDiscount(manualKind, Number(String(manualValue).replace(",", ".")) || 0, null)}>
+                      Применить
+                    </Button>
+                    <Button size="sm" variant="ghost" className="h-7 text-xs"
+                      onClick={() => applyDiscount("percent", 0, null)}>Снять</Button>
+                  </div>
+                )}
                 {editable && (
                   <ProductPicker
                     products={products as any}
@@ -755,9 +830,19 @@ function InvoiceView() {
             <Table className="xls-table">
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[40%]">Товар</TableHead>
+                  {editable && (
+                    <TableHead className="w-8">
+                      <Checkbox
+                        checked={items.length > 0 && selected.length === items.length}
+                        onCheckedChange={(v) => setSelected(v ? items.map((_, i) => i) : [])}
+                        aria-label="Отметить все позиции"
+                      />
+                    </TableHead>
+                  )}
+                  <TableHead>Товар</TableHead>
                   <TableHead className="w-24 text-right">Кол-во</TableHead>
                   <TableHead className="w-28 text-right">Цена</TableHead>
+                  <TableHead className="w-36 text-right">Скидка</TableHead>
                   <TableHead className="w-32 text-right">Сумма</TableHead>
                   <TableHead className="w-8"></TableHead>
                 </TableRow>
@@ -765,7 +850,7 @@ function InvoiceView() {
               <TableBody>
                 {items.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={5} className="p-0">
+                    <TableCell colSpan={editable ? 7 : 6} className="p-0">
                       {editable ? (
                         <button
                           type="button"
@@ -781,7 +866,12 @@ function InvoiceView() {
                   </TableRow>
                 )}
                 {items.map((it, idx) => (
-                  <TableRow key={idx}>
+                  <TableRow key={idx} data-selected={selected.includes(idx) || undefined} className={selected.includes(idx) ? "bg-accent/40" : undefined}>
+                    {editable && (
+                      <TableCell>
+                        <Checkbox checked={selected.includes(idx)} onCheckedChange={() => toggleSel(idx)} aria-label="Отметить позицию" />
+                      </TableCell>
+                    )}
                     <TableCell>
                       {editable ? (
                         <button
@@ -801,7 +891,32 @@ function InvoiceView() {
                       <NumCell grid="inv" row={idx} col={1} step="0.01" className="xls-cell" value={it.price}
                         onCommit={(v) => updateItem(idx, { price: v })} disabled={!editable} />
                     </TableCell>
-                    <TableCell className="text-right font-medium">{fmt.format(it.quantity * it.price)}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1 justify-end">
+                        <NumCell grid="inv" row={idx} col={2} step="0.01" className="xls-cell w-16" value={Number(it.discount_value) || 0}
+                          onCommit={(v) => updateItem(idx, { discount_value: v })} disabled={!editable} />
+                        <Select value={it.discount_kind === "amount" ? "amount" : "percent"}
+                          onValueChange={(v) => updateItem(idx, { discount_kind: v as DiscountKind })}
+                          disabled={!editable}>
+                          <SelectTrigger className="h-7 w-14 text-xs px-2"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="percent">%</SelectItem>
+                            <SelectItem value="amount">₽</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      {lineDiscount(it) > 0 && (
+                        <div className="text-[11px] text-muted-foreground text-right mt-0.5" title={it.discount_name ?? undefined}>
+                          −{fmt.format(lineDiscount(it))}
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right font-medium">
+                      {lineDiscount(it) > 0 && (
+                        <div className="text-[11px] text-muted-foreground line-through">{fmt.format(lineGross(it))}</div>
+                      )}
+                      {fmt.format(lineNet(it))}
+                    </TableCell>
                     <TableCell>
                       {editable && <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => removeItem(idx)}><Trash2 className="h-3.5 w-3.5" /></Button>}
                     </TableCell>
@@ -809,7 +924,13 @@ function InvoiceView() {
                 ))}
               </TableBody>
             </Table>
-            <div className="px-3 py-2 border-t flex justify-end items-center gap-3">
+            <div className="px-3 py-2 border-t flex flex-wrap justify-end items-center gap-x-4 gap-y-1">
+              {totalDiscount > 0 && (
+                <>
+                  <span className="text-xs text-muted-foreground">Сумма без скидки: {fmt.format(totalGross)}</span>
+                  <span className="text-xs text-muted-foreground">Скидка: −{fmt.format(totalDiscount)}</span>
+                </>
+              )}
               <span className="text-xs text-muted-foreground">Итого:</span>
               <span className="text-base font-semibold">{fmt.format(total)}</span>
             </div>
@@ -894,6 +1015,8 @@ function InvoiceView() {
               <th className="border border-black px-2 py-1 text-center w-20">Ед. изм.</th>
               <th className="border border-black px-2 py-1 text-center w-20">Кол-во</th>
               <th className="border border-black px-2 py-1 text-center w-28">Цена</th>
+              {totalDiscount > 0 && <th className="border border-black px-2 py-1 text-center w-24">Скидка</th>}
+              {totalDiscount > 0 && <th className="border border-black px-2 py-1 text-center w-28">Сумма без скидки</th>}
               <th className="border border-black px-2 py-1 text-center w-32">Сумма</th>
             </tr>
           </thead>
@@ -901,8 +1024,9 @@ function InvoiceView() {
             {(() => {
               const goods = items.filter(it => (it.kind ?? "product") === "product");
               const services = items.filter(it => it.kind === "service");
-              const goodsTotal = goods.reduce((s, i) => s + i.quantity * i.price, 0);
-              const servicesTotal = services.reduce((s, i) => s + i.quantity * i.price, 0);
+              const goodsTotal = goods.reduce((s, i) => s + lineNet(i), 0);
+              const servicesTotal = services.reduce((s, i) => s + lineNet(i), 0);
+              const cols = totalDiscount > 0 ? 8 : 6;
               const hasBoth = goods.length > 0 && services.length > 0;
               let n = 0;
               const renderRow = (it: Item, i: number) => {
@@ -915,7 +1039,15 @@ function InvoiceView() {
                     <td className="border border-black px-2 py-1 text-center">{p?.unit || (it.kind === "service" ? "усл" : "шт")}</td>
                     <td className="border border-black px-2 py-1 text-right">{it.quantity}</td>
                     <td className="border border-black px-2 py-1 text-right">{nfmt.format(it.price)}</td>
-                    <td className="border border-black px-2 py-1 text-right">{nfmt.format(it.quantity * it.price)}</td>
+                    {totalDiscount > 0 && (
+                      <td className="border border-black px-2 py-1 text-right">
+                        {lineDiscount(it) > 0 ? nfmt.format(lineDiscount(it)) : "—"}
+                      </td>
+                    )}
+                    {totalDiscount > 0 && (
+                      <td className="border border-black px-2 py-1 text-right">{nfmt.format(lineGross(it))}</td>
+                    )}
+                    <td className="border border-black px-2 py-1 text-right">{nfmt.format(lineNet(it))}</td>
                   </tr>
                 );
               };
@@ -923,33 +1055,41 @@ function InvoiceView() {
                 <>
                   {hasBoth && (
                     <tr>
-                      <td colSpan={6} className="px-2 py-1 font-bold uppercase">Товары</td>
+                      <td colSpan={cols} className="px-2 py-1 font-bold uppercase">Товары</td>
                     </tr>
                   )}
                   {goods.map(renderRow)}
                   {hasBoth && goods.length > 0 && (
                     <tr>
-                      <td colSpan={5} className="px-2 py-1 text-right font-bold">Итого по товарам:</td>
+                      <td colSpan={cols - 1} className="px-2 py-1 text-right font-bold">Итого по товарам:</td>
                       <td className="border border-black px-2 py-1 text-right font-bold">{nfmt.format(goodsTotal)}</td>
                     </tr>
                   )}
                   {hasBoth && (
                     <tr>
-                      <td colSpan={6} className="px-2 py-1 font-bold uppercase">Услуги</td>
+                      <td colSpan={cols} className="px-2 py-1 font-bold uppercase">Услуги</td>
                     </tr>
                   )}
                   {services.map(renderRow)}
                   {hasBoth && services.length > 0 && (
                     <tr>
-                      <td colSpan={5} className="px-2 py-1 text-right font-bold">Итого по услугам:</td>
+                      <td colSpan={cols - 1} className="px-2 py-1 text-right font-bold">Итого по услугам:</td>
                       <td className="border border-black px-2 py-1 text-right font-bold">{nfmt.format(servicesTotal)}</td>
                     </tr>
                   )}
-                  <tr><td colSpan={5} className="px-2 py-1 text-right font-bold">Итого:</td>
+                  {totalDiscount > 0 && (
+                    <>
+                      <tr><td colSpan={cols - 1} className="px-2 py-1 text-right font-bold">Сумма без скидки:</td>
+                        <td className="border border-black px-2 py-1 text-right">{nfmt.format(totalGross)}</td></tr>
+                      <tr><td colSpan={cols - 1} className="px-2 py-1 text-right font-bold">Скидка:</td>
+                        <td className="border border-black px-2 py-1 text-right">−{nfmt.format(totalDiscount)}</td></tr>
+                    </>
+                  )}
+                  <tr><td colSpan={cols - 1} className="px-2 py-1 text-right font-bold">Итого:</td>
                     <td className="border border-black px-2 py-1 text-right font-bold">{nfmt.format(total)}</td></tr>
-                  <tr><td colSpan={5} className="px-2 py-1 text-right font-bold">Без налога (НДС):</td>
+                  <tr><td colSpan={cols - 1} className="px-2 py-1 text-right font-bold">Без налога (НДС):</td>
                     <td className="border border-black px-2 py-1 text-right">---</td></tr>
-                  <tr><td colSpan={5} className="px-2 py-1 text-right font-bold">Всего к оплате:</td>
+                  <tr><td colSpan={cols - 1} className="px-2 py-1 text-right font-bold">Всего к оплате:</td>
                     <td className="border border-black px-2 py-1 text-right font-bold">{nfmt.format(total)}</td></tr>
                 </>
               );
@@ -974,7 +1114,7 @@ function InvoiceView() {
             name: it.name,
             unit: p?.unit || (it.kind === "service" ? "усл" : "шт"),
             quantity: it.quantity,
-            price: it.price,
+            price: it.quantity ? Math.round((netSum(it.quantity, it.price, it.discount_kind, it.discount_value) / it.quantity) * 100) / 100 : it.price,
           };
         });
         return (
