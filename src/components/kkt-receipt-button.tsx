@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Receipt, Loader2, Copy, QrCode } from "lucide-react";
 import QRCode from "qrcode";
-import { useKktPrintReceipt, useKktSettings } from "@/hooks/use-kkt";
+import { useKktPrintReceipt, useKktSettings, useKktShift, useKktShiftAction } from "@/hooks/use-kkt";
 import {
   fnsCheckUrl, fnsQrPayload, mergeServicesIntoGoods, printLastReceiptCopy, receiptTotal,
   type KktPaymentType, type KktPosition,
