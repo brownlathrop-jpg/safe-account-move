@@ -283,20 +283,50 @@ export async function kktShiftState(s: KktSettings): Promise<KktDeviceInfo["shif
   return parseShiftState(shift);
 }
 
+/**
+ * Драйвер АТОЛ прячет реквизиты кассы на разных уровнях ответа и под разными
+ * именами (deviceInfo / fnInfo / regInfo, serial / serialNumber / fnNumber…).
+ * Поэтому ищем значение по всем вложенным объектам, а не только в корне.
+ */
+function deepFind(obj: any, keys: string[], depth = 0): string | null {
+  if (!obj || typeof obj !== "object" || depth > 5) return null;
+  for (const k of keys) {
+    const v = (obj as any)[k];
+    if (v != null && v !== "" && typeof v !== "object") return String(v);
+  }
+  for (const v of Object.values(obj)) {
+    const found = deepFind(v, keys, depth + 1);
+    if (found) return found;
+  }
+  return null;
+}
+
 /** Модель кассы, номер ФН и состояние смены — для кнопки «Проверить связь». */
 export async function kktDeviceInfo(s: KktSettings): Promise<KktDeviceInfo> {
   const info: any = await runTask(s.url, { type: "getDeviceInfo" }, 15000).catch(async (e) => {
     if (e instanceof KktError && e.code === 404) return await driverFetch(s.url, "/api/v2/deviceInfo");
     throw e;
   });
+  // Эти запросы поддерживают не все прошивки — молча пропускаем неудачные.
+  const status: any = await runTask(s.url, { type: "getDeviceStatus" }, 15000).catch(() => null);
+  const fn: any = await runTask(s.url, { type: "fnInfo" }, 15000).catch(() => null);
+  const reg: any = await runTask(s.url, { type: "regInfo" }, 15000).catch(() => null);
   const shift: any = await runTask(s.url, { type: "queryShiftStatus" }, 15000).catch(() => null);
+  const all = [info, status, fn, reg, shift];
+  const find = (keys: string[]) => {
+    for (const src of all) {
+      const v = deepFind(src, keys);
+      if (v) return v;
+    }
+    return null;
+  };
   return {
-    model: info?.modelName ?? info?.model ?? "—",
-    serial: info?.serialNumber ?? "—",
-    fnNumber: info?.fnSerial ?? info?.fnNumber ?? "—",
-    regNumber: info?.regNumber ?? info?.ecrRegistrationNumber ?? "—",
+    model: find(["modelName", "model", "deviceName", "modelDescription"]) ?? "—",
+    serial: find(["serialNumber", "serial", "deviceSerial", "ecrSerial"]) ?? "—",
+    fnNumber: find(["fnSerial", "fnNumber", "fnSerialNumber", "fiscalStorageNumber"]) ?? "—",
+    regNumber: find(["regNumber", "ecrRegistrationNumber", "registrationNumber", "rnm"]) ?? "—",
     shiftState: parseShiftState(shift),
-    shiftNumber: Number(shift?.shiftStatus?.number ?? shift?.number ?? 0) || null,
+    shiftNumber: Number(find(["shiftNumber"]) ?? shift?.shiftStatus?.number ?? shift?.number ?? 0) || null,
   };
 }
 
