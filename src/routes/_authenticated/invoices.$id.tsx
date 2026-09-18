@@ -18,6 +18,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Printer, CheckCircle2, XCircle, Trash2, Plus, Save, FileEdit, ChevronDown, Copy } from "lucide-react";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { amountInWords } from "@/lib/amount-in-words";
 import { ProductPicker, type PickedItem } from "@/components/ProductPicker";
 import { ProductPickerSingle } from "@/components/ProductPickerSingle";
@@ -480,7 +481,7 @@ function InvoiceView() {
         <div className="flex gap-2 items-center flex-wrap">
           {statuses.length > 0 && (
             <Select value={inv.status_id ?? undefined} onValueChange={(v) => setStatusId.mutate(v)}>
-              <SelectTrigger className="w-[180px] h-9">
+              <SelectTrigger className="w-[160px] h-9">
                 <div className="flex items-center gap-2">
                   <span
                     className="inline-block h-2.5 w-2.5 rounded-full"
@@ -501,64 +502,23 @@ function InvoiceView() {
               </SelectContent>
             </Select>
           )}
-          {isShipment && (
-            <Badge variant={inv.status === "posted" ? "default" : inv.status === "draft" ? "secondary" : "destructive"}>
-              Учёт: {inv.status === "posted" ? "Проведена" : inv.status === "draft" ? "Черновик" : "Отменена"}
-            </Badge>
-          )}
-          {editable && <Button variant="outline" onClick={() => save.mutate()} disabled={save.isPending}><Save className="h-4 w-4 mr-1" /> Сохранить</Button>}
+          {editable && <Button onClick={() => save.mutate()} disabled={save.isPending}><Save className="h-4 w-4 mr-1" /> Сохранить</Button>}
+          {isShipment && inv.status === "draft" && <Button variant="outline" onClick={() => setStatus.mutate("posted")}><CheckCircle2 className="h-4 w-4 mr-1" /> Провести</Button>}
           {isShipment && kind === "outgoing" && inv.status !== "cancelled" && (
-            <>
-              <Select value={paymentMethod} onValueChange={(v) => {
-                const m = v as "cash" | "card";
-                setPaymentMethod(m);
-                (db as any).from("invoices").update({ payment_method: m }).eq("id", id)
-                  .then(() => qc.invalidateQueries({ queryKey: ["invoice", id] }));
-              }}>
-                <SelectTrigger className="w-[170px] h-9">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="cash">Наличные</SelectItem>
-                  <SelectItem value="card">По терминалу</SelectItem>
-                </SelectContent>
-              </Select>
-              <KktReceiptButton
-                wsId={wsId}
-                invoiceId={id}
-                items={items.map((it) => ({
-                  name: it.name,
-                  quantity: it.quantity,
-                  price: it.quantity ? Math.round((lineNet(it) / it.quantity) * 100) / 100 : it.price,
-                  kind: it.kind,
-                }))}
-                fiscal={inv.fiscal}
-                isReturn={!!inv.is_return}
-                defaultPaymentType={paymentMethod === "card" ? "electronically" : "cash"}
-              />
-            </>
+            <KktReceiptButton
+              wsId={wsId}
+              invoiceId={id}
+              items={items.map((it) => ({
+                name: it.name,
+                quantity: it.quantity,
+                price: it.quantity ? Math.round((lineNet(it) / it.quantity) * 100) / 100 : it.price,
+                kind: it.kind,
+              }))}
+              fiscal={inv.fiscal}
+              isReturn={!!inv.is_return}
+              defaultPaymentType={paymentMethod === "card" ? "electronically" : "cash"}
+            />
           )}
-          {isShipment && inv.status === "draft" && <Button onClick={() => setStatus.mutate("posted")}><CheckCircle2 className="h-4 w-4 mr-1" /> Провести</Button>}
-          {isShipment && inv.status === "posted" && <Button variant="outline" onClick={() => setStatus.mutate("draft")}><FileEdit className="h-4 w-4 mr-1" /> Распровести</Button>}
-          {inv.status !== "cancelled" && (
-            <Button variant="outline" onClick={() => {
-              if (!confirm(`Отменить ${docTitleAccusative(docType, kind)}?`)) return;
-              setStatus.mutate("cancelled", { onSuccess: () => navigate({ to: "/invoices" }) });
-            }}><XCircle className="h-4 w-4 mr-1" /> Отменить</Button>
-          )}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline"><Copy className="h-4 w-4 mr-1" /> Создать <ChevronDown className="h-4 w-4 ml-1" /></Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => duplicate.mutate("copy")}>Копию этого документа</DropdownMenuItem>
-              {!isPKO && (
-                <DropdownMenuItem onClick={() => duplicate.mutate("return")}>
-                  {kind === "outgoing" ? "Возврат от покупателя" : "Возврат поставщику"}
-                </DropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline"><Printer className="h-4 w-4 mr-1" /> Печать <ChevronDown className="h-4 w-4 ml-1" /></Button>
@@ -582,14 +542,52 @@ function InvoiceView() {
               )}
             </DropdownMenuContent>
           </DropdownMenu>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline">Ещё <ChevronDown className="h-4 w-4 ml-1" /></Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {isShipment && inv.status === "posted" && (
+                <DropdownMenuItem onClick={() => setStatus.mutate("draft")}>
+                  <FileEdit className="h-4 w-4 mr-2" /> Распровести
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem onClick={() => duplicate.mutate("copy")}>
+                <Copy className="h-4 w-4 mr-2" /> Копия документа
+              </DropdownMenuItem>
+              {!isPKO && (
+                <DropdownMenuItem onClick={() => duplicate.mutate("return")}>
+                  <Copy className="h-4 w-4 mr-2" /> {kind === "outgoing" ? "Возврат от покупателя" : "Возврат поставщику"}
+                </DropdownMenuItem>
+              )}
+              {inv.status !== "cancelled" && (
+                <DropdownMenuItem
+                  className="text-destructive"
+                  onClick={() => {
+                    if (!confirm(`Отменить ${docTitleAccusative(docType, kind)}?`)) return;
+                    setStatus.mutate("cancelled", { onSuccess: () => navigate({ to: "/invoices" }) });
+                  }}
+                >
+                  <XCircle className="h-4 w-4 mr-2" /> Отменить документ
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
       {/* Header label */}
       <div className="print:hidden">
-        <h1 className="text-2xl font-semibold">
-          {docTitle} № {cleanNumber}
-        </h1>
+        <div className="flex items-center gap-2 flex-wrap">
+          <h1 className="text-2xl font-semibold">
+            {docTitle} № {cleanNumber}
+          </h1>
+          {isShipment && (
+            <Badge variant={inv.status === "posted" ? "default" : inv.status === "draft" ? "secondary" : "destructive"}>
+              {inv.status === "posted" ? "Проведена" : inv.status === "draft" ? "Черновик" : "Отменена"}
+            </Badge>
+          )}
+        </div>
         {isShipment && inv.status === "posted" && kind === "outgoing" && (
           <p className="text-sm mt-1">
             Себестоимость: <b>{fmt.format(Number(inv.cost_total ?? 0))}</b>{" · "}
@@ -617,50 +615,6 @@ function InvoiceView() {
         )}
       </div>
 
-      {/* Иерархия документов: заявка → накладная/поступление → ПКО/РКО */}
-      <DocTreeCard
-        docId={id}
-        hint={
-          isOrder
-            ? (kind === "incoming"
-                ? "Создайте на основании заявки поступление товара — по его ценам считается себестоимость — и РКО на оплату поставщику."
-                : "Создайте на основании заявки расходную накладную для списания остатков и ПКО на оплату.")
-            : isShipment
-              ? "Создайте на основании этого документа кассовый ордер на оплату."
-              : "Связанных документов пока нет."
-        }
-        actions={
-          (isOrder || isShipment) && inv.status !== "cancelled" ? (
-            <div className="flex flex-wrap gap-2">
-              {isOrder && (
-                <Button size="sm" variant="outline" onClick={() => createShipment.mutate()} disabled={createShipment.isPending || items.length === 0}>
-                  <Plus className="h-4 w-4 mr-1" /> {kind === "incoming" ? "Поступление товара" : "Расходная накладная"}
-                </Button>
-              )}
-              <Button size="sm" variant="outline" onClick={() => createReceipt.mutate()} disabled={createReceipt.isPending}>
-                <Plus className="h-4 w-4 mr-1" /> {kind === "incoming" ? "РКО (оплата поставщику)" : "ПКО (оплата от покупателя)"}
-              </Button>
-            </div>
-          ) : null
-        }
-      />
-
-
-      {/* Оплаты по документу */}
-      {!isPKO && (
-        <PaymentsCard
-          invoiceId={id}
-          partnerId={inv.partner_id ?? null}
-          workspaceId={wsId}
-          total={Number(inv.total ?? 0)}
-          direction={kind === "outgoing" ? "in" : "out"}
-        />
-      )}
-
-      {/* Кто и когда менял документ */}
-      <div className="print:hidden">
-        <DocHistoryCard table="invoices" docId={id} />
-      </div>
 
       {/* Edit form */}
       <div className="print:hidden space-y-5">
@@ -704,6 +658,23 @@ function InvoiceView() {
                 </SelectContent>
               </Select>
             </div>
+            {isShipment && kind === "outgoing" && (
+              <div className="space-y-1">
+                <Label className="text-xs">Оплата</Label>
+                <Select value={paymentMethod} disabled={!editable} onValueChange={(v) => {
+                  const m = v as "cash" | "card";
+                  setPaymentMethod(m);
+                  (db as any).from("invoices").update({ payment_method: m }).eq("id", id)
+                    .then(() => qc.invalidateQueries({ queryKey: ["invoice", id] }));
+                }}>
+                  <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cash">Наличные</SelectItem>
+                    <SelectItem value="card">По терминалу</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
           {isShipment && (
             <div className="mt-3 max-w-xs space-y-1">
@@ -743,39 +714,48 @@ function InvoiceView() {
               <h3 className="font-medium text-sm">Позиции</h3>
               <div className="flex flex-wrap items-center gap-2">
                 {editable && items.length > 0 && (
-                  <div className="flex flex-wrap items-center gap-1 text-xs">
-                    <span className="text-muted-foreground">
-                      {selected.length ? `Скидка на ${selected.length} поз.:` : "Скидка на все позиции:"}
-                    </span>
-                    {discountRefs.length > 0 && (
-                      <Select value="" onValueChange={(v) => {
-                        const d = discountRefs.find(x => x.id === v);
-                        if (d) applyDiscount(d.kind, d.value, d.name);
-                      }}>
-                        <SelectTrigger className="h-7 w-40 text-xs"><SelectValue placeholder="Из справочника" /></SelectTrigger>
-                        <SelectContent>
-                          {discountRefs.map(d => (
-                            <SelectItem key={d.id} value={d.id}>{d.name} — {discountLabel(d.kind, d.value)}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-                    <Select value={manualKind} onValueChange={(v) => setManualKind(v as DiscountKind)}>
-                      <SelectTrigger className="h-7 w-24 text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="percent">%</SelectItem>
-                        <SelectItem value="amount">₽</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Input className="h-7 w-20 text-xs" placeholder="0" value={manualValue}
-                      onChange={e => setManualValue(e.target.value)} />
-                    <Button size="sm" variant="outline" className="h-7 text-xs"
-                      onClick={() => applyDiscount(manualKind, Number(String(manualValue).replace(",", ".")) || 0, null)}>
-                      Применить
-                    </Button>
-                    <Button size="sm" variant="ghost" className="h-7 text-xs"
-                      onClick={() => applyDiscount("percent", 0, null)}>Снять</Button>
-                  </div>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button size="sm" variant="outline" className="h-8">
+                        Скидка{selected.length ? ` (${selected.length})` : ""} <ChevronDown className="h-4 w-4 ml-1" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent align="end" className="w-72 space-y-2">
+                      <p className="text-xs text-muted-foreground">
+                        {selected.length ? `Применить к отмеченным позициям: ${selected.length}` : "Применить ко всем позициям"}
+                      </p>
+                      {discountRefs.length > 0 && (
+                        <Select value="" onValueChange={(v) => {
+                          const d = discountRefs.find(x => x.id === v);
+                          if (d) applyDiscount(d.kind, d.value, d.name);
+                        }}>
+                          <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Из справочника скидок" /></SelectTrigger>
+                          <SelectContent>
+                            {discountRefs.map(d => (
+                              <SelectItem key={d.id} value={d.id}>{d.name} — {discountLabel(d.kind, d.value)}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                      <div className="flex items-center gap-1">
+                        <Select value={manualKind} onValueChange={(v) => setManualKind(v as DiscountKind)}>
+                          <SelectTrigger className="h-8 w-20 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="percent">%</SelectItem>
+                            <SelectItem value="amount">₽</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Input className="h-8 w-20 text-xs" placeholder="0" value={manualValue}
+                          onChange={e => setManualValue(e.target.value)} />
+                        <Button size="sm" variant="outline" className="h-8 text-xs"
+                          onClick={() => applyDiscount(manualKind, Number(String(manualValue).replace(",", ".")) || 0, null)}>
+                          Применить
+                        </Button>
+                        <Button size="sm" variant="ghost" className="h-8 text-xs"
+                          onClick={() => applyDiscount("percent", 0, null)}>Снять</Button>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
                 )}
                 {editable && (
                   <ProductPicker
@@ -909,6 +889,55 @@ function InvoiceView() {
           products={products as any}
           onPick={(productId) => { if (pickRow !== null) pickProduct(pickRow, productId); }}
         />
+      </div>
+
+      {/* Служебные блоки: связи, оплаты, история — ниже основной формы */}
+      <div className="print:hidden space-y-5">
+        <DocTreeCard
+          docId={id}
+          hint={
+            isOrder
+              ? (kind === "incoming"
+                  ? "Создайте на основании заявки поступление товара — по его ценам считается себестоимость — и РКО на оплату поставщику."
+                  : "Создайте на основании заявки расходную накладную для списания остатков и ПКО на оплату.")
+              : isShipment
+                ? "Создайте на основании этого документа кассовый ордер на оплату."
+                : "Связанных документов пока нет."
+          }
+          actions={
+            (isOrder || isShipment) && inv.status !== "cancelled" ? (
+              <div className="flex flex-wrap gap-2">
+                {isOrder && (
+                  <Button size="sm" variant="outline" onClick={() => createShipment.mutate()} disabled={createShipment.isPending || items.length === 0}>
+                    <Plus className="h-4 w-4 mr-1" /> {kind === "incoming" ? "Поступление товара" : "Расходная накладная"}
+                  </Button>
+                )}
+                <Button size="sm" variant="outline" onClick={() => createReceipt.mutate()} disabled={createReceipt.isPending}>
+                  <Plus className="h-4 w-4 mr-1" /> {kind === "incoming" ? "РКО (оплата поставщику)" : "ПКО (оплата от покупателя)"}
+                </Button>
+              </div>
+            ) : null
+          }
+        />
+
+        {!isPKO && (
+          <PaymentsCard
+            invoiceId={id}
+            partnerId={inv.partner_id ?? null}
+            workspaceId={wsId}
+            total={Number(inv.total ?? 0)}
+            direction={kind === "outgoing" ? "in" : "out"}
+          />
+        )}
+
+        <details className="rounded-lg border bg-card">
+          <summary className="cursor-pointer px-3 py-2 text-sm text-muted-foreground select-none">
+            История изменений
+          </summary>
+          <div className="px-1 pb-1">
+            <DocHistoryCard table="invoices" docId={id} />
+          </div>
+        </details>
       </div>
 
       {/* Print layout (hidden on screen) */}
