@@ -911,6 +911,55 @@ function InvoiceView() {
         />
       </div>
 
+      {/* Служебные блоки: связи, оплаты, история — ниже основной формы */}
+      <div className="print:hidden space-y-5">
+        <DocTreeCard
+          docId={id}
+          hint={
+            isOrder
+              ? (kind === "incoming"
+                  ? "Создайте на основании заявки поступление товара — по его ценам считается себестоимость — и РКО на оплату поставщику."
+                  : "Создайте на основании заявки расходную накладную для списания остатков и ПКО на оплату.")
+              : isShipment
+                ? "Создайте на основании этого документа кассовый ордер на оплату."
+                : "Связанных документов пока нет."
+          }
+          actions={
+            (isOrder || isShipment) && inv.status !== "cancelled" ? (
+              <div className="flex flex-wrap gap-2">
+                {isOrder && (
+                  <Button size="sm" variant="outline" onClick={() => createShipment.mutate()} disabled={createShipment.isPending || items.length === 0}>
+                    <Plus className="h-4 w-4 mr-1" /> {kind === "incoming" ? "Поступление товара" : "Расходная накладная"}
+                  </Button>
+                )}
+                <Button size="sm" variant="outline" onClick={() => createReceipt.mutate()} disabled={createReceipt.isPending}>
+                  <Plus className="h-4 w-4 mr-1" /> {kind === "incoming" ? "РКО (оплата поставщику)" : "ПКО (оплата от покупателя)"}
+                </Button>
+              </div>
+            ) : null
+          }
+        />
+
+        {!isPKO && (
+          <PaymentsCard
+            invoiceId={id}
+            partnerId={inv.partner_id ?? null}
+            workspaceId={wsId}
+            total={Number(inv.total ?? 0)}
+            direction={kind === "outgoing" ? "in" : "out"}
+          />
+        )}
+
+        <details className="rounded-lg border bg-card">
+          <summary className="cursor-pointer px-3 py-2 text-sm text-muted-foreground select-none">
+            История изменений
+          </summary>
+          <div className="px-1 pb-1">
+            <DocHistoryCard table="invoices" docId={id} />
+          </div>
+        </details>
+      </div>
+
       {/* Print layout (hidden on screen) */}
       {(printMode === "standard" || printMode === "invoice") && (
       <div className="invoice-print hidden print:block bg-white text-black mx-auto" style={{ maxWidth: 900 }}>
