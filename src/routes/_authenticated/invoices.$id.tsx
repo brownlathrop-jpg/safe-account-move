@@ -1,7 +1,7 @@
 import { NumCell } from "@/components/NumCell";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { db } from "@/integrations/db";
 import { PaymentsCard } from "@/components/PaymentsCard";
