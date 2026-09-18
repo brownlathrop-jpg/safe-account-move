@@ -138,17 +138,6 @@ function ProductsPage() {
     },
   });
 
-  const { data: productTypes = [] } = useQuery({
-    queryKey: ["product_types", wsId],
-    enabled: !!wsId,
-    queryFn: async () => {
-      const { data, error } = await (db as any).from("product_types")
-        .select("id,name,is_service").eq("workspace_id", wsId).order("name");
-      if (error) throw error;
-      return (data ?? []) as { id: string; name: string; is_service: boolean }[];
-    },
-  });
-
   const { data: priceTypes = [] } = usePriceTypes(wsId);
   const myPriceTypeId = useMyPriceTypeId(wsId);
 
