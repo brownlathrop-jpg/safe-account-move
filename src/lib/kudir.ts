@@ -190,6 +190,8 @@ export function printKudir(
   <h2>Раздел I. Доходы и расходы</h2>
   ${blocks || "<p>За выбранный год операций нет.</p>"}
   ${spravka}
+  ${opts.contribs ? contribSectionHtml(opts.contribs) : ""}
+
   <div class="signs">
     <div>Руководитель (индивидуальный предприниматель) ______________________ ${esc(org.director_name ?? "")}</div>
     <div>Дата: ${ruDate(new Date().toISOString())}</div>
