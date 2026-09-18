@@ -1,3 +1,4 @@
+import { type PrintBrand, printHeaderHtml } from "./print-header";
 // КУДиР — книга учёта доходов и расходов при УСН.
 // Форма и порядок заполнения: приказ ФНС России от 07.11.2023 № ЕА-7-3/816@.
 // Раздел I заполняется в хронологическом порядке по первичным документам,
@@ -86,7 +87,7 @@ export function buildKudir(rows: KudirRow[], year: number): Kudir {
   return { year, quarters, income: incomeYtd, expense: expenseYtd, base: r2(incomeYtd - expenseYtd) };
 }
 
-export type KudirOrg = {
+export type KudirOrg = PrintBrand & {
   name: string;
   inn?: string;
   kpp?: string;
