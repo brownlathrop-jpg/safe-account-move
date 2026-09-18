@@ -730,6 +730,9 @@ function ProductsPage() {
               <Button size="sm" variant="outline" onClick={() => { setMoveTarget(getSelectedRealFolderId() ?? ROOT); setMoveOpen(true); }}>
                 <FolderOpen className="h-4 w-4 mr-1" /> Перенести в папку
               </Button>
+              <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" onClick={() => setDeleteManyOpen(true)}>
+                <Trash2 className="h-4 w-4 mr-1" /> Удалить
+              </Button>
               <Button size="sm" variant="ghost" onClick={() => { setSelectedIds([]); setSelectedFolderIds([]); }}>Снять выделение</Button>
               <span className="text-xs text-muted-foreground ml-auto hidden md:inline">
                 Можно перетащить все выбранные строки на папку. Shift+клик — выбрать диапазон.
