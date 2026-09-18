@@ -73,6 +73,7 @@ function ProductsPage() {
   const dragIdsRef = useRef<string[]>([]);
   const [dropFolder, setDropFolder] = useState<string | null>(null);
   const [deleteFolder, setDeleteFolder] = useState<FolderRow | null>(null);
+  const [page, setPage] = useState(0);
 
 
   const { data: products = [] } = useQuery({
@@ -316,6 +317,7 @@ function ProductsPage() {
   }, [selectedFolder, childrenOf, search, productCategoryFolders, serviceCategoryFolders, visibleRootFolders]);
 
   // Products shown in the right pane
+  const PAGE_SIZE = 50;
   const filtered = products.filter(p => {
     if (search) {
       const s = search.toLowerCase();
