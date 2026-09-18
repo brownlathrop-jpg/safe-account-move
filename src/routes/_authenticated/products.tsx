@@ -73,7 +73,9 @@ function ProductsPage() {
   const [moveTarget, setMoveTarget] = useState<string>(ROOT);
   const lastClickedRef = useRef<string | null>(null);
   const dragIdsRef = useRef<string[]>([]);
-  const dragFolderRef = useRef<string | null>(null);
+  const dragFolderIdsRef = useRef<string[]>([]);
+  const [selectedFolderIds, setSelectedFolderIds] = useState<string[]>([]);
+  const lastFolderClickRef = useRef<string | null>(null);
 
   const [dropFolder, setDropFolder] = useState<string | null>(null);
   const [deleteFolder, setDeleteFolder] = useState<FolderRow | null>(null);
@@ -304,6 +306,7 @@ function ProductsPage() {
       qc.invalidateQueries({ queryKey: ["products"] });
       if (selectedFolder !== ALL && selectedFolder !== ROOT) setSelectedFolder(ALL);
       setDeleteFolder(null);
+      setSelectedFolderIds([]);
       toast.success("Папка и её содержимое удалены");
     },
     onError: (e: Error) => toast.error(e.message),
@@ -404,6 +407,24 @@ function ProductsPage() {
     });
   };
 
+  // Клик с Shift выделяет все папки между предыдущей и текущей.
+  const toggleFolderSelected = (id: string, shift = false) => {
+    setSelectedFolderIds(prev => {
+      if (shift && lastFolderClickRef.current) {
+        const list = rightFolders.map(f => f.id);
+        const a = list.indexOf(lastFolderClickRef.current);
+        const b = list.indexOf(id);
+        if (a !== -1 && b !== -1) {
+          const range = list.slice(Math.min(a, b), Math.max(a, b) + 1);
+          lastFolderClickRef.current = id;
+          return [...new Set([...prev, ...range])];
+        }
+      }
+      lastFolderClickRef.current = id;
+      return prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id];
+    });
+  };
+
   const moveProducts = useMutation({
     mutationFn: async ({ ids, folderId }: { ids: string[]; folderId: string | null }) => {
       if (!ids.length) throw new Error("Не выбраны товары");
@@ -421,35 +442,47 @@ function ProductsPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const moveFolder = useMutation({
-    mutationFn: async ({ id, parentId }: { id: string; parentId: string | null }) => {
-      const { error } = await db.from("product_folders").update({ parent_id: parentId } as never).eq("id", id);
+  const moveFolders = useMutation({
+    mutationFn: async ({ ids, parentId }: { ids: string[]; parentId: string | null }) => {
+      if (!ids.length) throw new Error("Не выбраны папки");
+      const { error } = await db.from("product_folders").update({ parent_id: parentId } as never).in("id", ids);
       if (error) throw error;
-      return { id, parentId };
+      return { ids, parentId };
     },
-    onSuccess: ({ id, parentId }) => {
+    onSuccess: ({ ids, parentId }) => {
+      const moved = new Set(ids);
       qc.setQueryData(["product_folders", wsId], (old?: FolderRow[]) =>
-        old ? old.map(f => (f.id === id ? { ...f, parent_id: parentId } : f)) : old);
+        old ? old.map(f => (moved.has(f.id) ? { ...f, parent_id: parentId } : f)) : old);
       qc.invalidateQueries({ queryKey: ["product_folders"] });
-      toast.success("Папка перенесена");
+      setSelectedFolderIds([]);
+      toast.success(ids.length > 1 ? `Перенесено папок: ${ids.length}` : "Папка перенесена");
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
+  // Папки, запрещённые как приёмник для перетаскиваемых папок (сами себя и своё содержимое).
+  const forbiddenTargets = (draggedFolders: string[]) => {
+    const set = new Set<string>();
+    draggedFolders.forEach(id => descendantsOf(id).forEach(d => set.add(d)));
+    return set;
+  };
+
   const dropOnFolder = (folderId: string | null) => {
-    const draggedFolder = dragFolderRef.current;
-    dragFolderRef.current = null;
+    const draggedFolders = dragFolderIdsRef.current;
+    dragFolderIdsRef.current = [];
     setDropFolder(null);
-    if (draggedFolder) {
-      const current = folders.find(f => f.id === draggedFolder);
-      if (!current) return;
-      if (folderId === draggedFolder) { toast.error("Нельзя перенести папку внутрь самой себя"); return; }
-      if (folderId && descendantsOf(draggedFolder).includes(folderId)) {
-        toast.error("Нельзя перенести папку в свою же вложенную папку");
+    if (draggedFolders.length) {
+      const forbidden = forbiddenTargets(draggedFolders);
+      if (folderId && forbidden.has(folderId)) {
+        toast.error("Нельзя перенести папку внутрь самой себя");
         return;
       }
-      if ((current.parent_id ?? null) === folderId) return;
-      moveFolder.mutate({ id: draggedFolder, parentId: folderId });
+      const ids = draggedFolders.filter(id => {
+        const cur = folders.find(f => f.id === id);
+        return cur && (cur.parent_id ?? null) !== folderId;
+      });
+      if (!ids.length) return;
+      moveFolders.mutate({ ids, parentId: folderId });
       return;
     }
     const ids = dragIdsRef.current.length ? dragIdsRef.current : selectedIds;
@@ -462,8 +495,8 @@ function ProductsPage() {
   const dropProps = (folderId: string | null, key: string) => ({
     onDragOver: (e: DragEvent) => {
       e.preventDefault();
-      const dragged = dragFolderRef.current;
-      const forbidden = !!dragged && (dragged === folderId || (!!folderId && descendantsOf(dragged).includes(folderId)));
+      const dragged = dragFolderIdsRef.current;
+      const forbidden = dragged.length > 0 && !!folderId && forbiddenTargets(dragged).has(folderId);
       e.dataTransfer.dropEffect = forbidden ? "none" : "move";
       setDropFolder(forbidden ? null : key);
     },
@@ -471,17 +504,17 @@ function ProductsPage() {
     onDrop: (e: DragEvent) => { e.preventDefault(); e.stopPropagation(); dropOnFolder(folderId); },
   });
 
-  // Свойства для перетаскиваемой папки в дереве.
+  // Свойства для перетаскиваемой папки: если папка отмечена, тянутся все отмеченные.
   const folderDragProps = (folderId: string) => ({
     draggable: true,
     onDragStart: (e: DragEvent) => {
       e.stopPropagation();
-      dragFolderRef.current = folderId;
+      dragFolderIdsRef.current = selectedFolderIds.includes(folderId) ? selectedFolderIds : [folderId];
       dragIdsRef.current = [];
       e.dataTransfer.effectAllowed = "move";
-      e.dataTransfer.setData("text/plain", folderId);
+      e.dataTransfer.setData("text/plain", dragFolderIdsRef.current.join(","));
     },
-    onDragEnd: () => { dragFolderRef.current = null; setDropFolder(null); },
+    onDragEnd: () => { dragFolderIdsRef.current = []; setDropFolder(null); },
   });
 
 
@@ -647,15 +680,19 @@ function ProductsPage() {
             <Search className="h-4 w-4 text-muted-foreground" />
             <Input placeholder="Поиск по названию или артикулу" value={search} onChange={e => { setSearch(e.target.value); setPage(0); }} className="border-0 focus-visible:ring-0 shadow-none h-8" />
           </div>
-          {selectedIds.length > 0 && (
+          {(selectedIds.length > 0 || selectedFolderIds.length > 0) && (
             <div className="p-3 border-b flex items-center gap-3 bg-muted/40 text-sm">
-              <span>Выбрано: {selectedIds.length}</span>
+              <span>
+                Выбрано:{" "}
+                {[selectedFolderIds.length ? `папок — ${selectedFolderIds.length}` : null,
+                  selectedIds.length ? `товаров — ${selectedIds.length}` : null].filter(Boolean).join(", ")}
+              </span>
               <Button size="sm" variant="outline" onClick={() => { setMoveTarget(getSelectedRealFolderId() ?? ROOT); setMoveOpen(true); }}>
                 <FolderOpen className="h-4 w-4 mr-1" /> Перенести в папку
               </Button>
-              <Button size="sm" variant="ghost" onClick={() => setSelectedIds([])}>Снять выделение</Button>
+              <Button size="sm" variant="ghost" onClick={() => { setSelectedIds([]); setSelectedFolderIds([]); }}>Снять выделение</Button>
               <span className="text-xs text-muted-foreground ml-auto hidden md:inline">
-                Можно просто перетащить выбранные строки на папку слева. Shift+клик — выбрать диапазон.
+                Можно перетащить все выбранные строки на папку. Shift+клик — выбрать диапазон.
               </span>
             </div>
           )}
@@ -664,8 +701,13 @@ function ProductsPage() {
               <TableRow>
                 <TableHead className="w-8">
                   <Checkbox
-                    checked={filtered.length > 0 && filtered.every(p => selectedIds.includes(p.id))}
-                    onCheckedChange={(v) => setSelectedIds(v ? filtered.map(p => p.id) : [])}
+                    checked={(filtered.length > 0 || rightFolders.length > 0)
+                      && filtered.every(p => selectedIds.includes(p.id))
+                      && rightFolders.every(f => selectedFolderIds.includes(f.id))}
+                    onCheckedChange={(v) => {
+                      setSelectedIds(v ? filtered.map(p => p.id) : []);
+                      setSelectedFolderIds(v ? rightFolders.map(f => f.id) : []);
+                    }}
                   />
                 </TableHead>
                 <TableHead>Артикул</TableHead>
@@ -684,13 +726,16 @@ function ProductsPage() {
               {rightFolders.map(f => (
                 <TableRow
                   key={f.id}
+                  data-state={selectedFolderIds.includes(f.id) ? "selected" : undefined}
                   className={`cursor-pointer hover:bg-muted/40 ${dropFolder === `row-${f.id}` ? "bg-primary/10" : ""}`}
                   onClick={() => selectFolder(f.id)}
                   {...dropProps(f.id, `row-${f.id}`)}
                   {...folderDragProps(f.id)}
 
                 >
-                  <TableCell></TableCell>
+                  <TableCell onClick={(e) => { e.stopPropagation(); toggleFolderSelected(f.id, e.shiftKey); }}>
+                    <Checkbox checked={selectedFolderIds.includes(f.id)} onCheckedChange={() => {}} />
+                  </TableCell>
                   <TableCell className="text-muted-foreground"></TableCell>
                   <TableCell className="font-medium">
                     <span className="inline-flex items-center gap-2">
@@ -757,7 +802,7 @@ function ProductsPage() {
 
       <Dialog open={moveOpen} onOpenChange={setMoveOpen}>
         <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>Перенести в папку ({selectedIds.length})</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Перенести в папку ({selectedFolderIds.length + selectedIds.length})</DialogTitle></DialogHeader>
           <div className="space-y-2">
             <Label>Папка</Label>
             <Select value={moveTarget} onValueChange={setMoveTarget}>
@@ -771,8 +816,20 @@ function ProductsPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setMoveOpen(false)}>Отмена</Button>
             <Button
-              onClick={() => moveProducts.mutate({ ids: selectedIds, folderId: moveTarget === ROOT ? null : moveTarget })}
-              disabled={moveProducts.isPending}
+              onClick={() => {
+                const target = moveTarget === ROOT ? null : moveTarget;
+                if (selectedFolderIds.length) {
+                  const forbidden = forbiddenTargets(selectedFolderIds);
+                  if (target && forbidden.has(target)) {
+                    toast.error("Нельзя перенести папку внутрь самой себя");
+                    return;
+                  }
+                  moveFolders.mutate({ ids: selectedFolderIds, parentId: target });
+                }
+                if (selectedIds.length) moveProducts.mutate({ ids: selectedIds, folderId: target });
+                setMoveOpen(false);
+              }}
+              disabled={moveProducts.isPending || moveFolders.isPending}
             >Перенести</Button>
           </DialogFooter>
         </DialogContent>
