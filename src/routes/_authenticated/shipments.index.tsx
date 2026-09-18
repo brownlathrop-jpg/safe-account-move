@@ -37,7 +37,7 @@ function ShipmentsPage() {
     queryFn: async () => {
       let q = (db as any)
         .from("invoices")
-        .select("id,number,kind,status,total,issue_date,is_return,partner:partners(name)")
+        .select("id,number,kind,status,total,issue_date,is_return,fiscal,partner:partners(name)")
         .eq("doc_type", "shipment")
         .eq("workspace_id", wsId)
         .order("issue_date", { ascending: false });
@@ -191,6 +191,11 @@ function ShipmentsPage() {
                   )}>
                     {i.status === "posted" ? "Проведена" : i.status === "cancelled" ? "Отменена" : "Черновик"}
                   </span>
+                  {(i.fiscal?.receiptNumber || i.fiscal?.fiscalDocNumber) && (
+                    <span className="ml-2 inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                      Чек № {i.fiscal.receiptNumber ?? i.fiscal.fiscalDocNumber}
+                    </span>
+                  )}
                 </TableCell>
                 <TableCell className="text-right font-medium">{fmt.format(Number(i.total))}</TableCell>
                 <TableCell className="text-right text-sm">

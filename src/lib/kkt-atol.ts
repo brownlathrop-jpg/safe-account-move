@@ -1,0 +1,279 @@
+// Онлайн-касса АТОЛ: связь с локальным драйвером ККТ 10 (веб-сервер драйвера).
+// Касса подключена к компьютеру продавца, поэтому запросы идут из браузера
+// на локальный адрес драйвера, минуя наш сервер.
+
+export type KktSno = "osn" | "usnIncome" | "usnIncomeOutcome" | "esn" | "patent";
+export type KktVat = "none" | "vat0" | "vat10" | "vat20" | "vat110" | "vat120" | "vat5" | "vat7";
+export type KktPaymentType = "cash" | "electronically";
+
+export type KktSettings = {
+  /** Адрес веб-сервера драйвера ККТ (рабочее место продавца). */
+  url: string;
+  /** Система налогообложения чека. */
+  sno: KktSno;
+  /** Ставка НДС по позициям. */
+  vat: KktVat;
+  /** Признак способа расчёта (полный расчёт, аванс и т.п.). */
+  paymentMethod: string;
+  /** Признак предмета расчёта (товар, услуга и т.п.). */
+  paymentObject: string;
+  /** Имя кассира в чеке. */
+  cashier: string;
+  /** ИНН кассира (не обязательно). */
+  cashierVatin: string;
+  /** Место расчётов (адрес магазина или сайт). */
+  place: string;
+};
+
+export const KKT_DEFAULTS: KktSettings = {
+  url: "http://localhost:16732",
+  sno: "usnIncome",
+  vat: "none",
+  paymentMethod: "fullPayment",
+  paymentObject: "commodity",
+  cashier: "",
+  cashierVatin: "",
+  place: "",
+};
+
+export const SNO_LABELS: Record<KktSno, string> = {
+  osn: "Общая (ОСН)",
+  usnIncome: "УСН доход",
+  usnIncomeOutcome: "УСН доход минус расход",
+  esn: "ЕСХН",
+  patent: "Патент",
+};
+
+export const VAT_LABELS: Record<KktVat, string> = {
+  none: "Без НДС",
+  vat0: "НДС 0%",
+  vat5: "НДС 5%",
+  vat7: "НДС 7%",
+  vat10: "НДС 10%",
+  vat20: "НДС 20%",
+  vat110: "НДС 10/110",
+  vat120: "НДС 20/120",
+};
+
+export const PAYMENT_METHOD_LABELS: Record<string, string> = {
+  fullPrepayment: "Предоплата 100%",
+  prepayment: "Частичная предоплата",
+  advance: "Аванс",
+  fullPayment: "Полный расчёт",
+  partialPayment: "Частичный расчёт и кредит",
+  credit: "Передача в кредит",
+  creditPayment: "Оплата кредита",
+};
+
+export const PAYMENT_OBJECT_LABELS: Record<string, string> = {
+  commodity: "Товар",
+  excise: "Подакцизный товар",
+  job: "Работа",
+  service: "Услуга",
+  payment: "Платёж",
+  another: "Иной предмет расчёта",
+};
+
+export type KktPosition = {
+  name: string;
+  quantity: number;
+  price: number;
+  unit?: string;
+};
+
+export type KktReceiptInput = {
+  positions: KktPosition[];
+  paymentType: KktPaymentType;
+  /** Электронный чек: адрес покупателя (почта или телефон). */
+  clientContact?: string;
+  /** Идентификатор операции: защита от повторного чека. */
+  operationId: string;
+};
+
+export type KktFiscalResult = {
+  receiptNumber: number | null;
+  shiftNumber: number | null;
+  fiscalDocNumber: number | null;
+  fiscalSign: string | null;
+  fnNumber: string | null;
+  regNumber: string | null;
+  datetime: string;
+  total: number;
+  operationId: string;
+  paymentType: KktPaymentType;
+};
+
+export type KktDeviceInfo = {
+  model: string;
+  serial: string;
+  fnNumber: string;
+  regNumber: string;
+  shiftState: "opened" | "closed" | "expired" | "unknown";
+  shiftNumber: number | null;
+};
+
+/** Ошибка кассы с понятным для продавца текстом. */
+export class KktError extends Error {
+  code: string | number | null;
+  constructor(message: string, code: string | number | null = null) {
+    super(message);
+    this.name = "KktError";
+    this.code = code;
+  }
+}
+
+const HUMAN_ERRORS: Array<[RegExp, string]> = [
+  [/paper|бумаг/i, "В кассе нет бумаги — заправьте чековую ленту и повторите."],
+  [/cover|крышк/i, "Открыта крышка кассы — закройте её и повторите."],
+  [/shift.*(expired|24)|смена.*24/i, "Смена открыта больше 24 часов — закройте смену на кассе."],
+  [/shift.*(closed|not open)|смена закрыт/i, "Смена закрыта — откройте смену и повторите."],
+  [/connection|connect|port|соедин|порт/i, "Касса не отвечает: проверьте кабель и питание кассы."],
+  [/fn|фискальн.*накопител/i, "Проблема с фискальным накопителем — обратитесь в обслуживающую организацию."],
+];
+
+function humanize(raw: string): string {
+  for (const [re, text] of HUMAN_ERRORS) if (re.test(raw)) return text;
+  return raw || "Касса вернула ошибку без описания";
+}
+
+function base(url: string) {
+  return (url || KKT_DEFAULTS.url).replace(/\/+$/, "");
+}
+
+async function driverFetch(url: string, path: string, init?: RequestInit) {
+  let res: Response;
+  try {
+    res = await fetch(base(url) + path, {
+      ...init,
+      headers: { "Content-Type": "application/json; charset=utf-8", ...(init?.headers ?? {}) },
+    });
+  } catch {
+    throw new KktError(
+      "Нет связи с драйвером кассы. Проверьте, что программа «Драйвер ККТ АТОЛ 10» запущена на этом компьютере, а адрес указан верно в Настройках → Касса.",
+    );
+  }
+  if (!res.ok) throw new KktError(`Драйвер кассы ответил ошибкой (${res.status})`, res.status);
+  const text = await res.text();
+  try {
+    return text ? JSON.parse(text) : {};
+  } catch {
+    throw new KktError("Драйвер кассы вернул непонятный ответ");
+  }
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Отправить задание драйверу и дождаться результата. */
+async function runTask(url: string, task: Record<string, unknown>, timeoutMs = 60000) {
+  const uuid = crypto.randomUUID();
+  const started = Date.now();
+  const first = await driverFetch(url, "/requests", {
+    method: "POST",
+    body: JSON.stringify({ uuid, request: [task] }),
+  });
+  let state = first;
+  while (Date.now() - started < timeoutMs) {
+    const results: any[] = state?.results ?? [];
+    const r = results[0];
+    if (r) {
+      if (r.error) throw new KktError(humanize(r.error.description ?? r.error.message ?? ""), r.error.code ?? null);
+      if (r.status === "ready" || r.status === "completed") return r.result ?? r;
+    }
+    if (state?.error) {
+      throw new KktError(humanize(state.error.description ?? state.error.message ?? ""), state.error.code ?? null);
+    }
+    await sleep(400);
+    state = await driverFetch(url, `/requests/${uuid}`);
+  }
+  throw new KktError("Касса не ответила за минуту. Проверьте её состояние и повторите.");
+}
+
+/** Модель кассы, номер ФН и состояние смены — для кнопки «Проверить связь». */
+export async function kktDeviceInfo(s: KktSettings): Promise<KktDeviceInfo> {
+  const info: any = await runTask(s.url, { type: "getDeviceInfo" }, 15000).catch(async (e) => {
+    if (e instanceof KktError && e.code === 404) return await driverFetch(s.url, "/api/v2/deviceInfo");
+    throw e;
+  });
+  const shift: any = await runTask(s.url, { type: "queryShiftStatus" }, 15000).catch(() => null);
+  const st = String(shift?.shiftStatus?.state ?? shift?.state ?? "").toLowerCase();
+  return {
+    model: info?.modelName ?? info?.model ?? "—",
+    serial: info?.serialNumber ?? "—",
+    fnNumber: info?.fnSerial ?? info?.fnNumber ?? "—",
+    regNumber: info?.regNumber ?? info?.ecrRegistrationNumber ?? "—",
+    shiftState: st === "opened" ? "opened" : st === "closed" ? "closed" : st === "expired" ? "expired" : "unknown",
+    shiftNumber: Number(shift?.shiftStatus?.number ?? shift?.number ?? 0) || null,
+  };
+}
+
+export function receiptTotal(positions: KktPosition[]): number {
+  return positions.reduce((s, p) => s + round2(p.price * p.quantity), 0);
+}
+
+function round2(n: number) {
+  return Math.round((Number(n) || 0) * 100) / 100;
+}
+
+/** Сборка задания «чек продажи» для драйвера ДТО10. */
+export function buildSellReceipt(s: KktSettings, input: KktReceiptInput) {
+  const items = input.positions
+    .filter((p) => (Number(p.quantity) || 0) > 0)
+    .map((p) => ({
+      type: "position",
+      name: String(p.name || "Товар").slice(0, 128),
+      price: round2(p.price),
+      quantity: Number(p.quantity) || 0,
+      amount: round2(p.price * p.quantity),
+      measurementUnit: p.unit || "шт",
+      paymentMethod: s.paymentMethod || KKT_DEFAULTS.paymentMethod,
+      paymentObject: s.paymentObject || KKT_DEFAULTS.paymentObject,
+      tax: { type: s.vat || "none" },
+    }));
+  if (!items.length) throw new KktError("В документе нет позиций с количеством — чек пробить нельзя.");
+  const total = items.reduce((sum, i) => sum + i.amount, 0);
+  return {
+    type: "sellReceipt",
+    taxationType: s.sno || KKT_DEFAULTS.sno,
+    electronically: !!input.clientContact,
+    ...(s.place ? { paymentsPlace: s.place } : {}),
+    ...(input.clientContact ? { clientInfo: { emailOrPhone: input.clientContact } } : {}),
+    operator: { name: s.cashier || "Кассир", ...(s.cashierVatin ? { vatin: s.cashierVatin } : {}) },
+    items,
+    payments: [{ type: input.paymentType, sum: round2(total) }],
+    total: round2(total),
+  };
+}
+
+/** Пробить чек продажи. Возвращает фискальные данные чека. */
+export async function printSellReceipt(s: KktSettings, input: KktReceiptInput): Promise<KktFiscalResult> {
+  const task = buildSellReceipt(s, input);
+  const res: any = await runTask(s.url, task);
+  const doc = res?.fiscalParams ?? res ?? {};
+  return {
+    receiptNumber: Number(doc.receiptNumber ?? doc.documentNumber ?? 0) || null,
+    shiftNumber: Number(doc.shiftNumber ?? 0) || null,
+    fiscalDocNumber: Number(doc.fiscalDocumentNumber ?? doc.fnDocumentNumber ?? 0) || null,
+    fiscalSign: doc.fiscalDocumentSign != null ? String(doc.fiscalDocumentSign) : null,
+    fnNumber: doc.fnNumber ?? doc.fnSerial ?? null,
+    regNumber: doc.registrationNumber ?? doc.regNumber ?? null,
+    datetime: doc.dateTime ?? new Date().toISOString(),
+    total: (task as any).total,
+    operationId: input.operationId,
+    paymentType: input.paymentType,
+  };
+}
+
+/** Повторная печать копии последнего чека (если касса поддерживает). */
+export async function printLastReceiptCopy(s: KktSettings) {
+  return runTask(s.url, { type: "printLastReceiptCopy" }, 30000);
+}
+
+/** Ссылка на проверку чека в приложении ФНС. */
+export function fnsCheckUrl(f: { fiscalDocNumber?: number | null; fiscalSign?: string | null; total?: number; datetime?: string }) {
+  if (!f.fiscalDocNumber || !f.fiscalSign) return null;
+  const dt = f.datetime ? new Date(f.datetime) : new Date();
+  const p = (n: number) => String(n).padStart(2, "0");
+  const t = `${dt.getFullYear()}${p(dt.getMonth() + 1)}${p(dt.getDate())}T${p(dt.getHours())}${p(dt.getMinutes())}`;
+  const s = (Number(f.total) || 0).toFixed(2);
+  return `https://consumer.nalog.ru/check?t=${t}&s=${s}&fn=&i=${f.fiscalDocNumber}&fp=${f.fiscalSign}&n=1`;
+}

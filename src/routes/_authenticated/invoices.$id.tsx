@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { db } from "@/integrations/db";
 import { PaymentsCard } from "@/components/PaymentsCard";
 import { DocHistoryCard } from "@/components/DocHistoryCard";
+import { KktReceiptButton } from "@/components/kkt-receipt-button";
 import { applyShipmentStock } from "@/lib/posting";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -470,6 +471,14 @@ function InvoiceView() {
             </Badge>
           )}
           {editable && <Button variant="outline" onClick={() => save.mutate()} disabled={save.isPending}><Save className="h-4 w-4 mr-1" /> Сохранить</Button>}
+          {isShipment && kind === "outgoing" && inv.status !== "cancelled" && (
+            <KktReceiptButton
+              wsId={wsId}
+              invoiceId={id}
+              items={items.map((it) => ({ name: it.name, quantity: it.quantity, price: it.price }))}
+              fiscal={inv.fiscal}
+            />
+          )}
           {isShipment && inv.status === "draft" && <Button onClick={() => setStatus.mutate("posted")}><CheckCircle2 className="h-4 w-4 mr-1" /> Провести</Button>}
           {isShipment && inv.status === "posted" && <Button variant="outline" onClick={() => setStatus.mutate("draft")}><FileEdit className="h-4 w-4 mr-1" /> Распровести</Button>}
           {inv.status !== "cancelled" && (
