@@ -5,12 +5,13 @@ import { db } from "@/integrations/db";
 import { useActiveWorkspaceId } from "@/lib/workspace";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowDownToLine, ArrowUpFromLine, Truck, Search, Download } from "lucide-react";
+import { ArrowDownToLine, ArrowUpFromLine, Truck, Search, Download, Printer } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { downloadCsv, csvDate } from "@/lib/export-csv";
+import { printList } from "@/lib/print-list";
 
 export const Route = createFileRoute("/_authenticated/shipments/")({
   head: () => ({ meta: [{ title: "Накладные — КабинетCRM" }] }),
@@ -77,16 +78,18 @@ function ShipmentsPage() {
 
   const total = useMemo(() => filtered.reduce((s, i) => s + Number(i.total || 0), 0), [filtered]);
 
-  const exportCsv = () => downloadCsv("накладные", filtered, [
-    { header: "№", value: i => i.number },
-    { header: "Дата", value: i => csvDate(i.issue_date) },
-    { header: "Тип", value: i => (i.kind === "incoming" ? "Закупка" : "Продажа") + (i.is_return ? " (возврат)" : "") },
-    { header: "Контрагент", value: i => i.partner?.name ?? "" },
-    { header: "Учёт", value: i => (i.status === "posted" ? "Проведена" : i.status === "cancelled" ? "Отменена" : "Черновик") },
-    { header: "Сумма", value: i => Number(i.total || 0) },
-    { header: "Оплачено", value: i => paidByInvoice.get(i.id) ?? 0 },
-    { header: "Осталось", value: i => Number(i.total || 0) - (paidByInvoice.get(i.id) ?? 0) },
-  ]);
+  const listColumns = [
+    { header: "№", value: (i: any) => i.number },
+    { header: "Дата", value: (i: any) => csvDate(i.issue_date) },
+    { header: "Тип", value: (i: any) => (i.kind === "incoming" ? "Закупка" : "Продажа") + (i.is_return ? " (возврат)" : "") },
+    { header: "Контрагент", value: (i: any) => i.partner?.name ?? "" },
+    { header: "Учёт", value: (i: any) => (i.status === "posted" ? "Проведена" : i.status === "cancelled" ? "Отменена" : "Черновик") },
+    { header: "Сумма", value: (i: any) => Number(i.total || 0) },
+    { header: "Оплачено", value: (i: any) => paidByInvoice.get(i.id) ?? 0 },
+    { header: "Осталось", value: (i: any) => Number(i.total || 0) - (paidByInvoice.get(i.id) ?? 0) },
+  ];
+  const exportCsv = () => downloadCsv("накладные", filtered, listColumns);
+  const printShipments = () => printList("Накладные", filtered, listColumns);
 
   return (
     <div className="space-y-5">
@@ -100,6 +103,9 @@ function ShipmentsPage() {
         </div>
         <Button variant="outline" className="ml-auto" onClick={exportCsv} disabled={!filtered.length} title="Выгрузить в Excel">
           <Download className="h-4 w-4 mr-1" /> Excel
+        </Button>
+        <Button variant="outline" onClick={printShipments} disabled={!filtered.length} title="Печать списка / сохранить в PDF">
+          <Printer className="h-4 w-4 mr-1" /> Печать
         </Button>
       </div>
 
