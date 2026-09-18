@@ -514,6 +514,8 @@ function ProductsPage() {
             onClick={() => selectFolder(f.id)}
             title={f.name}
             {...dropProps(f.id, f.id)}
+            {...folderDragProps(f.id)}
+
           >
             <button
               type="button"
