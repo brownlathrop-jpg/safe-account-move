@@ -196,7 +196,7 @@ export function ProductPicker({
           <PackageSearch className="h-4 w-4 mr-1" /> Подбор товаров
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-4xl w-[calc(100vw-2rem)] overflow-hidden">
+      <DialogContent className="max-w-4xl w-[calc(100vw-2rem)] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle>Подбор товаров</DialogTitle>
         </DialogHeader>
