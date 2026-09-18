@@ -1,11 +1,11 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { db } from "@/integrations/db";
 import { useActiveWorkspaceId } from "@/lib/workspace";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowDownToLine, ArrowUpFromLine, Receipt, Truck, Search, Download, Printer } from "lucide-react";
+import { ArrowDownToLine, ArrowUpFromLine, Truck, Search, Download, Printer } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -21,6 +21,7 @@ const fmt = new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB" 
 const dfmt = new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" });
 
 function InvoicesPage() {
+  const navigate = useNavigate();
   const wsId = useActiveWorkspaceId();
   const [search, setSearch] = useState("");
   const [kind, setKind] = useState<"all" | "incoming" | "outgoing">("all");

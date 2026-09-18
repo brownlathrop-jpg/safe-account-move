@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { db } from "@/integrations/db";
@@ -24,6 +24,7 @@ const dfmt = new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit"
 type Tab = "all" | "outgoing" | "incoming";
 
 function ShipmentsPage() {
+  const navigate = useNavigate();
   const wsId = useActiveWorkspaceId();
   const [tab, setTab] = useState<Tab>("all");
   const [search, setSearch] = useState("");
