@@ -54,6 +54,10 @@ type Org = {
   taxation_system: string;
   is_primary: boolean;
   invoice_number_mask: string;
+  /** Логотип для печати (картинка, приведённая к единому размеру). */
+  logo_url?: string | null;
+  /** Название, которое печатается в шапке документов (если пусто — краткое название). */
+  print_name?: string | null;
 };
 
 const empty: Org = {
