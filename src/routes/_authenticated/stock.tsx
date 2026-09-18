@@ -15,6 +15,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { useActiveWorkspaceId } from "@/lib/workspace";
 import { fetchBalances } from "@/lib/stock";
 import { ProductPickerSingle } from "@/components/ProductPickerSingle";
+import { costsAll, costsRecalc } from "@/lib/cost.functions";
 
 export const Route = createFileRoute("/_authenticated/stock")({
   head: () => ({ meta: [{ title: "Склад — КабинетCRM" }] }),
@@ -62,10 +63,15 @@ function StockPage() {
         <TabsList>
           <TabsTrigger value="balances">Остатки</TabsTrigger>
           <TabsTrigger value="receipts">Поступления</TabsTrigger>
+          <TabsTrigger value="batches">Партии и себестоимость</TabsTrigger>
         </TabsList>
 
         <TabsContent value="balances" className="mt-5">
           <BalancesTab warehouses={warehouses} products={products} />
+        </TabsContent>
+
+        <TabsContent value="batches" className="mt-5">
+          <BatchesTab products={products} />
         </TabsContent>
 
         <TabsContent value="receipts" className="mt-5">
@@ -168,10 +174,13 @@ function ReceiptsTab({ warehouses, products, partners }: { warehouses: Warehouse
       await (db as any).from("stock_receipt_items").delete().eq("receipt_id", id);
       const { error } = await (db as any).from("stock_receipts").delete().eq("id", id);
       if (error) throw error;
+      if (wsId) await costsRecalc({ data: { workspaceId: wsId } });
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["stock_receipts"] });
       qc.invalidateQueries({ queryKey: ["stock_balances"] });
+      qc.invalidateQueries({ queryKey: ["cost_batches"] });
+      qc.invalidateQueries({ queryKey: ["products"] });
       toast.success("Удалено");
     },
     onError: (e: Error) => toast.error(e.message),
@@ -288,11 +297,15 @@ function NewReceiptDialog({
       }));
       const { error: e3 } = await (db as any).from("stock_movements").insert(movements);
       if (e3) throw e3;
+      // партии изменились — пересчитываем себестоимость
+      await costsRecalc({ data: { workspaceId: wsId } });
     },
 
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["stock_receipts"] });
       qc.invalidateQueries({ queryKey: ["stock_balances"] });
+      qc.invalidateQueries({ queryKey: ["cost_batches"] });
+      qc.invalidateQueries({ queryKey: ["products"] });
       toast.success("Поступление проведено");
       reset();
       onOpenChange(false);
@@ -406,5 +419,119 @@ function NewReceiptDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// ============================================================
+// Партии и себестоимость (FIFO)
+// ============================================================
+type BatchRow = {
+  product_id: string;
+  cost: number;
+  qty: number;
+  batches: { qty: number; unit: number; date: string; doc_type: string; doc_id: string | null }[];
+};
+
+function BatchesTab({ products }: { products: Product[] }) {
+  const qc = useQueryClient();
+  const wsId = useActiveWorkspaceId();
+  const [q, setQ] = useState("");
+  const [openRow, setOpenRow] = useState<string | null>(null);
+
+  const { data: rows = [], isLoading } = useQuery({
+    queryKey: ["cost_batches", wsId],
+    enabled: !!wsId,
+    queryFn: async () => {
+      const res = await costsAll({ data: { workspaceId: wsId! } });
+      if (res.error) throw new Error(res.error.message);
+      return res.rows as BatchRow[];
+    },
+  });
+
+  const recalc = useMutation({
+    mutationFn: async () => {
+      const res = await costsRecalc({ data: { workspaceId: wsId! } });
+      if (res.error) throw new Error(res.error.message);
+      return res;
+    },
+    onSuccess: (r) => {
+      qc.invalidateQueries({ queryKey: ["cost_batches"] });
+      qc.invalidateQueries({ queryKey: ["products"] });
+      toast.success(`Пересчитано: товаров ${r.products}, документов ${r.docs}`);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const productMap = useMemo(() => new Map(products.map(p => [p.id, p])), [products]);
+  const needle = q.trim().toLowerCase();
+  const visible = rows
+    .filter(r => r.qty > 0 || r.cost > 0)
+    .filter(r => !needle || (productMap.get(r.product_id)?.name ?? "").toLowerCase().includes(needle))
+    .sort((a, b) => (productMap.get(a.product_id)?.name ?? "").localeCompare(productMap.get(b.product_id)?.name ?? "", "ru"));
+
+  return (
+    <Card className="p-0 overflow-hidden">
+      <div className="p-3 border-b flex flex-wrap items-center gap-3">
+        <Input className="h-8 w-64" placeholder="Поиск товара" value={q} onChange={e => setQ(e.target.value)} />
+        <div className="text-xs text-muted-foreground flex-1 min-w-40">
+          Себестоимость считается по партиям поступлений: расход списывает сначала самые старые партии.
+        </div>
+        <Button size="sm" variant="outline" disabled={recalc.isPending} onClick={() => recalc.mutate()}>
+          Пересчитать себестоимость
+        </Button>
+      </div>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Товар</TableHead>
+            <TableHead className="text-right w-28">Остаток</TableHead>
+            <TableHead className="text-right w-32">Себестоимость</TableHead>
+            <TableHead className="text-right w-36">Сумма партий</TableHead>
+            <TableHead className="w-24"></TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {isLoading && (
+            <TableRow><TableCell colSpan={5} className="text-center py-10 text-muted-foreground">Считаем…</TableCell></TableRow>
+          )}
+          {!isLoading && visible.length === 0 && (
+            <TableRow><TableCell colSpan={5} className="text-center py-10 text-muted-foreground">Партий пока нет — оформите поступление товара</TableCell></TableRow>
+          )}
+          {visible.map(r => {
+            const p = productMap.get(r.product_id);
+            const sum = r.batches.reduce((s2, b) => s2 + b.qty * b.unit, 0);
+            const isOpen = openRow === r.product_id;
+            return (
+              <>
+                <TableRow key={r.product_id}>
+                  <TableCell className="font-medium">{p?.name ?? "—"}</TableCell>
+                  <TableCell className="text-right font-mono">{fmtQty.format(r.qty)}</TableCell>
+                  <TableCell className="text-right font-mono">{fmtMoney.format(r.cost)}</TableCell>
+                  <TableCell className="text-right font-mono">{fmtMoney.format(sum)}</TableCell>
+                  <TableCell className="text-right">
+                    <Button size="sm" variant="ghost" disabled={r.batches.length === 0}
+                      onClick={() => setOpenRow(isOpen ? null : r.product_id)}>
+                      {isOpen ? "Скрыть" : `Партии (${r.batches.length})`}
+                    </Button>
+                  </TableCell>
+                </TableRow>
+                {isOpen && r.batches.map((b, i) => (
+                  <TableRow key={`${r.product_id}-b${i}`} className="bg-muted/40">
+                    <TableCell className="pl-8 text-sm text-muted-foreground">
+                      Партия от {new Date(b.date).toLocaleDateString("ru-RU")}
+                      {b.doc_type === "receipt" ? " (поступление)" : b.doc_type === "shipment" ? " (закупка)" : ""}
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-sm">{fmtQty.format(b.qty)}</TableCell>
+                    <TableCell className="text-right font-mono text-sm">{fmtMoney.format(b.unit)}</TableCell>
+                    <TableCell className="text-right font-mono text-sm">{fmtMoney.format(b.qty * b.unit)}</TableCell>
+                    <TableCell />
+                  </TableRow>
+                ))}
+              </>
+            );
+          })}
+        </TableBody>
+      </Table>
+    </Card>
   );
 }
