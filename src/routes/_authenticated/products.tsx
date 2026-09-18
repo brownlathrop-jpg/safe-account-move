@@ -407,6 +407,24 @@ function ProductsPage() {
     });
   };
 
+  // Клик с Shift выделяет все папки между предыдущей и текущей.
+  const toggleFolderSelected = (id: string, shift = false) => {
+    setSelectedFolderIds(prev => {
+      if (shift && lastFolderClickRef.current) {
+        const list = rightFolders.map(f => f.id);
+        const a = list.indexOf(lastFolderClickRef.current);
+        const b = list.indexOf(id);
+        if (a !== -1 && b !== -1) {
+          const range = list.slice(Math.min(a, b), Math.max(a, b) + 1);
+          lastFolderClickRef.current = id;
+          return [...new Set([...prev, ...range])];
+        }
+      }
+      lastFolderClickRef.current = id;
+      return prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id];
+    });
+  };
+
   const moveProducts = useMutation({
     mutationFn: async ({ ids, folderId }: { ids: string[]; folderId: string | null }) => {
       if (!ids.length) throw new Error("Не выбраны товары");
