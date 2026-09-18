@@ -614,7 +614,8 @@ function ProductsPage() {
 
   const openNew = () => {
     const folder_id = getSelectedRealFolderId();
-    const kind: "product" | "service" = selectedFolder === KIND_SERVICE ? "service" : "product";
+    const kind: "product" | "service" =
+      selectedFolder === KIND_SERVICE || isInServiceTree(folder_id) ? "service" : "product";
     setEditing({ name: "", unit: kind === "service" ? "усл" : "шт", price: 0, cost: 0, stock: 0, folder_id, kind, image_url: null });
     setActivePriceType(null);
     setActivePriceInput("");
