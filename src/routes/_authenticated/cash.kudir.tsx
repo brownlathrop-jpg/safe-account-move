@@ -2,17 +2,24 @@
 // или «только с чеками», печать по форме приказа ФНС № ЕА-7-3/816@.
 import { createFileRoute } from "@tanstack/react-router";
 import { Fragment, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { db } from "@/integrations/db";
 import { useActiveWorkspaceId } from "@/lib/workspace";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { BookText, Download, Printer, Receipt } from "lucide-react";
+import { BookText, Download, Plus, Printer, Receipt, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { downloadCsv } from "@/lib/export-csv";
-import { buildKudir, filterKudirByMode, printKudir, type KudirMode, type KudirRow } from "@/lib/kudir";
+import {
+  buildContribBook, buildKudir, filterKudirByMode, printKudir,
+  CONTRIB_KINDS, CONTRIB_LABEL,
+  type KudirContrib, type KudirContribKind, type KudirMode, type KudirRow,
+} from "@/lib/kudir";
+
 
 export const Route = createFileRoute("/_authenticated/cash/kudir")({
   head: () => ({
@@ -48,6 +55,57 @@ function KudirPage() {
       (await (db as any).from("organizations").select("*").eq("workspace_id", wsId)
         .order("is_primary", { ascending: false }).limit(1).maybeSingle()).data,
   });
+
+  // Раздел IV: уплаченные взносы. Храним в настройках базы данных.
+  const qc = useQueryClient();
+  const { data: contribs = [] } = useQuery<KudirContrib[]>({
+    queryKey: ["kudir-contribs", wsId],
+    enabled: !!wsId,
+    queryFn: async () => {
+      const { data } = await (db as any).from("workspaces").select("*").eq("id", wsId).maybeSingle();
+      const list = (data as any)?.kudir_contributions;
+      return Array.isArray(list) ? (list as KudirContrib[]) : [];
+    },
+  });
+
+  const saveContribs = useMutation({
+    mutationFn: async (list: KudirContrib[]) => {
+      if (!wsId) throw new Error("Не выбрана база данных");
+      const { error } = await (db as any).from("workspaces").update({ kudir_contributions: list }).eq("id", wsId);
+      if (error) throw error;
+      return list;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["kudir-contribs", wsId] }),
+    onError: (e: any) => toast.error(e?.message ?? "Не удалось сохранить взносы"),
+  });
+
+  const [form, setForm] = useState<{ date: string; doc: string; period: string; kind: KudirContribKind; amount: string }>({
+    date: new Date().toISOString().slice(0, 10),
+    doc: "",
+    period: "",
+    kind: "opc",
+    amount: "",
+  });
+
+  const addContrib = () => {
+    const amount = Number(String(form.amount).replace(",", "."));
+    if (!form.date || !amount) {
+      toast.error("Укажите дату и сумму взноса");
+      return;
+    }
+    const row: KudirContrib = {
+      id: crypto.randomUUID(),
+      date: form.date,
+      doc: form.doc || undefined,
+      period: form.period || undefined,
+      kind: form.kind,
+      amount: Math.round(amount * 100) / 100,
+    };
+    saveContribs.mutate([...contribs, row]);
+    setForm((f) => ({ ...f, doc: "", amount: "" }));
+  };
+
+
 
   const { data: rows = [], isLoading } = useQuery<KudirRow[]>({
     queryKey: ["kudir", wsId],
@@ -140,6 +198,8 @@ function KudirPage() {
 
   const selected = useMemo(() => filterKudirByMode(rows, mode), [rows, mode]);
   const book = useMemo(() => buildKudir(selected, year), [selected, year]);
+  const contribBook = useMemo(() => buildContribBook(contribs, year), [contribs, year]);
+
   const years = useMemo(() => {
     const set = new Set<number>(rows.map((r) => Number(r.date.slice(0, 4))).filter(Boolean));
     set.add(new Date().getFullYear());
@@ -185,7 +245,7 @@ function KudirPage() {
           <Download className="h-4 w-4 mr-1" /> Excel
         </Button>
         <Button
-          disabled={!flat.length}
+          disabled={!flat.length && !contribBook.total}
           onClick={() =>
             printKudir(
               book,
@@ -196,10 +256,11 @@ function KudirPage() {
                 legal_address: org?.legal_address ?? "",
                 director_name: org?.director_name ?? "",
               },
-              { mode, objectIncomeOnly: object === "income" },
+              { mode, objectIncomeOnly: object === "income", contribs: contribBook },
             )
           }
         >
+
           <Printer className="h-4 w-4 mr-1" /> Печать КУДиР
         </Button>
       </div>
@@ -305,6 +366,141 @@ function KudirPage() {
           </TableBody>
         </Table>
       </Card>
+
+      {/* Раздел IV — уплаченные страховые взносы и иные платежи по п. 3.1 ст. 346.21 НК РФ */}
+      <Card className="p-4 space-y-4 border-t-2 border-t-sky-500/60">
+        <div className="flex flex-wrap items-end gap-3">
+          <div>
+            <h2 className="text-lg font-semibold">Раздел IV. Страховые взносы</h2>
+            <p className="text-sm text-muted-foreground">
+              Уплаченные взносы и пособия, уменьшающие налог при УСН «доходы». Вносятся по дате уплаты.
+            </p>
+          </div>
+          <div className="ml-auto text-sm">
+            Итого за {year} год: <b>{fmt.format(contribBook.total)} ₽</b>
+          </div>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+          <div className="space-y-1">
+            <Label className="text-xs">Дата уплаты</Label>
+            <Input type="date" className="h-9" value={form.date} onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))} />
+          </div>
+          <div className="space-y-1 lg:col-span-2">
+            <Label className="text-xs">Вид платежа</Label>
+            <Select value={form.kind} onValueChange={(v) => setForm((f) => ({ ...f, kind: v as KudirContribKind }))}>
+              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {CONTRIB_KINDS.map((k) => <SelectItem key={k.id} value={k.id}>{k.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Документ</Label>
+            <Input className="h-9" placeholder="платёжка № 15" value={form.doc} onChange={(e) => setForm((f) => ({ ...f, doc: e.target.value }))} />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Период уплаты</Label>
+            <Input className="h-9" placeholder="I квартал 2026" value={form.period} onChange={(e) => setForm((f) => ({ ...f, period: e.target.value }))} />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Сумма, ₽</Label>
+            <div className="flex gap-2">
+              <Input className="h-9" inputMode="decimal" value={form.amount} onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))} />
+              <Button className="h-9" onClick={addContrib} disabled={saveContribs.isPending}>
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-14">№</TableHead>
+                <TableHead>Дата и номер документа</TableHead>
+                <TableHead>Период</TableHead>
+                <TableHead>Вид платежа</TableHead>
+                <TableHead className="text-right">Сумма</TableHead>
+                <TableHead className="w-12" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {!contribBook.total && (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                    За {year} год взносы не внесены
+                  </TableCell>
+                </TableRow>
+              )}
+              {contribBook.quarters.filter((q) => q.rows.length).map((q) => (
+                <Fragment key={q.quarter}>
+                  <TableRow className="bg-muted/50">
+                    <TableCell colSpan={6} className="font-medium">{ROMAN[q.quarter - 1]} квартал {year} года</TableCell>
+                  </TableRow>
+                  {q.rows.map((r) => (
+                    <TableRow key={r.id}>
+                      <TableCell>{r.no}</TableCell>
+                      <TableCell>{ruDate(r.date)}{r.doc ? ` № ${r.doc}` : ""}</TableCell>
+                      <TableCell>{r.period ?? ""}</TableCell>
+                      <TableCell>{CONTRIB_LABEL[r.kind]}</TableCell>
+                      <TableCell className="text-right">{fmt.format(r.amount)}</TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                          onClick={() => saveContribs.mutate(contribs.filter((c) => c.id !== r.id))}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  <TableRow className="font-medium">
+                    <TableCell colSpan={4}>Итого за {ROMAN[q.quarter - 1]} квартал · {q.ytdLabel} {fmt.format(q.totalYtd)} ₽</TableCell>
+                    <TableCell className="text-right">{fmt.format(q.total)}</TableCell>
+                    <TableCell />
+                  </TableRow>
+                </Fragment>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+
+        {!!contribBook.total && (
+          <Button
+            variant="outline"
+            onClick={() =>
+              downloadCsv(
+                `кудир-раздел-4-${year}`,
+                contribBook.quarters.flatMap((q) =>
+                  q.rows.map((r) => ({
+                    quarter: `${ROMAN[q.quarter - 1]} квартал`,
+                    no: r.no,
+                    doc: `${ruDate(r.date)}${r.doc ? ` № ${r.doc}` : ""}`,
+                    period: r.period ?? "",
+                    kind: CONTRIB_LABEL[r.kind],
+                    amount: r.amount,
+                  })),
+                ),
+                [
+                  { header: "Квартал", value: (r) => r.quarter },
+                  { header: "№ п/п", value: (r) => r.no },
+                  { header: "Дата и номер документа", value: (r) => r.doc },
+                  { header: "Период уплаты", value: (r) => r.period },
+                  { header: "Вид платежа", value: (r) => r.kind },
+                  { header: "Сумма", value: (r) => r.amount },
+                ],
+              )
+            }
+          >
+            <Download className="h-4 w-4 mr-1" /> Excel раздела IV
+          </Button>
+        )}
+      </Card>
     </div>
+
   );
 }

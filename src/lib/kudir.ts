@@ -117,8 +117,9 @@ const ROMAN = ["I", "II", "III", "IV"];
 export function printKudir(
   book: Kudir,
   org: KudirOrg,
-  opts: { mode: KudirMode; objectIncomeOnly: boolean },
+  opts: { mode: KudirMode; objectIncomeOnly: boolean; contribs?: KudirContribBook },
 ) {
+
   const blocks = book.quarters
     .filter((q) => q.rows.length)
     .map((q) => {
@@ -189,6 +190,8 @@ export function printKudir(
   <h2>Раздел I. Доходы и расходы</h2>
   ${blocks || "<p>За выбранный год операций нет.</p>"}
   ${spravka}
+  ${opts.contribs ? contribSectionHtml(opts.contribs) : ""}
+
   <div class="signs">
     <div>Руководитель (индивидуальный предприниматель) ______________________ ${esc(org.director_name ?? "")}</div>
     <div>Дата: ${ruDate(new Date().toISOString())}</div>
@@ -216,4 +219,128 @@ function objectIncomeOnlyBlock(book: Kudir, incomeOnly: boolean): string {
       <tr><td>040. Налоговая база за налоговый период (010 − 020)</td><td class="r">${money(Math.max(0, book.base))}</td></tr>
       <tr><td>041. Сумма полученного убытка за налоговый период</td><td class="r">${money(book.base < 0 ? -book.base : 0)}</td></tr>
     </tbody></table>`;
+}
+
+// ---------------------------------------------------------------------------
+// Раздел IV КУДиР — страховые взносы и иные платежи по п. 3.1 ст. 346.21 НК РФ,
+// уменьшающие сумму налога при объекте «доходы».
+// ---------------------------------------------------------------------------
+
+export type KudirContribKind = "opc" | "oms" | "oss_nsp" | "oss_vnim" | "sick" | "volunt";
+
+export const CONTRIB_KINDS: { id: KudirContribKind; label: string; col: number }[] = [
+  { id: "opc", label: "Взносы на обязательное пенсионное страхование", col: 4 },
+  { id: "oms", label: "Взносы на обязательное медицинское страхование", col: 5 },
+  { id: "oss_nsp", label: "Взносы на страхование от несчастных случаев", col: 6 },
+  { id: "oss_vnim", label: "Взносы на случай нетрудоспособности и материнства", col: 7 },
+  { id: "sick", label: "Пособие по временной нетрудоспособности (за счёт работодателя)", col: 8 },
+  { id: "volunt", label: "Платежи по добровольному личному страхованию", col: 9 },
+];
+
+export const CONTRIB_LABEL: Record<KudirContribKind, string> = Object.fromEntries(
+  CONTRIB_KINDS.map((k) => [k.id, k.label]),
+) as Record<KudirContribKind, string>;
+
+export type KudirContrib = {
+  id: string;
+  /** Дата уплаты (YYYY-MM-DD). */
+  date: string;
+  /** Номер первичного документа (платёжное поручение, квитанция). */
+  doc?: string;
+  /** Период, за который произведена уплата (например «I квартал 2026» или «2025 год»). */
+  period?: string;
+  kind: KudirContribKind;
+  amount: number;
+  note?: string;
+};
+
+export type KudirContribQuarter = {
+  quarter: number;
+  rows: (KudirContrib & { no: number })[];
+  byKind: Record<KudirContribKind, number>;
+  total: number;
+  byKindYtd: Record<KudirContribKind, number>;
+  totalYtd: number;
+  ytdLabel: string;
+};
+
+export type KudirContribBook = {
+  year: number;
+  quarters: KudirContribQuarter[];
+  byKind: Record<KudirContribKind, number>;
+  total: number;
+};
+
+const zeroByKind = (): Record<KudirContribKind, number> =>
+  Object.fromEntries(CONTRIB_KINDS.map((k) => [k.id, 0])) as Record<KudirContribKind, number>;
+
+export function buildContribBook(rows: KudirContrib[], year: number): KudirContribBook {
+  const ofYear = rows
+    .filter((r) => r.date && Number(r.date.slice(0, 4)) === year)
+    .sort((a, b) => (a.date === b.date ? String(a.doc ?? "").localeCompare(String(b.doc ?? ""), "ru") : a.date < b.date ? -1 : 1));
+
+  let no = 0;
+  const ytd = zeroByKind();
+  let totalYtd = 0;
+  const quarters: KudirContribQuarter[] = [];
+  for (let q = 1; q <= 4; q++) {
+    const qRows = ofYear
+      .filter((r) => Math.floor((Number(r.date.slice(5, 7)) - 1) / 3) + 1 === q)
+      .map((r) => ({ ...r, no: ++no }));
+    const byKind = zeroByKind();
+    for (const r of qRows) byKind[r.kind] = r2(byKind[r.kind] + (Number(r.amount) || 0));
+    const total = r2(Object.values(byKind).reduce((s, n) => s + n, 0));
+    for (const k of CONTRIB_KINDS) ytd[k.id] = r2(ytd[k.id] + byKind[k.id]);
+    totalYtd = r2(totalYtd + total);
+    quarters.push({
+      quarter: q,
+      rows: qRows,
+      byKind,
+      total,
+      byKindYtd: { ...ytd },
+      totalYtd,
+      ytdLabel: YTD_LABELS[q - 1]!,
+    });
+  }
+  return { year, quarters, byKind: { ...ytd }, total: totalYtd };
+}
+
+/** Печать раздела IV отдельной страницей или в составе КУДиР. */
+export function contribSectionHtml(book: KudirContribBook): string {
+  const head = `<thead>
+      <tr>
+        <th style="width:5%">№ п/п</th>
+        <th style="width:14%">Дата и номер первичного документа</th>
+        <th style="width:12%">Период, за который произведена уплата</th>
+        ${CONTRIB_KINDS.map((k) => `<th>${esc(k.label)}</th>`).join("")}
+        <th style="width:10%">Итого</th>
+      </tr>
+      <tr class="nums">${["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"].map((n) => `<th>${n}</th>`).join("")}</tr>
+    </thead>`;
+
+  const blocks = book.quarters
+    .filter((q) => q.rows.length)
+    .map((q) => {
+      const rows = q.rows
+        .map(
+          (r) => `<tr>
+        <td class="c">${r.no}</td>
+        <td>${esc(`${ruDate(r.date)}${r.doc ? ` № ${r.doc}` : ""}`)}</td>
+        <td>${esc(r.period ?? "")}</td>
+        ${CONTRIB_KINDS.map((k) => `<td class="r">${r.kind === k.id ? money(r.amount) : ""}</td>`).join("")}
+        <td class="r">${money(r.amount)}</td>
+      </tr>`,
+        )
+        .join("");
+      return `<h2>${ROMAN[q.quarter - 1]} квартал ${book.year} года</h2>
+    <table>${head}<tbody>
+      ${rows}
+      <tr class="sum"><td colspan="3">Итого за ${ROMAN[q.quarter - 1]} квартал</td>${CONTRIB_KINDS.map((k) => `<td class="r">${money(q.byKind[k.id])}</td>`).join("")}<td class="r">${money(q.total)}</td></tr>
+      <tr class="sum"><td colspan="3">Итого ${esc(q.ytdLabel)}</td>${CONTRIB_KINDS.map((k) => `<td class="r">${money(q.byKindYtd[k.id])}</td>`).join("")}<td class="r">${money(q.totalYtd)}</td></tr>
+    </tbody></table>`;
+    })
+    .join("");
+
+  return `<h2>Раздел IV. Расходы, предусмотренные пунктом 3.1 статьи 346.21 НК РФ, уменьшающие сумму налога</h2>
+  ${blocks || "<p>За выбранный год уплаченных взносов не внесено.</p>"}`;
 }
