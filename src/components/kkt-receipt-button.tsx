@@ -9,6 +9,10 @@ import { Badge } from "@/components/ui/badge";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Receipt, Loader2, Copy, QrCode } from "lucide-react";
@@ -44,6 +48,7 @@ export function KktReceiptButton({
   const [contact, setContact] = useState("");
   const [cashReceived, setCashReceived] = useState("");
   const [mergeServices, setMergeServices] = useState(false);
+  const [reopenConfirm, setReopenConfirm] = useState(false);
   const print = useKktPrintReceipt(settings, invoiceId);
   const shift = useKktShift(settings, open);
   const shiftAction = useKktShiftAction(settings);
@@ -73,6 +78,13 @@ export function KktReceiptButton({
   const total = receiptTotal(positions);
   const received = Number(String(cashReceived).replace(",", ".")) || 0;
   const change = paymentType === "cash" && received > total ? Math.round((received - total) * 100) / 100 : 0;
+  const reopenShift = () => {
+    setReopenConfirm(false);
+    shiftAction.mutate("reopen", {
+      onSuccess: () => toast.success("Старая смена закрыта, новая смена открыта"),
+      onError: (e: Error) => toast.error(e.message),
+    });
+  };
 
   if (fiscal?.receiptNumber || fiscal?.fiscalDocNumber) {
     const link = fnsCheckUrl(fiscal);
@@ -135,9 +147,15 @@ export function KktReceiptButton({
                   <Button variant="outline" size="sm" onClick={() => shift.refetch()}>Проверить снова</Button>
                 </>
               ) : shiftState === "opened" ? (
-                <p className="text-muted-foreground">
-                  Касса {shift.data?.model} · смена {shift.data?.shiftNumber ?? "—"} открыта — можно пробивать чек.
-                </p>
+                <>
+                  <p className="text-muted-foreground">
+                    Касса {shift.data?.model} · смена {shift.data?.shiftNumber ?? "—"} открыта — можно пробивать чек.
+                  </p>
+                  <Button variant="outline" size="sm" disabled={shiftAction.isPending} onClick={() => setReopenConfirm(true)}>
+                    {shiftAction.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+                    Закрыть смену и открыть новую
+                  </Button>
+                </>
               ) : shiftState === "unknown" ? (
                 <>
                   <p className="text-muted-foreground">
@@ -160,6 +178,14 @@ export function KktReceiptButton({
                       {shiftAction.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
                       Открыть смену
                     </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={shiftAction.isPending}
+                      onClick={() => setReopenConfirm(true)}
+                    >
+                      Закрыть смену и открыть новую
+                    </Button>
                   </div>
                 </>
               ) : (
@@ -172,12 +198,12 @@ export function KktReceiptButton({
                   <Button
                     size="sm"
                     disabled={shiftAction.isPending}
-                    onClick={() =>
-                      shiftAction.mutate(shiftState === "expired" ? "reopen" : "open", {
-                        onSuccess: () => toast.success("Смена открыта"),
-                        onError: (e: Error) => toast.error(e.message),
-                      })
-                    }
+                    onClick={() => shiftState === "expired"
+                      ? setReopenConfirm(true)
+                      : shiftAction.mutate("open", {
+                          onSuccess: () => toast.success("Смена открыта"),
+                          onError: (e: Error) => toast.error(e.message),
+                        })}
                   >
                     {shiftAction.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
                     {shiftState === "expired" ? "Закрыть смену и открыть новую" : "Открыть смену"}
@@ -274,6 +300,20 @@ export function KktReceiptButton({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <AlertDialog open={reopenConfirm} onOpenChange={setReopenConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Закрыть текущую смену?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Касса напечатает Z-отчёт. После закрытия CRM сразу откроет новую смену и повторно проверит её состояние.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Отмена</AlertDialogCancel>
+            <AlertDialogAction onClick={reopenShift}>Закрыть и открыть новую</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
