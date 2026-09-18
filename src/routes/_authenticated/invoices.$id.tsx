@@ -650,6 +650,23 @@ function InvoiceView() {
                 </SelectContent>
               </Select>
             </div>
+            {isShipment && kind === "outgoing" && (
+              <div className="space-y-1">
+                <Label className="text-xs">Оплата</Label>
+                <Select value={paymentMethod} disabled={!editable} onValueChange={(v) => {
+                  const m = v as "cash" | "card";
+                  setPaymentMethod(m);
+                  (db as any).from("invoices").update({ payment_method: m }).eq("id", id)
+                    .then(() => qc.invalidateQueries({ queryKey: ["invoice", id] }));
+                }}>
+                  <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cash">Наличные</SelectItem>
+                    <SelectItem value="card">По терминалу</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
           {isShipment && (
             <div className="mt-3 max-w-xs space-y-1">
