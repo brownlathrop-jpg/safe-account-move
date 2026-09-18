@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, Trash2, Search, Loader2 } from "lucide-react";
 import { useActiveWorkspaceId } from "@/lib/workspace";
 import { lookupBankByBik } from "@/lib/dadata.functions";
+import { usePriceTypes, useMyPriceTypeId, useSetMyPriceType } from "@/lib/price-types";
 
 async function getUserOrThrow() {
   const { data: { user } } = await db.auth.getUser();
@@ -448,6 +449,42 @@ export function CashflowItemsRef() {
             </Button>
           </div>
         ))}
+      </div>
+    </Card>
+  );
+}
+// ============================================================
+// Мой тип цены по умолчанию (личная настройка пользователя)
+// ============================================================
+export function MyPriceTypeRef() {
+  const wsId = useActiveWorkspaceId();
+  const { data: types = [] } = usePriceTypes(wsId);
+  const current = useMyPriceTypeId(wsId);
+  const save = useSetMyPriceType(wsId);
+
+  return (
+    <Card className="p-3 space-y-2 text-sm">
+      <h2 className="font-medium text-xs uppercase tracking-wide text-muted-foreground">Мой тип цены по умолчанию</h2>
+      <div className="flex items-end gap-2">
+        <div className="space-y-1 w-64">
+          <Label className="text-xs">Тип цены</Label>
+          <Select
+            value={current ?? undefined}
+            onValueChange={(v) => save.mutate(v, {
+              onSuccess: () => toast.success("Сохранено"),
+              onError: (e: Error) => toast.error(e.message),
+            })}
+            disabled={types.length === 0}
+          >
+            <SelectTrigger className="h-8"><SelectValue placeholder="Нет типов цен" /></SelectTrigger>
+            <SelectContent>
+              {types.map(t => <SelectItem key={t.id} value={t.id}>{t.name}{t.is_default ? " (основной)" : ""}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <p className="text-xs text-muted-foreground flex-1">
+          Этот тип цены подставляется вам в новые накладные и заявки. У каждого пользователя может быть свой.
+        </p>
       </div>
     </Card>
   );

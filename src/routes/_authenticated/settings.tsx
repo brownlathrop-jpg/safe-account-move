@@ -14,7 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { Save, Search, Loader2, Plus, Trash2, Database, Check, Pencil } from "lucide-react";
 import { lookupOrgByInn, lookupBankByBik } from "@/lib/dadata.functions";
 import { useActiveWorkspaceId, activeWorkspace } from "@/lib/workspace";
-import { WarehousesRef, ProductTypesRef, PriceTypesRef, CashflowItemsRef, BanksRef } from "@/components/settings-simple-refs";
+import { WarehousesRef, ProductTypesRef, PriceTypesRef, MyPriceTypeRef, CashflowItemsRef, BanksRef } from "@/components/settings-simple-refs";
 import { BankAccountsEditor } from "@/components/bank-accounts-editor";
 import { Import1CPanel } from "@/components/import-1c-panel";
 
@@ -239,6 +239,7 @@ function SettingsPage() {
           <WarehousesRef />
           <ProductTypesRef />
           <PriceTypesRef />
+          <MyPriceTypeRef />
           <UnitsRef />
           <BanksRef />
           <CashflowItemsRef />
