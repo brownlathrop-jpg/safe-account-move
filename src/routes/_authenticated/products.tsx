@@ -598,9 +598,16 @@ function ProductsPage() {
     const folder_id = getSelectedRealFolderId();
     const kind: "product" | "service" = selectedFolder === KIND_SERVICE ? "service" : "product";
     setEditing({ name: "", unit: kind === "service" ? "усл" : "шт", price: 0, cost: 0, stock: 0, folder_id, kind, image_url: null });
+    setActivePriceType(null);
+    setActivePriceInput("");
     setOpen(true);
   };
-  const openEdit = (p: Product) => { setEditing(p); setOpen(true); };
+  const openEdit = (p: Product) => {
+    setEditing(p);
+    setActivePriceType(null);
+    setActivePriceInput("");
+    setOpen(true);
+  };
 
   const openFolderDialog = (parent_id: string | null, editingFolder?: FolderRow, parentKind?: FolderKind) => {
     setFolderName(editingFolder?.name ?? "");
