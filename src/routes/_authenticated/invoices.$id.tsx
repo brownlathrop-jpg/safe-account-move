@@ -475,7 +475,7 @@ function InvoiceView() {
             <KktReceiptButton
               wsId={wsId}
               invoiceId={id}
-              items={items.map((it) => ({ name: it.name, quantity: it.quantity, price: it.price }))}
+              items={items.map((it) => ({ name: it.name, quantity: it.quantity, price: it.price, kind: it.kind }))}
               fiscal={inv.fiscal}
             />
           )}
