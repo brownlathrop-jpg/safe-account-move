@@ -136,7 +136,7 @@ export function KktReceiptButton({
           </DialogHeader>
 
           <div className="space-y-3 text-sm">
-            <div className="rounded-md border p-3 space-y-2">
+            <div className="rounded-md border p-3 space-y-2 min-w-0 [&_button]:whitespace-normal [&_button]:h-auto [&_button]:py-1.5 [&_p]:break-words">
               {shift.isLoading ? (
                 <p className="flex items-center gap-2 text-muted-foreground">
                   <Loader2 className="h-4 w-4 animate-spin" /> Проверяем кассу и смену…
@@ -162,7 +162,7 @@ export function KktReceiptButton({
                     Касса {shift.data?.model} на связи, но состояние смены она не сообщила. Можно пробивать чек — если
                     смена закрыта, касса откроет её сама.
                   </p>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <Button variant="outline" size="sm" onClick={() => shift.refetch()}>Проверить снова</Button>
                     <Button
                       variant="outline"
