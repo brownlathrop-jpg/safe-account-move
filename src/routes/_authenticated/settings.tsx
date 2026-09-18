@@ -14,7 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { Save, Search, Loader2, Plus, Trash2, Database, Check, Pencil } from "lucide-react";
 import { lookupOrgByInn, lookupBankByBik } from "@/lib/dadata.functions";
 import { useActiveWorkspaceId, activeWorkspace } from "@/lib/workspace";
-import { WarehousesRef, ProductTypesRef, PriceTypesRef, MyPriceTypeRef, CashflowItemsRef, BanksRef, DiscountsRef } from "@/components/settings-simple-refs";
+import { WarehousesRef, ProductTypesRef, PriceTypesRef, CashflowItemsRef, BanksRef, DiscountsRef } from "@/components/settings-simple-refs";
 import { Import1CPanel } from "@/components/import-1c-panel";
 import { PriceImportPanel } from "@/components/price-import-panel";
 import { KktSettingsPanel } from "@/components/kkt-settings-panel";
@@ -260,7 +260,7 @@ function SettingsPage() {
                       <TabsTrigger value="units">Единицы</TabsTrigger>
                     </TabsList>
                   </div>
-                  <TabsContent value="prices" className="mt-0 space-y-2"><PriceTypesRef /><MyPriceTypeRef /></TabsContent>
+                  <TabsContent value="prices" className="mt-0"><PriceTypesRef /></TabsContent>
                   <TabsContent value="discounts" className="mt-0"><DiscountsRef /></TabsContent>
                   <TabsContent value="types" className="mt-0"><ProductTypesRef /></TabsContent>
                   <TabsContent value="units" className="mt-0"><UnitsRef /></TabsContent>
