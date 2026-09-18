@@ -386,8 +386,8 @@ function NewReceiptDialog({
                         {r.name || <span className="text-muted-foreground">Выберите товар</span>}
                       </button>
                     </TableCell>
-                    <TableCell><Input type="number" step="0.001" className="text-right h-8" value={r.qty} onChange={e => patch(i, { qty: Number(e.target.value) })} /></TableCell>
-                    <TableCell><Input type="number" step="0.01" className="text-right h-8" value={r.price} onChange={e => patch(i, { price: Number(e.target.value) })} /></TableCell>
+                    <TableCell><NumCell grid="stock" row={i} col={0} step="0.001" className="h-8" value={r.qty} onCommit={(v) => patch(i, { qty: v })} /></TableCell>
+                    <TableCell><NumCell grid="stock" row={i} col={1} step="0.01" className="h-8" value={r.price} onCommit={(v) => patch(i, { price: v })} /></TableCell>
                     <TableCell className="text-right font-medium">{fmtMoney.format(r.qty * r.price)}</TableCell>
                     <TableCell><Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => removeRow(i)}><Trash2 className="h-3.5 w-3.5" /></Button></TableCell>
                   </TableRow>
