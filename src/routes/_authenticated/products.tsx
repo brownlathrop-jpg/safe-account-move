@@ -685,6 +685,18 @@ function ProductsPage() {
               ))}
             </TableBody>
           </Table>
+          {filtered.length > PAGE_SIZE && (
+            <div className="p-3 border-t flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">
+                Показаны {safePage * PAGE_SIZE + 1}–{Math.min(filtered.length, (safePage + 1) * PAGE_SIZE)} из {filtered.length}
+              </span>
+              <div className="flex items-center gap-1">
+                <Button size="sm" variant="outline" disabled={safePage === 0} onClick={() => setPage(safePage - 1)}>Назад</Button>
+                <span className="px-2 text-muted-foreground">{safePage + 1} / {pageCount}</span>
+                <Button size="sm" variant="outline" disabled={safePage >= pageCount - 1} onClick={() => setPage(safePage + 1)}>Вперёд</Button>
+              </div>
+            </div>
+          )}
         </Card>
       </div>
 
