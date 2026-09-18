@@ -1,6 +1,6 @@
 // Кнопка «Пробить чек» в накладной: подтверждение суммы и типа оплаты,
 // печать чека на кассе АТОЛ и отметка о чеке в документе.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,6 +37,7 @@ export function KktReceiptButton({
   const { settings, enabled } = useKktSettings(wsId);
   const [open, setOpen] = useState(false);
   const [paymentType, setPaymentType] = useState<KktPaymentType>(defaultPaymentType);
+  useEffect(() => { setPaymentType(defaultPaymentType); }, [defaultPaymentType]);
   const [contact, setContact] = useState("");
   const [mergeServices, setMergeServices] = useState(false);
   const print = useKktPrintReceipt(settings, invoiceId);
