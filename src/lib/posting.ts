@@ -7,6 +7,7 @@
  */
 import { db } from "@/integrations/db";
 import { warehouseBalanceMap } from "@/lib/stock";
+import { costsRecalc } from "@/lib/cost.functions";
 
 export async function applyShipmentStock(invoiceId: string): Promise<void> {
   const inv = await db.getById("invoices", invoiceId);
@@ -45,6 +46,7 @@ export async function applyShipmentStock(invoiceId: string): Promise<void> {
   const posted = inv.doc_type === "shipment" && inv.status === "posted";
   if (!posted) {
     await db.from("invoices").update({ posted_at: null, cost_total: costTotal }).eq("id", invoiceId);
+    if (inv.workspace_id) await costsRecalc({ data: { workspaceId: inv.workspace_id } });
     return;
   }
 
@@ -104,5 +106,8 @@ export async function applyShipmentStock(invoiceId: string): Promise<void> {
     .from("invoices")
     .update({ posted_at: inv.posted_at ?? new Date().toISOString(), cost_total: costTotal })
     .eq("id", invoiceId);
+
+  // Себестоимость считаем по партиям (FIFO) — по всем приходам базы.
+  if (inv.workspace_id) await costsRecalc({ data: { workspaceId: inv.workspace_id } });
 }
 
