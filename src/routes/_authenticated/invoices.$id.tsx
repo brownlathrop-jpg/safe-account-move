@@ -734,6 +734,7 @@ function InvoiceView() {
                     products={products as any}
                     kind={kind}
                     priceTypeId={priceTypeId}
+              workspaceId={wsId}
                     onAdd={(picked: PickedItem[]) => setItems([...items, ...picked])}
                   />
                 )}
