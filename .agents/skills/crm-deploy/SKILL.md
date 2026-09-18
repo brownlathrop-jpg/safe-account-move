@@ -14,6 +14,17 @@ Do it yourself end to end. Never hand the user shell commands.
 - App dir: `/home/crmadmin/htdocs/crm.skladnow.ru/` — contains `dist/`, `node-server.js`, `.env`, `node_modules`, `ecosystem.config.cjs`
 - pm2 process: `crm`, node listens on port `3001`; nginx (CloudPanel vhost) proxies https://crm.skladnow.ru to `127.0.0.1:3001`
 
+### НИКОГДА не распаковывать в домашнюю папку `crmdeploy`
+
+`ssh crmdeploy@...` логинится в `/home/crmdeploy`, а сайт работает из
+`/home/crmadmin/htdocs/crm.skladnow.ru` (доступна как `~/htdocs/crm.skladnow.ru`).
+Если распаковать архив без `cd`, появится `/home/crmdeploy/dist` — pm2 перезапустится,
+сайт ответит 200, но пользователь не увидит изменений (это уже случалось 18.09.2026).
+
+Every remote command MUST start with `cd /home/crmadmin/htdocs/crm.skladnow.ru &&`.
+После деплоя обязательно проверить, что новый чанк реально отдаётся сайтом (см. шаг 5),
+и что в `/home/crmdeploy/` нет папки `dist` (если есть — удалить, это мусор).
+
 NEVER deploy to `186.246.48.162` / `delivery.skladnow.ru` — different project. `$VPS_SSH_HOST` and `$VPS_SSH_USER` point there; ignore them. Only `$VPS_SSH_PRIVATE_KEY` is shared with this host.
 Do not touch other CloudPanel sites, databases, or vhosts on the server.
 
@@ -53,14 +64,20 @@ scp -i /tmp/sshkey/id -o StrictHostKeyChecking=accept-new /tmp/crm.tgz crmdeploy
 $SSH 'cd /home/crmadmin/htdocs/crm.skladnow.ru && rm -rf dist.old && { [ -d dist ] && mv dist dist.old; }; tar -xzf /tmp/crm.tgz -C .; rm -f /tmp/crm.tgz; pm2 restart ecosystem.config.cjs && pm2 save   # НЕ `pm2 restart crm --update-env` — это стирает переменные из .env'
 ```
 
-5. Verify — do not report success without this:
+5. Verify — do not report success without this. HTTP 200 сам по себе НЕ доказывает,
+   что залилась новая версия: проверь, что свежий чанк лежит в папке сайта и отдаётся по HTTP.
 
 ```bash
 curl -skI --resolve crm.skladnow.ru:443:178.212.13.144 https://crm.skladnow.ru/ | head -20
 $SSH 'pm2 describe crm | grep -E "status|uptime|restarts"'
+$SSH 'ls -la /home/crmadmin/htdocs/crm.skladnow.ru/dist; ls /home/crmdeploy/dist 2>/dev/null && echo "ВНИМАНИЕ: мусорный dist в домашней папке"'
+# новый чанк изменённого маршрута действительно отдаётся:
+CHUNK=$($SSH 'ls /home/crmadmin/htdocs/crm.skladnow.ru/dist/client/assets | grep <route>')
+curl -s https://crm.skladnow.ru/assets/$CHUNK | grep -c "<строка из твоих правок>"
 ```
 
-Expect `HTTP/2 200` and pm2 status `online`.
+Expect `HTTP/2 200`, pm2 status `online`, свежую дату у `dist/` и `grep -c` > 0.
+
 
 ## If it fails
 
