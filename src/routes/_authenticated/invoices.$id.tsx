@@ -26,6 +26,8 @@ import { usePriceTypes, useMyPriceTypeId, priceOf } from "@/lib/price-types";
 import { Torg12 } from "@/components/print/Torg12";
 import { Upd } from "@/components/print/Upd";
 import type { PrintItem } from "@/components/print/print-types";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useDiscounts, grossSum, discountSum, netSum, discountLabel, type DiscountKind } from "@/lib/discounts";
 
 export const Route = createFileRoute("/_authenticated/invoices/$id")({
   head: () => ({ meta: [{ title: "Накладная — КабинетCRM" }] }),
@@ -36,7 +38,13 @@ const fmt = new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB" 
 const nfmt = new Intl.NumberFormat("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const dfmt = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric" });
 
-type Item = { id?: string; product_id: string | null; name: string; quantity: number; price: number; kind: "product" | "service" };
+type Item = {
+  id?: string; product_id: string | null; name: string; quantity: number; price: number;
+  kind: "product" | "service";
+  discount_kind?: DiscountKind | null;
+  discount_value?: number | null;
+  discount_name?: string | null;
+};
 type DocType = "order" | "shipment" | "cash_receipt";
 type PrintMode = "standard" | "invoice" | "pko" | "torg12" | "upd";
 
@@ -139,6 +147,9 @@ function InvoiceView() {
       id: it.id, product_id: it.product_id, name: it.name,
       quantity: Number(it.quantity), price: Number(it.price),
       kind: (it.kind ?? "product") as "product" | "service",
+      discount_kind: (it.discount_kind === "amount" ? "amount" : "percent") as DiscountKind,
+      discount_value: Number(it.discount_value ?? 0),
+      discount_name: it.discount_name ?? null,
     })));
   }, [inv]);
 
@@ -175,7 +186,12 @@ function InvoiceView() {
     },
   });
 
-  const total = useMemo(() => items.reduce((s, i) => s + i.quantity * i.price, 0), [items]);
+  const lineGross = (it: Item) => grossSum(it.quantity, it.price);
+  const lineDiscount = (it: Item) => discountSum(it.quantity, it.price, it.discount_kind, it.discount_value);
+  const lineNet = (it: Item) => netSum(it.quantity, it.price, it.discount_kind, it.discount_value);
+  const totalGross = useMemo(() => items.reduce((s, i) => s + lineGross(i), 0), [items]);
+  const totalDiscount = useMemo(() => items.reduce((s, i) => s + lineDiscount(i), 0), [items]);
+  const total = useMemo(() => items.reduce((s, i) => s + lineNet(i), 0), [items]);
   const filteredPartners = partners.filter((p: any) => kind === "outgoing" ? p.kind === "customer" : p.kind === "supplier");
   const editable = inv?.status !== "cancelled";
   const { data: priceTypes = [] } = usePriceTypes(wsId);
@@ -183,10 +199,26 @@ function InvoiceView() {
   const [priceTypeOverride, setPriceTypeOverride] = useState<string | null>(null);
   const priceTypeId = priceTypeOverride ?? myPriceTypeId;
 
-  const addItem = () => setItems([...items, { product_id: null, name: "", quantity: 1, price: 0, kind: "product" }]);
+  /* ---- Скидки по позициям ---- */
+  const { data: discountRefs = [] } = useDiscounts(wsId);
+  const [selected, setSelected] = useState<number[]>([]);
+  const [manualKind, setManualKind] = useState<DiscountKind>("percent");
+  const [manualValue, setManualValue] = useState("");
+  const toggleSel = (idx: number) =>
+    setSelected(sel => sel.includes(idx) ? sel.filter(i => i !== idx) : [...sel, idx]);
+  const applyDiscount = (kind: DiscountKind, value: number, name: string | null) => {
+    const target = selected.length ? selected : items.map((_, i) => i);
+    setItems(items.map((it, i) => target.includes(i)
+      ? { ...it, discount_kind: kind, discount_value: value, discount_name: name }
+      : it));
+    if (value > 0) toast.success(`Скидка ${discountLabel(kind, value)} применена к ${target.length} позициям`);
+    else toast.success("Скидка снята");
+  };
+
+  const addItem = () => setItems([...items, { product_id: null, name: "", quantity: 1, price: 0, kind: "product", discount_kind: "percent", discount_value: 0 }]);
   const addItemAndPick = () => {
     const newIdx = items.length;
-    setItems([...items, { product_id: null, name: "", quantity: 1, price: 0, kind: "product" }]);
+    setItems([...items, { product_id: null, name: "", quantity: 1, price: 0, kind: "product", discount_kind: "percent", discount_value: 0 }]);
     setTimeout(() => setPickRow(newIdx), 0);
   };
   const updateItem = (idx: number, patch: Partial<Item>) => setItems(items.map((it, i) => i === idx ? { ...it, ...patch } : it));
@@ -226,8 +258,11 @@ function InvoiceView() {
       const rows = items.map(it => ({
         id: it.id,
         invoice_id: id, product_id: it.product_id, name: it.name,
-        quantity: it.quantity, price: it.price, sum: it.quantity * it.price,
+        quantity: it.quantity, price: it.price, sum: lineNet(it),
         kind: it.kind ?? "product",
+        discount_kind: it.discount_kind ?? "percent",
+        discount_value: Number(it.discount_value) || 0,
+        discount_name: it.discount_name ?? null,
       }));
 
       const existingRows = rows.filter((row) => Boolean(row.id));
@@ -505,7 +540,12 @@ function InvoiceView() {
               <KktReceiptButton
                 wsId={wsId}
                 invoiceId={id}
-                items={items.map((it) => ({ name: it.name, quantity: it.quantity, price: it.price, kind: it.kind }))}
+                items={items.map((it) => ({
+                  name: it.name,
+                  quantity: it.quantity,
+                  price: it.quantity ? Math.round((lineNet(it) / it.quantity) * 100) / 100 : it.price,
+                  kind: it.kind,
+                }))}
                 fiscal={inv.fiscal}
                 isReturn={!!inv.is_return}
                 defaultPaymentType={paymentMethod === "card" ? "electronically" : "cash"}
