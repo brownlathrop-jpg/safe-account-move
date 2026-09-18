@@ -76,11 +76,34 @@ export function KktSettingsPanel() {
             </Button>
           </div>
           {check.isSuccess && (
-            <p className="text-xs text-emerald-600">
-              Касса {check.data.model}, заводской № {check.data.serial}, ФН {check.data.fnNumber} —{" "}
-              {SHIFT_LABEL[check.data.shiftState]}
-              {check.data.shiftNumber ? ` (№ ${check.data.shiftNumber})` : ""}.
-            </p>
+            <div className="text-xs space-y-1">
+              <p className="text-emerald-600">
+                Касса {check.data.model}, заводской № {check.data.serial}, ФН {check.data.fnNumber} —{" "}
+                {SHIFT_LABEL[check.data.shiftState]}
+                {check.data.shiftNumber ? ` (№ ${check.data.shiftNumber})` : ""}.
+              </p>
+              {check.data.taxSystems.length > 0 && (
+                <p className="text-muted-foreground">
+                  В кассе зарегистрировано:{" "}
+                  {check.data.taxSystems.map((t) => SNO_LABELS[t as keyof typeof SNO_LABELS] ?? t).join(", ")}.
+                  {check.data.suggestedSno && check.data.suggestedVat && (
+                    <>
+                      {" "}
+                      <button
+                        type="button"
+                        className="underline text-emerald-700 hover:text-emerald-800"
+                        onClick={() => {
+                          setForm({ ...form, sno: check.data.suggestedSno!, vat: check.data.suggestedVat! });
+                          toast.success("СНО и НДС подставлены — не забудьте нажать «Сохранить»");
+                        }}
+                      >
+                        Подставить «{SNO_LABELS[check.data.suggestedSno]}» и «{VAT_LABELS[check.data.suggestedVat]}» в настройки
+                      </button>
+                    </>
+                  )}
+                </p>
+              )}
+            </div>
           )}
           {check.isError && <p className="text-xs text-destructive">{(check.error as Error).message}</p>}
         </div>
