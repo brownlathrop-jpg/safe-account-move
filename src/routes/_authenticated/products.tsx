@@ -442,35 +442,47 @@ function ProductsPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const moveFolder = useMutation({
-    mutationFn: async ({ id, parentId }: { id: string; parentId: string | null }) => {
-      const { error } = await db.from("product_folders").update({ parent_id: parentId } as never).eq("id", id);
+  const moveFolders = useMutation({
+    mutationFn: async ({ ids, parentId }: { ids: string[]; parentId: string | null }) => {
+      if (!ids.length) throw new Error("Не выбраны папки");
+      const { error } = await db.from("product_folders").update({ parent_id: parentId } as never).in("id", ids);
       if (error) throw error;
-      return { id, parentId };
+      return { ids, parentId };
     },
-    onSuccess: ({ id, parentId }) => {
+    onSuccess: ({ ids, parentId }) => {
+      const moved = new Set(ids);
       qc.setQueryData(["product_folders", wsId], (old?: FolderRow[]) =>
-        old ? old.map(f => (f.id === id ? { ...f, parent_id: parentId } : f)) : old);
+        old ? old.map(f => (moved.has(f.id) ? { ...f, parent_id: parentId } : f)) : old);
       qc.invalidateQueries({ queryKey: ["product_folders"] });
-      toast.success("Папка перенесена");
+      setSelectedFolderIds([]);
+      toast.success(ids.length > 1 ? `Перенесено папок: ${ids.length}` : "Папка перенесена");
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
+  // Папки, запрещённые как приёмник для перетаскиваемых папок (сами себя и своё содержимое).
+  const forbiddenTargets = (draggedFolders: string[]) => {
+    const set = new Set<string>();
+    draggedFolders.forEach(id => descendantsOf(id).forEach(d => set.add(d)));
+    return set;
+  };
+
   const dropOnFolder = (folderId: string | null) => {
-    const draggedFolder = dragFolderRef.current;
-    dragFolderRef.current = null;
+    const draggedFolders = dragFolderIdsRef.current;
+    dragFolderIdsRef.current = [];
     setDropFolder(null);
-    if (draggedFolder) {
-      const current = folders.find(f => f.id === draggedFolder);
-      if (!current) return;
-      if (folderId === draggedFolder) { toast.error("Нельзя перенести папку внутрь самой себя"); return; }
-      if (folderId && descendantsOf(draggedFolder).includes(folderId)) {
-        toast.error("Нельзя перенести папку в свою же вложенную папку");
+    if (draggedFolders.length) {
+      const forbidden = forbiddenTargets(draggedFolders);
+      if (folderId && forbidden.has(folderId)) {
+        toast.error("Нельзя перенести папку внутрь самой себя");
         return;
       }
-      if ((current.parent_id ?? null) === folderId) return;
-      moveFolder.mutate({ id: draggedFolder, parentId: folderId });
+      const ids = draggedFolders.filter(id => {
+        const cur = folders.find(f => f.id === id);
+        return cur && (cur.parent_id ?? null) !== folderId;
+      });
+      if (!ids.length) return;
+      moveFolders.mutate({ ids, parentId: folderId });
       return;
     }
     const ids = dragIdsRef.current.length ? dragIdsRef.current : selectedIds;
@@ -483,8 +495,8 @@ function ProductsPage() {
   const dropProps = (folderId: string | null, key: string) => ({
     onDragOver: (e: DragEvent) => {
       e.preventDefault();
-      const dragged = dragFolderRef.current;
-      const forbidden = !!dragged && (dragged === folderId || (!!folderId && descendantsOf(dragged).includes(folderId)));
+      const dragged = dragFolderIdsRef.current;
+      const forbidden = dragged.length > 0 && !!folderId && forbiddenTargets(dragged).has(folderId);
       e.dataTransfer.dropEffect = forbidden ? "none" : "move";
       setDropFolder(forbidden ? null : key);
     },
@@ -492,17 +504,17 @@ function ProductsPage() {
     onDrop: (e: DragEvent) => { e.preventDefault(); e.stopPropagation(); dropOnFolder(folderId); },
   });
 
-  // Свойства для перетаскиваемой папки в дереве.
+  // Свойства для перетаскиваемой папки: если папка отмечена, тянутся все отмеченные.
   const folderDragProps = (folderId: string) => ({
     draggable: true,
     onDragStart: (e: DragEvent) => {
       e.stopPropagation();
-      dragFolderRef.current = folderId;
+      dragFolderIdsRef.current = selectedFolderIds.includes(folderId) ? selectedFolderIds : [folderId];
       dragIdsRef.current = [];
       e.dataTransfer.effectAllowed = "move";
-      e.dataTransfer.setData("text/plain", folderId);
+      e.dataTransfer.setData("text/plain", dragFolderIdsRef.current.join(","));
     },
-    onDragEnd: () => { dragFolderRef.current = null; setDropFolder(null); },
+    onDragEnd: () => { dragFolderIdsRef.current = []; setDropFolder(null); },
   });
 
 
