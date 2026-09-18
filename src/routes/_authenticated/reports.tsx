@@ -8,6 +8,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Download } from "lucide-react";
+import { downloadCsv } from "@/lib/export-csv";
+import { fetchBalances } from "@/lib/stock";
 
 export const Route = createFileRoute("/_authenticated/reports")({
   head: () => ({
@@ -120,15 +125,283 @@ function ReportsPage() {
     [cashflow],
   );
 
+  // ------------------------------------------------------- продажи, прибыль, ABC
+  const { data: products = [] } = useQuery({
+    queryKey: ["products-report", wsId],
+    enabled: !!wsId,
+    queryFn: async () => (await (db as any).from("products")
+      .select("id,name,unit,cost,kind").eq("workspace_id", wsId)).data ?? [],
+  });
+
+  const { data: items = [] } = useQuery({
+    queryKey: ["invoice_items", wsId, "reports"],
+    enabled: !!wsId,
+    queryFn: async () => (await (db as any).from("invoice_items")
+      .select("id,invoice_id,product_id,name,quantity,price,sum").eq("workspace_id", wsId)).data ?? [],
+  });
+
+  const { data: balances = [] } = useQuery({
+    queryKey: ["balances-report", wsId],
+    enabled: !!wsId,
+    queryFn: () => fetchBalances(wsId!),
+  });
+
+  const productById = useMemo(() => {
+    const m = new Map<string, any>();
+    for (const p of products as any[]) m.set(p.id, p);
+    return m;
+  }, [products]);
+
+  /** Проведённые продажи за период: документ → знак (возврат уменьшает). */
+  const salesDocs = useMemo(() => {
+    const m = new Map<string, { sign: number; date: string }>();
+    for (const d of docs as any[]) {
+      if (d.doc_type !== "shipment" || d.status !== "posted" || d.kind !== "outgoing") continue;
+      const day = String(d.issue_date ?? "").slice(0, 10);
+      if ((from && day < from) || (to && day > to)) continue;
+      m.set(d.id, { sign: d.is_return ? -1 : 1, date: day });
+    }
+    return m;
+  }, [docs, from, to]);
+
+  const soldItems = useMemo(
+    () => (items as any[]).flatMap((it) => {
+      const doc = salesDocs.get(String(it.invoice_id));
+      if (!doc) return [];
+      const qty = doc.sign * Number(it.quantity || 0);
+      const revenue = doc.sign * Number(it.sum ?? Number(it.quantity || 0) * Number(it.price || 0));
+      const cost = qty * Number(productById.get(String(it.product_id))?.cost ?? 0);
+      return [{ ...it, day: doc.date, qty, revenue, cost }];
+    }),
+    [items, salesDocs, productById],
+  );
+
+  const salesByDay = useMemo(() => {
+    const m = new Map<string, { day: string; revenue: number; cost: number; docs: Set<string> }>();
+    for (const r of soldItems) {
+      const cur = m.get(r.day) ?? { day: r.day, revenue: 0, cost: 0, docs: new Set<string>() };
+      cur.revenue += r.revenue;
+      cur.cost += r.cost;
+      cur.docs.add(String(r.invoice_id));
+      m.set(r.day, cur);
+    }
+    return [...m.values()].sort((a, b) => b.day.localeCompare(a.day));
+  }, [soldItems]);
+
+  const salesTotals = useMemo(
+    () => soldItems.reduce((s, r) => ({ revenue: s.revenue + r.revenue, cost: s.cost + r.cost }), { revenue: 0, cost: 0 }),
+    [soldItems],
+  );
+
+  /** По товарам с ABC-классом по доле выручки. */
+  const byProduct = useMemo(() => {
+    const m = new Map<string, { key: string; name: string; qty: number; revenue: number; cost: number }>();
+    for (const r of soldItems) {
+      const key = String(r.product_id ?? r.name ?? "—");
+      const cur = m.get(key) ?? { key, name: productById.get(key)?.name ?? r.name ?? "Без товара", qty: 0, revenue: 0, cost: 0 };
+      cur.qty += r.qty;
+      cur.revenue += r.revenue;
+      cur.cost += r.cost;
+      m.set(key, cur);
+    }
+    const rows = [...m.values()].sort((a, b) => b.revenue - a.revenue);
+    const total = rows.reduce((s, r) => s + r.revenue, 0) || 1;
+    let acc = 0;
+    return rows.map((r) => {
+      acc += r.revenue;
+      const share = acc / total;
+      return { ...r, share: r.revenue / total, abc: share <= 0.8 ? "A" : share <= 0.95 ? "B" : "C" };
+    });
+  }, [soldItems, productById]);
+
+  /** Остатки склада с оценкой по себестоимости. */
+  const stockRows = useMemo(() => {
+    const m = new Map<string, { id: string; name: string; unit: string; qty: number; cost: number }>();
+    for (const b of balances as any[]) {
+      const p = productById.get(String(b.product_id));
+      const cur = m.get(String(b.product_id)) ?? {
+        id: String(b.product_id), name: p?.name ?? "Товар удалён", unit: p?.unit ?? "", qty: 0, cost: Number(p?.cost ?? 0),
+      };
+      cur.qty += Number(b.qty ?? 0);
+      m.set(String(b.product_id), cur);
+    }
+    return [...m.values()].filter(r => Math.abs(r.qty) > 0.0001).sort((a, b) => b.qty * b.cost - a.qty * a.cost);
+  }, [balances, productById]);
+
+  const stockTotal = useMemo(() => stockRows.reduce((s, r) => s + r.qty * r.cost, 0), [stockRows]);
+
+  const periodFilter = (
+    <Card className="p-4 flex flex-wrap gap-4 items-end">
+      <div className="space-y-1">
+        <Label className="text-xs">С даты</Label>
+        <Input type="date" value={from} onChange={e => setFrom(e.target.value)} className="h-9 w-40" />
+      </div>
+      <div className="space-y-1">
+        <Label className="text-xs">По дату</Label>
+        <Input type="date" value={to} onChange={e => setTo(e.target.value)} className="h-9 w-40" />
+      </div>
+      <div className="ml-auto text-sm">
+        Выручка: <b>{fmt.format(salesTotals.revenue)}</b>{" · "}
+        Себестоимость: <b>{fmt.format(salesTotals.cost)}</b>{" · "}
+        Прибыль:{" "}
+        <b className={salesTotals.revenue - salesTotals.cost >= 0 ? "text-emerald-600" : "text-destructive"}>
+          {fmt.format(salesTotals.revenue - salesTotals.cost)}
+        </b>
+      </div>
+    </Card>
+  );
+
   return (
     <div className="space-y-5">
       <h1 className="text-2xl font-semibold">Отчёты</h1>
 
       <Tabs defaultValue="debts">
-        <TabsList>
+        <TabsList className="flex-wrap h-auto">
           <TabsTrigger value="debts">Задолженность</TabsTrigger>
           <TabsTrigger value="cash">Движение денег</TabsTrigger>
+          <TabsTrigger value="sales">Продажи</TabsTrigger>
+          <TabsTrigger value="profit">Прибыль по товарам</TabsTrigger>
+          <TabsTrigger value="stock">Склад</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="sales" className="space-y-4">
+          {periodFilter}
+          <Card className="p-0 overflow-hidden">
+            <div className="flex justify-end p-3">
+              <Button variant="outline" size="sm" onClick={() => downloadCsv("продажи-по-дням", salesByDay, [
+                { header: "Дата", value: r => r.day.split("-").reverse().join(".") },
+                { header: "Документов", value: r => r.docs.size },
+                { header: "Выручка", value: r => r.revenue.toFixed(2) },
+                { header: "Себестоимость", value: r => r.cost.toFixed(2) },
+                { header: "Прибыль", value: r => (r.revenue - r.cost).toFixed(2) },
+              ])}><Download className="h-4 w-4 mr-1" /> Excel</Button>
+            </div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Дата</TableHead>
+                  <TableHead className="text-right">Документов</TableHead>
+                  <TableHead className="text-right">Выручка</TableHead>
+                  <TableHead className="text-right">Себестоимость</TableHead>
+                  <TableHead className="text-right">Прибыль</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {salesByDay.length === 0 && (
+                  <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-10">За период продаж нет</TableCell></TableRow>
+                )}
+                {salesByDay.map(r => (
+                  <TableRow key={r.day}>
+                    <TableCell>{r.day.split("-").reverse().join(".")}</TableCell>
+                    <TableCell className="text-right">{r.docs.size}</TableCell>
+                    <TableCell className="text-right">{fmt.format(r.revenue)}</TableCell>
+                    <TableCell className="text-right">{fmt.format(r.cost)}</TableCell>
+                    <TableCell className={`text-right font-medium ${r.revenue - r.cost >= 0 ? "" : "text-destructive"}`}>
+                      {fmt.format(r.revenue - r.cost)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="profit" className="space-y-4">
+          {periodFilter}
+          <Card className="p-0 overflow-hidden">
+            <div className="flex items-center justify-between p-3 gap-2 flex-wrap">
+              <div className="text-xs text-muted-foreground">
+                Класс A — товары, дающие первые 80% выручки, B — до 95%, C — остальные.
+              </div>
+              <Button variant="outline" size="sm" onClick={() => downloadCsv("прибыль-по-товарам", byProduct, [
+                { header: "Товар", value: r => r.name },
+                { header: "Количество", value: r => r.qty },
+                { header: "Выручка", value: r => r.revenue.toFixed(2) },
+                { header: "Себестоимость", value: r => r.cost.toFixed(2) },
+                { header: "Прибыль", value: r => (r.revenue - r.cost).toFixed(2) },
+                { header: "Доля выручки, %", value: r => (r.share * 100).toFixed(1) },
+                { header: "Класс", value: r => r.abc },
+              ])}><Download className="h-4 w-4 mr-1" /> Excel</Button>
+            </div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Товар</TableHead>
+                  <TableHead className="text-right">Кол-во</TableHead>
+                  <TableHead className="text-right">Выручка</TableHead>
+                  <TableHead className="text-right">Себестоимость</TableHead>
+                  <TableHead className="text-right">Прибыль</TableHead>
+                  <TableHead className="text-right">Доля</TableHead>
+                  <TableHead className="text-center">Класс</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {byProduct.length === 0 && (
+                  <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-10">За период продаж нет</TableCell></TableRow>
+                )}
+                {byProduct.map(r => (
+                  <TableRow key={r.key}>
+                    <TableCell>{r.name}</TableCell>
+                    <TableCell className="text-right">{r.qty}</TableCell>
+                    <TableCell className="text-right">{fmt.format(r.revenue)}</TableCell>
+                    <TableCell className="text-right">{fmt.format(r.cost)}</TableCell>
+                    <TableCell className={`text-right font-medium ${r.revenue - r.cost >= 0 ? "" : "text-destructive"}`}>
+                      {fmt.format(r.revenue - r.cost)}
+                    </TableCell>
+                    <TableCell className="text-right">{(r.share * 100).toFixed(1)}%</TableCell>
+                    <TableCell className="text-center">
+                      <Badge variant={r.abc === "A" ? "default" : r.abc === "B" ? "secondary" : "outline"}>{r.abc}</Badge>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="stock" className="space-y-4">
+          <Card className="p-4 flex flex-wrap gap-4 items-center">
+            <div className="text-sm">Позиций на складе: <b>{stockRows.length}</b></div>
+            <div className="ml-auto text-sm">Стоимость остатков: <b>{fmt.format(stockTotal)}</b></div>
+            <Button variant="outline" size="sm" onClick={() => downloadCsv("остатки-склада", stockRows, [
+              { header: "Товар", value: r => r.name },
+              { header: "Ед.", value: r => r.unit },
+              { header: "Остаток", value: r => r.qty },
+              { header: "Себестоимость", value: r => r.cost.toFixed(2) },
+              { header: "Сумма", value: r => (r.qty * r.cost).toFixed(2) },
+            ])}><Download className="h-4 w-4 mr-1" /> Excel</Button>
+          </Card>
+          <Card className="p-0 overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Товар</TableHead>
+                  <TableHead>Ед.</TableHead>
+                  <TableHead className="text-right">Остаток</TableHead>
+                  <TableHead className="text-right">Себестоимость</TableHead>
+                  <TableHead className="text-right">Сумма</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {stockRows.length === 0 && (
+                  <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-10">Остатков нет</TableCell></TableRow>
+                )}
+                {stockRows.slice(0, 500).map(r => (
+                  <TableRow key={r.id}>
+                    <TableCell>{r.name}</TableCell>
+                    <TableCell>{r.unit}</TableCell>
+                    <TableCell className={`text-right ${r.qty < 0 ? "text-destructive" : ""}`}>{r.qty}</TableCell>
+                    <TableCell className="text-right">{fmt.format(r.cost)}</TableCell>
+                    <TableCell className="text-right font-medium">{fmt.format(r.qty * r.cost)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+            {stockRows.length > 500 && (
+              <div className="p-3 text-xs text-muted-foreground">Показаны первые 500 позиций — полный список в выгрузке Excel.</div>
+            )}
+          </Card>
+        </TabsContent>
 
         <TabsContent value="debts" className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
