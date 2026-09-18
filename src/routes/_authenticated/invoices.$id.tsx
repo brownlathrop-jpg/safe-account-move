@@ -48,11 +48,6 @@ type Item = {
 type DocType = "order" | "shipment" | "cash_receipt";
 type PrintMode = "standard" | "invoice" | "pko" | "torg12" | "upd";
 
-const docLabels: Record<DocType, { title: string; one: string; createLabel: string }> = {
-  order: { title: "Заявка", one: "заявку", createLabel: "Заявка" },
-  shipment: { title: "Накладная", one: "накладную", createLabel: "Накладная" },
-  cash_receipt: { title: "ПКО", one: "ПКО", createLabel: "ПКО" },
-};
 
 function InvoiceView() {
   const { id } = Route.useParams();
