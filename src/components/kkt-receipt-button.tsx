@@ -26,19 +26,22 @@ export type KktDocItem = {
 };
 
 export function KktReceiptButton({
-  wsId, invoiceId, items, fiscal, defaultPaymentType = "cash",
+  wsId, invoiceId, items, fiscal, defaultPaymentType = "cash", isReturn = false,
 }: {
   wsId: string | null | undefined;
   invoiceId: string;
   items: KktDocItem[];
   fiscal: any;
   defaultPaymentType?: KktPaymentType;
+  /** Возвратная накладная — пробивается чек возврата продажи. */
+  isReturn?: boolean;
 }) {
   const { settings, enabled } = useKktSettings(wsId);
   const [open, setOpen] = useState(false);
   const [paymentType, setPaymentType] = useState<KktPaymentType>(defaultPaymentType);
   useEffect(() => { setPaymentType(defaultPaymentType); }, [defaultPaymentType]);
   const [contact, setContact] = useState("");
+  const [cashReceived, setCashReceived] = useState("");
   const [mergeServices, setMergeServices] = useState(false);
   const print = useKktPrintReceipt(settings, invoiceId);
 
@@ -66,9 +69,12 @@ export function KktReceiptButton({
     return (
       <div className="flex items-center gap-2">
         <Badge variant="secondary" className="gap-1">
-          <Receipt className="h-3.5 w-3.5" /> Чек № {fiscal.receiptNumber ?? fiscal.fiscalDocNumber}
+          <Receipt className="h-3.5 w-3.5" />
+          {fiscal.isReturn ? "Чек возврата № " : "Чек № "}
+          {fiscal.receiptNumber ?? fiscal.fiscalDocNumber}
           {fiscal.shiftNumber ? ` · смена ${fiscal.shiftNumber}` : ""}
         </Badge>
+        <FiscalQr fiscal={fiscal} />
         {link && (
           <a href={link} target="_blank" rel="noreferrer" className="text-xs text-muted-foreground hover:text-foreground underline">
             Проверить в ФНС
