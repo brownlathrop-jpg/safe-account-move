@@ -816,8 +816,20 @@ function ProductsPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setMoveOpen(false)}>Отмена</Button>
             <Button
-              onClick={() => moveProducts.mutate({ ids: selectedIds, folderId: moveTarget === ROOT ? null : moveTarget })}
-              disabled={moveProducts.isPending}
+              onClick={() => {
+                const target = moveTarget === ROOT ? null : moveTarget;
+                if (selectedFolderIds.length) {
+                  const forbidden = forbiddenTargets(selectedFolderIds);
+                  if (target && forbidden.has(target)) {
+                    toast.error("Нельзя перенести папку внутрь самой себя");
+                    return;
+                  }
+                  moveFolders.mutate({ ids: selectedFolderIds, parentId: target });
+                }
+                if (selectedIds.length) moveProducts.mutate({ ids: selectedIds, folderId: target });
+                setMoveOpen(false);
+              }}
+              disabled={moveProducts.isPending || moveFolders.isPending}
             >Перенести</Button>
           </DialogFooter>
         </DialogContent>
