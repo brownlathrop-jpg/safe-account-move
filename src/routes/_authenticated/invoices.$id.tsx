@@ -387,7 +387,7 @@ function InvoiceView() {
         doc_type: "cash_receipt",
         parent_id: id,
         cash_received: Number(inv!.total) || total || 0,
-        cash_basis: `Оплата по заявке № ${cleanNum} от ${dfmt.format(new Date(inv!.issue_date))}`,
+        cash_basis: `Оплата по ${docTitleAccusative(inv!.doc_type, inv!.kind)} № ${cleanNum} от ${dfmt.format(new Date(inv!.issue_date))}`,
       }).select().single();
       if (error) throw error;
       return pko.id as string;
