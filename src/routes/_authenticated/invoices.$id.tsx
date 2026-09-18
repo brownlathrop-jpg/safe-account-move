@@ -495,6 +495,7 @@ function InvoiceView() {
                 invoiceId={id}
                 items={items.map((it) => ({ name: it.name, quantity: it.quantity, price: it.price, kind: it.kind }))}
                 fiscal={inv.fiscal}
+                isReturn={!!inv.is_return}
                 defaultPaymentType={paymentMethod === "card" ? "electronically" : "cash"}
               />
             </>

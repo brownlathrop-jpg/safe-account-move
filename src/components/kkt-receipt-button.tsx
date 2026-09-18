@@ -11,10 +11,11 @@ import {
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Receipt, Loader2, Copy } from "lucide-react";
+import { Receipt, Loader2, Copy, QrCode } from "lucide-react";
+import QRCode from "qrcode";
 import { useKktPrintReceipt, useKktSettings } from "@/hooks/use-kkt";
 import {
-  fnsCheckUrl, mergeServicesIntoGoods, printLastReceiptCopy, receiptTotal,
+  fnsCheckUrl, fnsQrPayload, mergeServicesIntoGoods, printLastReceiptCopy, receiptTotal,
   type KktPaymentType, type KktPosition,
 } from "@/lib/kkt-atol";
 
@@ -26,19 +27,22 @@ export type KktDocItem = {
 };
 
 export function KktReceiptButton({
-  wsId, invoiceId, items, fiscal, defaultPaymentType = "cash",
+  wsId, invoiceId, items, fiscal, defaultPaymentType = "cash", isReturn = false,
 }: {
   wsId: string | null | undefined;
   invoiceId: string;
   items: KktDocItem[];
   fiscal: any;
   defaultPaymentType?: KktPaymentType;
+  /** Возвратная накладная — пробивается чек возврата продажи. */
+  isReturn?: boolean;
 }) {
   const { settings, enabled } = useKktSettings(wsId);
   const [open, setOpen] = useState(false);
   const [paymentType, setPaymentType] = useState<KktPaymentType>(defaultPaymentType);
   useEffect(() => { setPaymentType(defaultPaymentType); }, [defaultPaymentType]);
   const [contact, setContact] = useState("");
+  const [cashReceived, setCashReceived] = useState("");
   const [mergeServices, setMergeServices] = useState(false);
   const print = useKktPrintReceipt(settings, invoiceId);
 
@@ -60,15 +64,20 @@ export function KktReceiptButton({
     }
   }
   const total = receiptTotal(positions);
+  const received = Number(String(cashReceived).replace(",", ".")) || 0;
+  const change = paymentType === "cash" && received > total ? Math.round((received - total) * 100) / 100 : 0;
 
   if (fiscal?.receiptNumber || fiscal?.fiscalDocNumber) {
     const link = fnsCheckUrl(fiscal);
     return (
       <div className="flex items-center gap-2">
         <Badge variant="secondary" className="gap-1">
-          <Receipt className="h-3.5 w-3.5" /> Чек № {fiscal.receiptNumber ?? fiscal.fiscalDocNumber}
+          <Receipt className="h-3.5 w-3.5" />
+          {fiscal.isReturn ? "Чек возврата № " : "Чек № "}
+          {fiscal.receiptNumber ?? fiscal.fiscalDocNumber}
           {fiscal.shiftNumber ? ` · смена ${fiscal.shiftNumber}` : ""}
         </Badge>
+        <FiscalQr fiscal={fiscal} />
         {link && (
           <a href={link} target="_blank" rel="noreferrer" className="text-xs text-muted-foreground hover:text-foreground underline">
             Проверить в ФНС
@@ -140,6 +149,21 @@ export function KktReceiptButton({
                 </SelectContent>
               </Select>
             </div>
+            {paymentType === "cash" && (
+              <div className="space-y-1">
+                <Label className="text-xs">Получено наличными (не обязательно)</Label>
+                <Input
+                  inputMode="decimal"
+                  placeholder={total.toFixed(2)}
+                  value={cashReceived}
+                  onChange={(e) => setCashReceived(e.target.value)}
+                  className="h-9"
+                />
+                {change > 0 && (
+                  <p className="text-xs text-muted-foreground">Сдача: {fmt.format(change)}</p>
+                )}
+              </div>
+            )}
             <div className="space-y-1">
               <Label className="text-xs">Электронный чек покупателю (не обязательно)</Label>
               <Input
@@ -157,7 +181,14 @@ export function KktReceiptButton({
               disabled={print.isPending || total <= 0 || !!mergeError}
               onClick={() =>
                 print.mutate(
-                  { positions, paymentType, clientContact: contact.trim() || undefined, operationId: invoiceId },
+                  {
+                    positions,
+                    paymentType,
+                    clientContact: contact.trim() || undefined,
+                    operationId: invoiceId,
+                    isReturn,
+                    cashReceived: received || undefined,
+                  },
                   {
                     onSuccess: (f) => {
                       setOpen(false);
@@ -169,9 +200,40 @@ export function KktReceiptButton({
               }
             >
               {print.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Receipt className="h-4 w-4 mr-1" />}
-              Пробить чек
+              {isReturn ? "Пробить чек возврата" : "Пробить чек"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+/** Фискальный QR-код чека (тег 1196) — тот же, что печатает касса. */
+function FiscalQr({ fiscal }: { fiscal: any }) {
+  const [img, setImg] = useState<string>("");
+  const [open, setOpen] = useState(false);
+  const payload = fnsQrPayload(fiscal);
+  useEffect(() => {
+    if (!open || !payload) return;
+    QRCode.toDataURL(payload, { margin: 1, width: 240 }).then(setImg).catch(() => setImg(""));
+  }, [open, payload]);
+  if (!payload) return null;
+  return (
+    <>
+      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+        <QrCode className="h-4 w-4 mr-1" /> QR-код чека
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-xs">
+          <DialogHeader>
+            <DialogTitle>QR-код чека</DialogTitle>
+            <DialogDescription>Отсканируйте в приложении «Проверка чека» ФНС.</DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col items-center gap-2">
+            {img ? <img src={img} alt="QR-код чека" className="h-60 w-60" /> : <Loader2 className="h-6 w-6 animate-spin" />}
+            <code className="text-[10px] break-all text-muted-foreground">{payload}</code>
+          </div>
         </DialogContent>
       </Dialog>
     </>
