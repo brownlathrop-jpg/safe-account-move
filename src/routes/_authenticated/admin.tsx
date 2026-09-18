@@ -225,15 +225,47 @@ function AdminPage() {
             <CardContent className="space-y-3 text-sm">
               <div>Размер базы: <b>{stats.data?.size ?? "—"}</b></div>
               <div>Активных сессий: <b>{stats.data?.sessions ?? 0}</b></div>
+              <div className="font-medium pt-1">Итого по всем базам</div>
               <div className="grid gap-1 sm:grid-cols-2 md:grid-cols-3">
                 {(stats.data?.counts ?? []).map((c: any) => (
                   <div key={c.label ?? c.table} className="flex justify-between rounded border px-3 py-1.5">
                     <span className="text-muted-foreground">{c.label ?? TABLE_LABELS[c.table] ?? c.table}</span>
-
-
                     <span className="font-medium">{c.count}</span>
                   </div>
                 ))}
+              </div>
+              <div className="font-medium pt-2">По каждой базе</div>
+              <div className="overflow-x-auto rounded border">
+                <table className="w-full text-xs">
+                  <thead className="bg-muted">
+                    <tr>
+                      <th className="px-2 py-1 text-left">База</th>
+                      <th className="px-2 py-1 text-left">Владелец</th>
+                      <th className="px-2 py-1 text-right">Товары</th>
+                      <th className="px-2 py-1 text-right">Папки</th>
+                      <th className="px-2 py-1 text-right">Контрагенты</th>
+                      <th className="px-2 py-1 text-right">Документы</th>
+                      <th className="px-2 py-1 text-right">Строки</th>
+                      <th className="px-2 py-1 text-right">Движения</th>
+                      <th className="px-2 py-1 text-right">Поступления</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(stats.data?.byWorkspace ?? []).map((w: any) => (
+                      <tr key={w.id} className="border-t">
+                        <td className="px-2 py-1">{w.name}</td>
+                        <td className="px-2 py-1 text-muted-foreground">{w.owner ?? "—"}</td>
+                        <td className="px-2 py-1 text-right">{w.products}</td>
+                        <td className="px-2 py-1 text-right">{w.folders}</td>
+                        <td className="px-2 py-1 text-right">{w.partners}</td>
+                        <td className="px-2 py-1 text-right">{w.invoices}</td>
+                        <td className="px-2 py-1 text-right">{w.invoice_items}</td>
+                        <td className="px-2 py-1 text-right">{w.stock_movements}</td>
+                        <td className="px-2 py-1 text-right">{w.stock_receipts}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </CardContent>
           </Card>
