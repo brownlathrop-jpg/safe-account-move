@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 // Кнопки «Excel» и «Печать» выгружают весь отфильтрованный список, не только текущую страницу.
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useRef, useState, type DragEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { toast } from "sonner";
 import { db } from "@/integrations/db";
 import { Button } from "@/components/ui/button";
@@ -41,7 +41,6 @@ type Product = {
   folder_id: string | null; kind: "product" | "service"; image_url: string | null;
   is_service?: boolean;
   vat_rate?: string | null;
-  product_type_id?: string | null;
   prices?: Record<string, number> | null;
 };
 
@@ -83,6 +82,8 @@ function ProductsPage() {
   const [deleteFolder, setDeleteFolder] = useState<FolderRow | null>(null);
   const [deleteManyOpen, setDeleteManyOpen] = useState(false);
   const [page, setPage] = useState(0);
+  const [activePriceType, setActivePriceType] = useState<string | null>(null);
+  const [activePriceInput, setActivePriceInput] = useState("");
 
 
   const { data: products = [] } = useQuery({
@@ -137,19 +138,41 @@ function ProductsPage() {
     },
   });
 
-  const { data: productTypes = [] } = useQuery({
-    queryKey: ["product_types", wsId],
-    enabled: !!wsId,
-    queryFn: async () => {
-      const { data, error } = await (db as any).from("product_types")
-        .select("id,name,is_service").eq("workspace_id", wsId).order("name");
-      if (error) throw error;
-      return (data ?? []) as { id: string; name: string; is_service: boolean }[];
-    },
-  });
-
   const { data: priceTypes = [] } = usePriceTypes(wsId);
   const myPriceTypeId = useMyPriceTypeId(wsId);
+
+  const getTypePrice = (typeId: string) => {
+    const map = editing?.prices ?? {};
+    if (map[typeId] != null && map[typeId] !== 0) return String(map[typeId]);
+    const t = priceTypes.find((x) => x.id === typeId);
+    if (t?.is_default && editing && (editing.price ?? 0) !== 0) return String(editing.price);
+    return "";
+  };
+  const applyActivePrice = () => {
+    if (!activePriceType || !editing) return;
+    const val = activePriceInput.trim() === "" ? 0 : Number(activePriceInput);
+    const map = { ...(editing.prices ?? {}), [activePriceType]: val };
+    const patch: Partial<Product> = { prices: map };
+    const t = priceTypes.find((x) => x.id === activePriceType);
+    if (t?.is_default) patch.price = val;
+    setEditing({ ...editing, ...patch });
+  };
+  const removePrice = (typeId: string) => {
+    if (!editing) return;
+    const map = { ...(editing.prices ?? {}) };
+    delete map[typeId];
+    const patch: Partial<Product> = { prices: map };
+    const t = priceTypes.find((x) => x.id === typeId);
+    if (t?.is_default) patch.price = 0;
+    setEditing({ ...editing, ...patch });
+  };
+  useEffect(() => {
+    if (open && editing && activePriceType == null && priceTypes.length) {
+      const id = priceTypes.find((t) => t.is_default)?.id ?? priceTypes[0].id;
+      setActivePriceType(id);
+      setActivePriceInput(getTypePrice(id));
+    }
+  }, [open, editing, activePriceType, priceTypes]);
 
   const childrenOf = useMemo(() => {
     const map = new Map<string | null, FolderRow[]>();
@@ -231,7 +254,6 @@ function ProductsPage() {
         image_url: p.image_url ?? null,
         is_service: (p.kind ?? "product") === "service",
         vat_rate: p.vat_rate || "none",
-        product_type_id: p.product_type_id ?? null,
       };
       if (p.id) {
         const { error } = await db.from("products").update(payload as never).eq("id", p.id);
@@ -576,9 +598,16 @@ function ProductsPage() {
     const folder_id = getSelectedRealFolderId();
     const kind: "product" | "service" = selectedFolder === KIND_SERVICE ? "service" : "product";
     setEditing({ name: "", unit: kind === "service" ? "усл" : "шт", price: 0, cost: 0, stock: 0, folder_id, kind, image_url: null });
+    setActivePriceType(null);
+    setActivePriceInput("");
     setOpen(true);
   };
-  const openEdit = (p: Product) => { setEditing(p); setOpen(true); };
+  const openEdit = (p: Product) => {
+    setEditing(p);
+    setActivePriceType(null);
+    setActivePriceInput("");
+    setOpen(true);
+  };
 
   const openFolderDialog = (parent_id: string | null, editingFolder?: FolderRow, parentKind?: FolderKind) => {
     setFolderName(editingFolder?.name ?? "");
@@ -892,7 +921,7 @@ function ProductsPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setActivePriceType(null); setActivePriceInput(""); } }}>
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>{editing?.id ? "Редактировать товар или услугу" : "Новый товар или услуга"}</DialogTitle></DialogHeader>
           {editing && (
@@ -1013,53 +1042,85 @@ function ProductsPage() {
               {priceTypes.length > 0 && (
                 <div className="space-y-2">
                   <Label>Цены по типам</Label>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                    {priceTypes.map(t => (
-                      <div key={t.id} className="space-y-1">
-                        <Label className="text-xs font-normal text-muted-foreground">
-                          {t.name}{t.is_default ? " (основной)" : ""}
-                        </Label>
-                        <Input
-                          type="number" step="0.01"
-                          value={(editing.prices ?? {})[t.id] ?? (t.is_default ? Number(editing.price ?? 0) : 0)}
-                          onChange={e => setEditing({
-                            ...editing,
-                            prices: { ...(editing.prices ?? {}), [t.id]: Number(e.target.value) },
-                          })}
-                        />
-                      </div>
-                    ))}
+                  <div className="flex items-center gap-2">
+                    <Select
+                      value={activePriceType ?? ""}
+                      onValueChange={(v) => {
+                        setActivePriceType(v);
+                        setActivePriceInput(getTypePrice(v));
+                      }}
+                    >
+                      <SelectTrigger className="w-[180px]">
+                        <SelectValue placeholder="Тип цены" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {priceTypes.map((t) => (
+                          <SelectItem key={t.id} value={t.id}>
+                            {t.name}
+                            {t.is_default ? " (основной)" : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      className="w-32"
+                      placeholder="Цена"
+                      value={activePriceInput}
+                      onChange={(e) => setActivePriceInput(e.target.value)}
+                    />
+                    <Button type="button" variant="secondary" size="sm" onClick={applyActivePrice}>
+                      Записать
+                    </Button>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {priceTypes.map((t) => {
+                      const v =
+                        (editing.prices ?? {})[t.id] ??
+                        (t.is_default ? editing.price : null) ??
+                        0;
+                      if (!v) return null;
+                      return (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => {
+                            setActivePriceType(t.id);
+                            setActivePriceInput(String(v));
+                          }}
+                          className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs hover:bg-muted"
+                        >
+                          {t.name}: {fmt.format(Number(v))}
+                          <span
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              removePrice(t.id);
+                            }}
+                            className="ml-1 text-muted-foreground hover:text-destructive"
+                          >
+                            <X className="h-3 w-3" />
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
                   <p className="text-xs text-muted-foreground">
                     Типы цен добавляются в Настройках → Справочники. В документы подставляется тип цены, выбранный пользователем.
                   </p>
                 </div>
               )}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Вид номенклатуры</Label>
-                  <Select value={editing.product_type_id ?? "__none"} onValueChange={v => setEditing({ ...editing, product_type_id: v === "__none" ? null : v })}>
-                    <SelectTrigger><SelectValue placeholder="Не выбран" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none">— не выбран —</SelectItem>
-                      {productTypes.map(t => (
-                        <SelectItem key={t.id} value={t.id}>{t.name}{t.is_service ? " (услуга)" : ""}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Ставка НДС</Label>
-                  <Select value={editing.vat_rate ?? "none"} onValueChange={v => setEditing({ ...editing, vat_rate: v })}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Без НДС</SelectItem>
-                      <SelectItem value="0">0%</SelectItem>
-                      <SelectItem value="10">10%</SelectItem>
-                      <SelectItem value="20">20%</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div className="space-y-2">
+                <Label>Ставка НДС</Label>
+                <Select value={editing.vat_rate ?? "none"} onValueChange={v => setEditing({ ...editing, vat_rate: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Без НДС</SelectItem>
+                    <SelectItem value="0">0%</SelectItem>
+                    <SelectItem value="10">10%</SelectItem>
+                    <SelectItem value="20">20%</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
                 <Label>Описание</Label>
