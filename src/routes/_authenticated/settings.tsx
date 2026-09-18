@@ -17,6 +17,7 @@ import { useActiveWorkspaceId, activeWorkspace } from "@/lib/workspace";
 import { WarehousesRef, ProductTypesRef, PriceTypesRef, MyPriceTypeRef, CashflowItemsRef, BanksRef } from "@/components/settings-simple-refs";
 import { BankAccountsEditor } from "@/components/bank-accounts-editor";
 import { Import1CPanel } from "@/components/import-1c-panel";
+import { PriceImportPanel } from "@/components/price-import-panel";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({ meta: [{ title: "Настройки — КабинетCRM" }] }),
