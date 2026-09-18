@@ -921,7 +921,7 @@ function ProductsPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setActivePriceType(null); setActivePriceInput(""); } }}>
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>{editing?.id ? "Редактировать товар или услугу" : "Новый товар или услуга"}</DialogTitle></DialogHeader>
           {editing && (
