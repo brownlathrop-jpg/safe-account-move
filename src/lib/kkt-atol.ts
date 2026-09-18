@@ -210,12 +210,49 @@ export async function kktDeviceInfo(s: KktSettings): Promise<KktDeviceInfo> {
   };
 }
 
+export function positionAmount(p: KktPosition): number {
+  return p.amount != null ? round2(p.amount) : round2((Number(p.price) || 0) * (Number(p.quantity) || 0));
+}
+
 export function receiptTotal(positions: KktPosition[]): number {
-  return positions.reduce((s, p) => s + round2(p.price * p.quantity), 0);
+  return round2(positions.reduce((s, p) => s + positionAmount(p), 0));
 }
 
 function round2(n: number) {
   return Math.round((Number(n) || 0) * 100) / 100;
+}
+
+/**
+ * Режим «услуги в стоимость товара»: суммы услуг распределяются по товарным
+ * позициям пропорционально их стоимости, с округлением доли до рубля.
+ * Остаток от округления добавляется к самой дорогой товарной позиции,
+ * поэтому итог чека всегда совпадает с суммой накладной. Услуги в чек не идут.
+ */
+export function mergeServicesIntoGoods(positions: KktPosition[]): KktPosition[] {
+  const live = positions.filter((p) => (Number(p.quantity) || 0) > 0);
+  const goods = live.filter((p) => p.kind !== "service");
+  const services = live.filter((p) => p.kind === "service");
+  if (!services.length) return live;
+  if (!goods.length) {
+    throw new KktError("В накладной только услуги — включить их в стоимость товара нельзя.");
+  }
+  const serviceSum = round2(services.reduce((s, p) => s + positionAmount(p), 0));
+  const goodsSum = round2(goods.reduce((s, p) => s + positionAmount(p), 0));
+  const shares = goods.map((p) =>
+    goodsSum > 0 ? Math.round((serviceSum * positionAmount(p)) / goodsSum) : 0,
+  );
+  // Остаток (в том числе копейки) — на позицию с наибольшей суммой.
+  let biggest = 0;
+  goods.forEach((p, i) => {
+    if (positionAmount(p) > positionAmount(goods[biggest]!)) biggest = i;
+  });
+  const spread = round2(shares.reduce((s, v) => s + v, 0));
+  shares[biggest] = round2((shares[biggest] ?? 0) + (serviceSum - spread));
+  return goods.map((p, i) => {
+    const amount = round2(positionAmount(p) + (shares[i] ?? 0));
+    const quantity = Number(p.quantity) || 1;
+    return { ...p, amount, price: round2(amount / quantity), quantity };
+  });
 }
 
 /** Сборка задания «чек продажи» для драйвера ДТО10. */
