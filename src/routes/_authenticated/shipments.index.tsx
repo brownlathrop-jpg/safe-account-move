@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils";
 import { downloadCsv, csvDate } from "@/lib/export-csv";
 import { printList } from "@/lib/print-list";
+import { usePrintBrand } from "@/hooks/use-print-brand";
 
 export const Route = createFileRoute("/_authenticated/shipments/")({
   head: () => ({ meta: [{ title: "Накладные — КабинетCRM" }] }),
@@ -26,6 +27,7 @@ type Tab = "all" | "outgoing" | "incoming";
 function ShipmentsPage() {
   const navigate = useNavigate();
   const wsId = useActiveWorkspaceId();
+  const brand = usePrintBrand();
   const [tab, setTab] = useState<Tab>("all");
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<"all" | "posted" | "draft" | "cancelled">("all");
@@ -90,7 +92,7 @@ function ShipmentsPage() {
     { header: "Осталось", value: (i: any) => Number(i.total || 0) - (paidByInvoice.get(i.id) ?? 0) },
   ];
   const exportCsv = () => downloadCsv("накладные", filtered, listColumns);
-  const printShipments = () => printList("Накладные", filtered, listColumns);
+  const printShipments = () => printList("Накладные", filtered, listColumns, brand);
 
   return (
     <div className="space-y-5">

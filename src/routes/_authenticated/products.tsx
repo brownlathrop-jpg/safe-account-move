@@ -21,6 +21,7 @@ import { printList } from "@/lib/print-list";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { costBatches } from "@/lib/cost.functions";
 import { usePriceTypes, useMyPriceTypeId, priceOf } from "@/lib/price-types";
+import { usePrintBrand } from "@/hooks/use-print-brand";
 
 
 export const Route = createFileRoute("/_authenticated/products")({
@@ -60,6 +61,7 @@ const SERVICE_ROOT_NAME = "Услуги";
 function ProductsPage() {
   const qc = useQueryClient();
   const wsId = useActiveWorkspaceId();
+  const brand = usePrintBrand();
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<Partial<Product> | null>(null);
   const [open, setOpen] = useState(false);
@@ -469,7 +471,7 @@ function ProductsPage() {
     ];
   };
   const exportCsv = () => downloadCsv("товары", filtered, listColumns());
-  const printProducts = () => printList("Товары и услуги", filtered, listColumns());
+  const printProducts = () => printList("Товары и услуги", filtered, listColumns(), brand);
 
 
   const productCountIn = (folderId: string) => {

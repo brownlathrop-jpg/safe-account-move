@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { downloadCsv, csvDate } from "@/lib/export-csv";
 import { printList } from "@/lib/print-list";
 import { cn } from "@/lib/utils";
+import { usePrintBrand } from "@/hooks/use-print-brand";
 
 export const Route = createFileRoute("/_authenticated/cash/")({
   head: () => ({ meta: [{ title: "Касса и банк — КабинетCRM" }] }),
@@ -24,6 +25,7 @@ type Tab = "all" | "incoming" | "outgoing";
 
 function CashPage() {
   const wsId = useActiveWorkspaceId();
+  const brand = usePrintBrand();
   const [tab, setTab] = useState<Tab>("all");
   const [search, setSearch] = useState("");
   const [from, setFrom] = useState("");
@@ -71,7 +73,7 @@ function CashPage() {
     { header: "Основание", value: (i: any) => i.note ?? "" },
   ];
   const exportCsv = () => downloadCsv("касса", filtered, listColumns);
-  const printCash = () => printList("Касса", filtered, listColumns);
+  const printCash = () => printList("Касса", filtered, listColumns, brand);
 
   return (
     <div className="space-y-5">
