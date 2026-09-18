@@ -18,6 +18,7 @@ import { WarehousesRef, ProductTypesRef, PriceTypesRef, MyPriceTypeRef, Cashflow
 import { BankAccountsEditor } from "@/components/bank-accounts-editor";
 import { Import1CPanel } from "@/components/import-1c-panel";
 import { PriceImportPanel } from "@/components/price-import-panel";
+import { KktSettingsPanel } from "@/components/kkt-settings-panel";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({ meta: [{ title: "Настройки — КабинетCRM" }] }),
