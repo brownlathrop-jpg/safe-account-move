@@ -1048,53 +1048,85 @@ function ProductsPage() {
               {priceTypes.length > 0 && (
                 <div className="space-y-2">
                   <Label>Цены по типам</Label>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                    {priceTypes.map(t => (
-                      <div key={t.id} className="space-y-1">
-                        <Label className="text-xs font-normal text-muted-foreground">
-                          {t.name}{t.is_default ? " (основной)" : ""}
-                        </Label>
-                        <Input
-                          type="number" step="0.01"
-                          value={(editing.prices ?? {})[t.id] ?? (t.is_default ? Number(editing.price ?? 0) : 0)}
-                          onChange={e => setEditing({
-                            ...editing,
-                            prices: { ...(editing.prices ?? {}), [t.id]: Number(e.target.value) },
-                          })}
-                        />
-                      </div>
-                    ))}
+                  <div className="flex items-center gap-2">
+                    <Select
+                      value={activePriceType ?? ""}
+                      onValueChange={(v) => {
+                        setActivePriceType(v);
+                        setActivePriceInput(getTypePrice(v));
+                      }}
+                    >
+                      <SelectTrigger className="w-[180px]">
+                        <SelectValue placeholder="Тип цены" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {priceTypes.map((t) => (
+                          <SelectItem key={t.id} value={t.id}>
+                            {t.name}
+                            {t.is_default ? " (основной)" : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      className="w-32"
+                      placeholder="Цена"
+                      value={activePriceInput}
+                      onChange={(e) => setActivePriceInput(e.target.value)}
+                    />
+                    <Button type="button" variant="secondary" size="sm" onClick={applyActivePrice}>
+                      Записать
+                    </Button>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {priceTypes.map((t) => {
+                      const v =
+                        (editing.prices ?? {})[t.id] ??
+                        (t.is_default ? editing.price : null) ??
+                        0;
+                      if (!v) return null;
+                      return (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => {
+                            setActivePriceType(t.id);
+                            setActivePriceInput(String(v));
+                          }}
+                          className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs hover:bg-muted"
+                        >
+                          {t.name}: {fmt.format(Number(v))}
+                          <span
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              removePrice(t.id);
+                            }}
+                            className="ml-1 text-muted-foreground hover:text-destructive"
+                          >
+                            <X className="h-3 w-3" />
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
                   <p className="text-xs text-muted-foreground">
                     Типы цен добавляются в Настройках → Справочники. В документы подставляется тип цены, выбранный пользователем.
                   </p>
                 </div>
               )}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Вид номенклатуры</Label>
-                  <Select value={editing.product_type_id ?? "__none"} onValueChange={v => setEditing({ ...editing, product_type_id: v === "__none" ? null : v })}>
-                    <SelectTrigger><SelectValue placeholder="Не выбран" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none">— не выбран —</SelectItem>
-                      {productTypes.map(t => (
-                        <SelectItem key={t.id} value={t.id}>{t.name}{t.is_service ? " (услуга)" : ""}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Ставка НДС</Label>
-                  <Select value={editing.vat_rate ?? "none"} onValueChange={v => setEditing({ ...editing, vat_rate: v })}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Без НДС</SelectItem>
-                      <SelectItem value="0">0%</SelectItem>
-                      <SelectItem value="10">10%</SelectItem>
-                      <SelectItem value="20">20%</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div className="space-y-2">
+                <Label>Ставка НДС</Label>
+                <Select value={editing.vat_rate ?? "none"} onValueChange={v => setEditing({ ...editing, vat_rate: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Без НДС</SelectItem>
+                    <SelectItem value="0">0%</SelectItem>
+                    <SelectItem value="10">10%</SelectItem>
+                    <SelectItem value="20">20%</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
                 <Label>Описание</Label>
