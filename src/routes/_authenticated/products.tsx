@@ -41,7 +41,6 @@ type Product = {
   folder_id: string | null; kind: "product" | "service"; image_url: string | null;
   is_service?: boolean;
   vat_rate?: string | null;
-  product_type_id?: string | null;
   prices?: Record<string, number> | null;
 };
 
