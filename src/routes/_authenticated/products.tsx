@@ -244,6 +244,45 @@ function ProductsPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const removeMany = useMutation({
+    mutationFn: async ({ productIds, folderIds }: { productIds: string[]; folderIds: string[] }) => {
+      if (!productIds.length && !folderIds.length) throw new Error("Ничего не выбрано");
+      // Удаляем папки рекурсивно: потомки + содержимое.
+      const allFolderIds = new Set<string>();
+      folderIds.forEach(id => descendantsOf(id).forEach(d => allFolderIds.add(d)));
+      if (allFolderIds.size) {
+        const folderIdList = [...allFolderIds];
+        const { error: prodErr } = await db.from("products").delete().in("folder_id", folderIdList);
+        if (prodErr) throw prodErr;
+        const { error: foldErr } = await db.from("product_folders").delete().in("id", folderIdList);
+        if (foldErr) throw foldErr;
+      }
+      if (productIds.length) {
+        const { error } = await db.from("products").delete().in("id", productIds);
+        if (error) throw error;
+      }
+      return { productIds, folderIds: [...allFolderIds] };
+    },
+    onSuccess: ({ productIds, folderIds }) => {
+      const goneFolders = new Set(folderIds);
+      const goneProducts = new Set(productIds);
+      qc.setQueryData(["product_folders", wsId], (old?: FolderRow[]) =>
+        old ? old.filter(f => !goneFolders.has(f.id)) : old);
+      qc.setQueryData(["products", wsId], (old?: Product[]) =>
+        old ? old.filter(p => !goneProducts.has(p.id) && !(p.folder_id && goneFolders.has(p.folder_id))) : old);
+      qc.invalidateQueries({ queryKey: ["products"] });
+      qc.invalidateQueries({ queryKey: ["product_folders"] });
+      if (selectedFolder !== ALL && selectedFolder !== ROOT && goneFolders.has(selectedFolder)) {
+        setSelectedFolder(ALL);
+      }
+      setSelectedIds([]);
+      setSelectedFolderIds([]);
+      setDeleteManyOpen(false);
+      toast.success("Удалено");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const saveFolder = useMutation({
     mutationFn: async () => {
       const name = folderName.trim();
