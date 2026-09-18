@@ -1103,7 +1103,7 @@ function InvoiceView() {
           };
         });
         return (
-          <div className="invoice-print hidden print:block bg-white text-black mx-auto" style={{ maxWidth: 1000 }}>
+          <div className="invoice-print invoice-print-landscape hidden print:block bg-white text-black mx-auto" style={{ maxWidth: 1000 }}>
             <PrintHeader org={myOrg as any} />
             {printMode === "torg12"
               ? <Torg12 supplier={supplierLine} buyer={buyerLine} number={cleanNumber} date={inv.issue_date} items={printItems} note={note} />
@@ -1221,6 +1221,8 @@ function InvoiceView() {
       <style>{`
         @media print {
           @page { size: A4; margin: 15mm; }
+          @page landscape { size: A4 landscape; margin: 10mm; }
+          .invoice-print-landscape { page: landscape; max-width: none !important; }
           body { background: white !important; }
           body * { visibility: hidden !important; }
           .invoice-print, .invoice-print * { visibility: visible !important; }
