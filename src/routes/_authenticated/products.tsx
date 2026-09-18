@@ -141,6 +141,23 @@ function ProductsPage() {
   const { data: priceTypes = [] } = usePriceTypes(wsId);
   const myPriceTypeId = useMyPriceTypeId(wsId);
 
+  // Себестоимость по партиям поступлений (FIFO) для открытой карточки товара.
+  const { data: costData } = useQuery({
+    queryKey: ["cost_batches_one", wsId, editing?.id],
+    enabled: !!wsId && !!editing?.id && open,
+    queryFn: async () => {
+      const res = await costBatches({ data: { workspaceId: wsId!, productId: editing!.id! } });
+      if (res.error) throw new Error(res.error.message);
+      return res;
+    },
+  });
+  const costInfo = {
+    hasBatches: (costData?.batches?.length ?? 0) > 0,
+    qty: costData?.qty ?? 0,
+    cost: costData?.cost ?? 0,
+  };
+
+
   const getTypePrice = (typeId: string) => {
     const map = editing?.prices ?? {};
     if (map[typeId] != null && map[typeId] !== 0) return String(map[typeId]);
