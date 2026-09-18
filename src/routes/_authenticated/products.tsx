@@ -145,7 +145,7 @@ function ProductsPage() {
     const map = editing?.prices ?? {};
     if (map[typeId] != null && map[typeId] !== 0) return String(map[typeId]);
     const t = priceTypes.find((x) => x.id === typeId);
-    if (t?.is_default && (editing?.price ?? 0) !== 0) return String(editing.price);
+    if (t?.is_default && editing && (editing.price ?? 0) !== 0) return String(editing.price);
     return "";
   };
   const applyActivePrice = () => {
