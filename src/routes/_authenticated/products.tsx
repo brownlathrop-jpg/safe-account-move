@@ -73,7 +73,9 @@ function ProductsPage() {
   const [moveTarget, setMoveTarget] = useState<string>(ROOT);
   const lastClickedRef = useRef<string | null>(null);
   const dragIdsRef = useRef<string[]>([]);
-  const dragFolderRef = useRef<string | null>(null);
+  const dragFolderIdsRef = useRef<string[]>([]);
+  const [selectedFolderIds, setSelectedFolderIds] = useState<string[]>([]);
+  const lastFolderClickRef = useRef<string | null>(null);
 
   const [dropFolder, setDropFolder] = useState<string | null>(null);
   const [deleteFolder, setDeleteFolder] = useState<FolderRow | null>(null);
