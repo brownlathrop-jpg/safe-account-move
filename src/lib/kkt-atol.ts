@@ -309,33 +309,75 @@ function deepFind(obj: any, keys: string[], depth = 0): string | null {
   return null;
 }
 
-/** То же, но для массива строк — так касса отдаёт список систем налогообложения. */
-function deepFindArray(obj: any, keys: string[], depth = 0): string[] | null {
-  if (!obj || typeof obj !== "object" || depth > 5) return null;
-  for (const k of keys) {
-    const v = (obj as any)[k];
-    if (Array.isArray(v) && v.length && v.every((x) => typeof x === "string")) return v as string[];
+const SNO_VALUES: KktSno[] = ["osn", "usnIncome", "usnIncomeOutcome", "esn", "patent"];
+
+/** Числовые коды систем налогообложения из ФФД (касса может отдавать битовую маску). */
+const SNO_BITS: Array<[number, KktSno]> = [
+  [1, "osn"],
+  [2, "usnIncome"],
+  [4, "usnIncomeOutcome"],
+  [16, "esn"],
+  [32, "patent"],
+];
+
+const SNO_ALIASES: Record<string, KktSno> = {
+  osn: "osn",
+  general: "osn",
+  usnincome: "usnIncome",
+  usn: "usnIncome",
+  usnincomeoutcome: "usnIncomeOutcome",
+  esn: "esn",
+  eshn: "esn",
+  agricultural: "esn",
+  patent: "patent",
+  psn: "patent",
+};
+
+function snoFromValue(v: unknown): KktSno[] {
+  if (typeof v === "string") {
+    const key = v.trim().toLowerCase().replace(/[\s_-]/g, "");
+    const direct = SNO_ALIASES[key];
+    if (direct) return [direct];
+    if (/^\d+$/.test(key)) return snoFromValue(Number(key));
+    return [];
   }
-  for (const v of Object.values(obj)) {
-    const found = deepFindArray(v, keys, depth + 1);
-    if (found) return found;
+  if (typeof v === "number" && Number.isFinite(v)) {
+    // Встречаются и битовая маска, и «номер» режима (0..5).
+    const bits = SNO_BITS.filter(([bit]) => (v & bit) === bit).map(([, s]) => s);
+    if (bits.length) return bits;
+    return SNO_VALUES[v] ? [SNO_VALUES[v]] : [];
   }
-  return null;
+  if (Array.isArray(v)) return v.flatMap((x) => snoFromValue(x));
+  return [];
 }
 
-const SNO_VALUES: KktSno[] = ["osn", "usnIncome", "usnIncomeOutcome", "esn", "patent"];
+const SNO_KEYS = ["taxationtypes", "taxationtype", "taxsystems", "taxsystem", "snolist", "sno", "taxes"];
+
+/** Ищем систему налогообложения по всему ответу кассы — ключи и форматы различаются. */
+function collectSno(obj: any, depth = 0, out: KktSno[] = []): KktSno[] {
+  if (!obj || typeof obj !== "object" || depth > 6) return out;
+  for (const [k, v] of Object.entries(obj)) {
+    if (SNO_KEYS.includes(k.toLowerCase().replace(/[\s_-]/g, ""))) {
+      for (const s of snoFromValue(v)) if (!out.includes(s)) out.push(s);
+    }
+    if (v && typeof v === "object") collectSno(v, depth + 1, out);
+  }
+  return out;
+}
 
 /** Модель кассы, номер ФН и состояние смены — для кнопки «Проверить связь». */
 export async function kktDeviceInfo(s: KktSettings): Promise<KktDeviceInfo> {
-  const info: any = await runTask(s.url, { type: "getDeviceInfo" }, 15000).catch(async (e) => {
+  const info: any = await runTask(s.url, { type: "getDeviceInfo" }, 12000).catch(async (e) => {
     if (e instanceof KktError && e.code === 404) return await driverFetch(s.url, "/api/v2/deviceInfo");
     throw e;
   });
   // Эти запросы поддерживают не все прошивки — молча пропускаем неудачные.
-  const status: any = await runTask(s.url, { type: "getDeviceStatus" }, 15000).catch(() => null);
-  const fn: any = await runTask(s.url, { type: "fnInfo" }, 15000).catch(() => null);
-  const reg: any = await runTask(s.url, { type: "regInfo" }, 15000).catch(() => null);
-  const shift: any = await runTask(s.url, { type: "queryShiftStatus" }, 15000).catch(() => null);
+  // Таймаут короткий: неподдерживаемое задание иначе «висит» и опрос длится минуту.
+  const opt = (type: string) => runTask(s.url, { type }, 4000).catch(() => null);
+  const status: any = await opt("getDeviceStatus");
+  const fn: any = await opt("fnInfo");
+  const reg: any = await opt("regInfo");
+  const shift: any = await opt("queryShiftStatus");
   const all = [info, status, fn, reg, shift];
   const find = (keys: string[]) => {
     for (const src of all) {
@@ -344,15 +386,8 @@ export async function kktDeviceInfo(s: KktSettings): Promise<KktDeviceInfo> {
     }
     return null;
   };
-  const findArr = (keys: string[]) => {
-    for (const src of all) {
-      const v = deepFindArray(src, keys);
-      if (v) return v;
-    }
-    return null;
-  };
-  const taxSystems = findArr(["taxationTypes", "taxSystems", "snoList"]) ?? [];
-  const suggestedSno = (taxSystems.find((t) => SNO_VALUES.includes(t as KktSno)) as KktSno | undefined) ?? null;
+  const taxSystems = all.flatMap((src) => collectSno(src)).filter((v, i, a) => a.indexOf(v) === i);
+  const suggestedSno = taxSystems[0] ?? null;
   // При ОСН почти всегда НДС 20%; при спецрежимах — «без НДС» (у плательщика УСН с НДС
   // ставку всё равно надо выбрать вручную, касса её не сообщает).
   const suggestedVat: KktVat | null = suggestedSno ? (suggestedSno === "osn" ? "vat20" : "none") : null;
@@ -369,6 +404,7 @@ export async function kktDeviceInfo(s: KktSettings): Promise<KktDeviceInfo> {
     orgVatin: find(["vatin", "orgVatin", "inn", "orgInn"]),
   };
 }
+
 
 
 export function positionAmount(p: KktPosition): number {
