@@ -18,6 +18,8 @@ import { WarehousesRef, ProductTypesRef, PriceTypesRef, CashflowItemsRef, BanksR
 import { Import1CPanel } from "@/components/import-1c-panel";
 import { PriceImportPanel } from "@/components/price-import-panel";
 import { KktSettingsPanel } from "@/components/kkt-settings-panel";
+import { prepareLogo } from "@/lib/logo-image";
+import { PrintHeader } from "@/components/print/PrintHeader";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({
