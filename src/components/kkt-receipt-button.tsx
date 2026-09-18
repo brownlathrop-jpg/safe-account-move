@@ -47,7 +47,11 @@ export function KktReceiptButton({
   const print = useKktPrintReceipt(settings, invoiceId);
   const shift = useKktShift(settings, open);
   const shiftAction = useKktShiftAction(settings);
-  const shiftOk = shift.data?.shiftState === "opened";
+  const shiftState = shift.data?.shiftState;
+  // Если касса не сообщила состояние смены — не запрещаем печать: касса сама
+  // откажет, если смена закрыта, и мы покажем её ответ.
+  const shiftOk = shiftState === "opened" || shiftState === "unknown";
+
 
   if (!enabled) return null;
 
