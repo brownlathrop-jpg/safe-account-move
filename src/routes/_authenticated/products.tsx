@@ -680,15 +680,19 @@ function ProductsPage() {
             <Search className="h-4 w-4 text-muted-foreground" />
             <Input placeholder="Поиск по названию или артикулу" value={search} onChange={e => { setSearch(e.target.value); setPage(0); }} className="border-0 focus-visible:ring-0 shadow-none h-8" />
           </div>
-          {selectedIds.length > 0 && (
+          {(selectedIds.length > 0 || selectedFolderIds.length > 0) && (
             <div className="p-3 border-b flex items-center gap-3 bg-muted/40 text-sm">
-              <span>Выбрано: {selectedIds.length}</span>
+              <span>
+                Выбрано:{" "}
+                {[selectedFolderIds.length ? `папок — ${selectedFolderIds.length}` : null,
+                  selectedIds.length ? `товаров — ${selectedIds.length}` : null].filter(Boolean).join(", ")}
+              </span>
               <Button size="sm" variant="outline" onClick={() => { setMoveTarget(getSelectedRealFolderId() ?? ROOT); setMoveOpen(true); }}>
                 <FolderOpen className="h-4 w-4 mr-1" /> Перенести в папку
               </Button>
-              <Button size="sm" variant="ghost" onClick={() => setSelectedIds([])}>Снять выделение</Button>
+              <Button size="sm" variant="ghost" onClick={() => { setSelectedIds([]); setSelectedFolderIds([]); }}>Снять выделение</Button>
               <span className="text-xs text-muted-foreground ml-auto hidden md:inline">
-                Можно просто перетащить выбранные строки на папку слева. Shift+клик — выбрать диапазон.
+                Можно перетащить все выбранные строки на папку. Shift+клик — выбрать диапазон.
               </span>
             </div>
           )}
@@ -697,8 +701,13 @@ function ProductsPage() {
               <TableRow>
                 <TableHead className="w-8">
                   <Checkbox
-                    checked={filtered.length > 0 && filtered.every(p => selectedIds.includes(p.id))}
-                    onCheckedChange={(v) => setSelectedIds(v ? filtered.map(p => p.id) : [])}
+                    checked={(filtered.length > 0 || rightFolders.length > 0)
+                      && filtered.every(p => selectedIds.includes(p.id))
+                      && rightFolders.every(f => selectedFolderIds.includes(f.id))}
+                    onCheckedChange={(v) => {
+                      setSelectedIds(v ? filtered.map(p => p.id) : []);
+                      setSelectedFolderIds(v ? rightFolders.map(f => f.id) : []);
+                    }}
                   />
                 </TableHead>
                 <TableHead>Артикул</TableHead>
@@ -717,13 +726,16 @@ function ProductsPage() {
               {rightFolders.map(f => (
                 <TableRow
                   key={f.id}
+                  data-state={selectedFolderIds.includes(f.id) ? "selected" : undefined}
                   className={`cursor-pointer hover:bg-muted/40 ${dropFolder === `row-${f.id}` ? "bg-primary/10" : ""}`}
                   onClick={() => selectFolder(f.id)}
                   {...dropProps(f.id, `row-${f.id}`)}
                   {...folderDragProps(f.id)}
 
                 >
-                  <TableCell></TableCell>
+                  <TableCell onClick={(e) => { e.stopPropagation(); toggleFolderSelected(f.id, e.shiftKey); }}>
+                    <Checkbox checked={selectedFolderIds.includes(f.id)} onCheckedChange={() => {}} />
+                  </TableCell>
                   <TableCell className="text-muted-foreground"></TableCell>
                   <TableCell className="font-medium">
                     <span className="inline-flex items-center gap-2">
