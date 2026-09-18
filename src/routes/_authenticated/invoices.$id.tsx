@@ -480,7 +480,7 @@ function InvoiceView() {
                 const m = v as "cash" | "card";
                 setPaymentMethod(m);
                 (db as any).from("invoices").update({ payment_method: m }).eq("id", id)
-                  .then(() => queryClient.invalidateQueries({ queryKey: ["invoice", id] }));
+                  .then(() => qc.invalidateQueries({ queryKey: ["invoice", id] }));
               }}>
                 <SelectTrigger className="w-[170px] h-9">
                   <SelectValue />
