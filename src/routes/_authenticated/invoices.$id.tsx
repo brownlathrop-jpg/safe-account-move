@@ -127,47 +127,56 @@ function InvoiceView() {
 
   // Автоподгонка ТОРГ-12 / УПД под один лист A4 (альбомная)
   const landscapeRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    const fit = () => {
-      const el = landscapeRef.current;
-      if (!el) return;
-      // печатная область A4 landscape при поле 10 мм ≈ 1047 x 718 px (96 dpi)
-      const PAGE_W = 1047, PAGE_H = 718;
-      const prev = { display: el.style.display, position: el.style.position, left: el.style.left, width: el.style.width, transform: el.style.transform };
+  const fitLandscape = useCallback(() => {
+    const el = landscapeRef.current;
+    if (!el) return;
+    // печатная область A4 landscape при поле 8 мм ≈ 1062 x 726 px (96 dpi)
+    const PAGE_W = 1062, PAGE_H = 720;
+    el.style.transform = "none";
+    el.style.width = "";
+    const wasHidden = el.classList.contains("hidden");
+    if (wasHidden) el.classList.remove("hidden");
+    const prev = { position: el.style.position, left: el.style.left, top: el.style.top };
+    el.style.position = "absolute";
+    el.style.left = "-20000px";
+    el.style.top = "0";
+    el.style.width = `${PAGE_W}px`;
+    const h = el.scrollHeight;
+    el.style.position = prev.position;
+    el.style.left = prev.left;
+    el.style.top = prev.top;
+    if (wasHidden) el.classList.add("hidden");
+    const scale = h > 0 ? Math.min(1, PAGE_H / h) : 1;
+    if (scale < 1) {
+      el.style.width = `${100 / scale}%`;
+      el.style.transformOrigin = "top left";
+      el.style.transform = `scale(${scale})`;
+    } else {
+      el.style.width = "";
       el.style.transform = "none";
-      el.style.display = "block";
-      el.style.position = "absolute";
-      el.style.left = "-20000px";
-      el.style.width = `${PAGE_W}px`;
-      const h = el.scrollHeight;
-      el.style.display = prev.display;
-      el.style.position = prev.position;
-      el.style.left = prev.left;
-      const scale = h > 0 ? Math.min(1, PAGE_H / h) : 1;
-      if (scale < 1) {
-        el.style.width = `${100 / scale}%`;
-        el.style.transformOrigin = "top left";
-        el.style.transform = `scale(${scale})`;
-      } else {
-        el.style.width = prev.width;
-        el.style.transform = "none";
-      }
-    };
+    }
+  }, []);
+
+  useEffect(() => {
     const after = () => {
       const el = landscapeRef.current;
       if (el) { el.style.transform = "none"; el.style.width = ""; }
     };
-    window.addEventListener("beforeprint", fit);
+    window.addEventListener("beforeprint", fitLandscape);
     window.addEventListener("afterprint", after);
     return () => {
-      window.removeEventListener("beforeprint", fit);
+      window.removeEventListener("beforeprint", fitLandscape);
       window.removeEventListener("afterprint", after);
     };
-  }, []);
+  }, [fitLandscape]);
 
   const doPrint = (mode: PrintMode) => {
     setPrintMode(mode);
-    setTimeout(() => window.print(), 50);
+    setTimeout(() => {
+      if (mode === "torg12" || mode === "upd") fitLandscape();
+      window.print();
+    }, 80);
+
   };
 
 
