@@ -802,7 +802,7 @@ function ProductsPage() {
 
       <Dialog open={moveOpen} onOpenChange={setMoveOpen}>
         <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>Перенести в папку ({selectedIds.length})</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Перенести в папку ({selectedFolderIds.length + selectedIds.length})</DialogTitle></DialogHeader>
           <div className="space-y-2">
             <Label>Папка</Label>
             <Select value={moveTarget} onValueChange={setMoveTarget}>
