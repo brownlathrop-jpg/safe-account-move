@@ -334,6 +334,11 @@ function ProductsPage() {
     return p.folder_id === selectedFolder;
   });
 
+  // Постраничный показ: длинные списки не рендерим целиком.
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(page, pageCount - 1);
+  const pageItems = filtered.slice(safePage * PAGE_SIZE, safePage * PAGE_SIZE + PAGE_SIZE);
+
   const exportCsv = () => {
     const folderName = new Map((folders as FolderRow[]).map(f => [f.id, f.name]));
     downloadCsv("товары", filtered, [
