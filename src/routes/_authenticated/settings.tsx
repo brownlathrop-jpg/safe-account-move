@@ -250,12 +250,21 @@ function SettingsPage() {
               </TabsList>
             </div>
             <div className="min-w-0">
-              <TabsContent value="products" className="mt-0 space-y-2">
-                <PriceTypesRef />
-                <MyPriceTypeRef />
-                <DiscountsRef />
-                <ProductTypesRef />
-                <UnitsRef />
+              <TabsContent value="products" className="mt-0">
+                <Tabs defaultValue="prices">
+                  <div className="mb-2 overflow-x-auto">
+                    <TabsList className="h-8 w-max justify-start">
+                      <TabsTrigger value="prices">Цены</TabsTrigger>
+                      <TabsTrigger value="discounts">Скидки</TabsTrigger>
+                      <TabsTrigger value="types">Номенклатура</TabsTrigger>
+                      <TabsTrigger value="units">Единицы</TabsTrigger>
+                    </TabsList>
+                  </div>
+                  <TabsContent value="prices" className="mt-0 space-y-2"><PriceTypesRef /><MyPriceTypeRef /></TabsContent>
+                  <TabsContent value="discounts" className="mt-0"><DiscountsRef /></TabsContent>
+                  <TabsContent value="types" className="mt-0"><ProductTypesRef /></TabsContent>
+                  <TabsContent value="units" className="mt-0"><UnitsRef /></TabsContent>
+                </Tabs>
               </TabsContent>
               <TabsContent value="documents" className="mt-0 space-y-2">
                 <NumberingRef />
