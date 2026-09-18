@@ -175,6 +175,33 @@ async function driverFetch(url: string, path: string, init?: RequestInit) {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/**
+ * Ответ драйвера может приходить в нескольких форматах:
+ *  - { results: [ { result: {...}, error: {...} } ] }   (веб-сервер ДТО10)
+ *  - { results: [ { status: "ready", result: {...} } ] }
+ *  - сам результат задания в корне ответа.
+ * Возвращаем результат, как только он появился, либо null — задание ещё в работе.
+ */
+function pickResult(state: any): { done: boolean; result?: any; error?: any } {
+  if (!state || typeof state !== "object") return { done: false };
+  const arr: any[] = Array.isArray(state) ? state : (state.results ?? []);
+  const r = arr[0];
+  if (r) {
+    if (r.error && (r.error.code || r.error.description || r.error.message)) return { done: true, error: r.error };
+    const st = String(r.status ?? "").toLowerCase();
+    if (st && !["ready", "completed", "done", "success"].includes(st)) return { done: false };
+    if (r.result !== undefined && r.result !== null) return { done: true, result: r.result };
+    // Нет status и нет result — задание выполнено без данных (например openShift).
+    if (!st) return { done: true, result: r };
+    return { done: true, result: r.result ?? r };
+  }
+  if (state.error && (state.error.code || state.error.description || state.error.message)) {
+    return { done: true, error: state.error };
+  }
+  if (state.result !== undefined && state.result !== null) return { done: true, result: state.result };
+  return { done: false };
+}
+
 /** Отправить задание драйверу и дождаться результата. */
 async function runTask(url: string, task: Record<string, unknown>, timeoutMs = 60000) {
   const uuid = crypto.randomUUID();
@@ -185,20 +212,21 @@ async function runTask(url: string, task: Record<string, unknown>, timeoutMs = 6
   });
   let state = first;
   while (Date.now() - started < timeoutMs) {
-    const results: any[] = state?.results ?? [];
-    const r = results[0];
-    if (r) {
-      if (r.error) throw new KktError(humanize(r.error.description ?? r.error.message ?? ""), r.error.code ?? null);
-      if (r.status === "ready" || r.status === "completed") return r.result ?? r;
-    }
-    if (state?.error) {
-      throw new KktError(humanize(state.error.description ?? state.error.message ?? ""), state.error.code ?? null);
+    const p = pickResult(state);
+    if (p.done) {
+      if (p.error) {
+        throw new KktError(humanize(p.error.description ?? p.error.message ?? ""), p.error.code ?? null);
+      }
+      return p.result ?? {};
     }
     await sleep(400);
     state = await driverFetch(url, `/requests/${uuid}`);
   }
-  throw new KktError("Касса не ответила за минуту. Проверьте её состояние и повторите.");
+  throw new KktError(
+    "Касса не ответила за минуту. Проверьте, что в «Драйвере ККТ АТОЛ 10» выбрана эта касса и она не занята другой программой (тест драйвера, 1С).",
+  );
 }
+
 
 /** Модель кассы, номер ФН и состояние смены — для кнопки «Проверить связь». */
 export async function kktDeviceInfo(s: KktSettings): Promise<KktDeviceInfo> {
@@ -207,16 +235,27 @@ export async function kktDeviceInfo(s: KktSettings): Promise<KktDeviceInfo> {
     throw e;
   });
   const shift: any = await runTask(s.url, { type: "queryShiftStatus" }, 15000).catch(() => null);
-  const st = String(shift?.shiftStatus?.state ?? shift?.state ?? "").toLowerCase();
+  const rawState = shift?.shiftStatus?.state ?? shift?.shift?.state ?? shift?.state;
+  const st = String(rawState ?? "").toLowerCase();
+  // Разные версии драйвера отдают состояние смены словом или числом (0/1/2).
+  const shiftState: KktDeviceInfo["shiftState"] =
+    st === "opened" || st === "open" || st === "1"
+      ? "opened"
+      : st === "closed" || st === "close" || st === "0"
+        ? "closed"
+        : st === "expired" || st === "2"
+          ? "expired"
+          : "unknown";
   return {
     model: info?.modelName ?? info?.model ?? "—",
     serial: info?.serialNumber ?? "—",
     fnNumber: info?.fnSerial ?? info?.fnNumber ?? "—",
     regNumber: info?.regNumber ?? info?.ecrRegistrationNumber ?? "—",
-    shiftState: st === "opened" ? "opened" : st === "closed" ? "closed" : st === "expired" ? "expired" : "unknown",
+    shiftState,
     shiftNumber: Number(shift?.shiftStatus?.number ?? shift?.number ?? 0) || null,
   };
 }
+
 
 export function positionAmount(p: KktPosition): number {
   return p.amount != null ? round2(p.amount) : round2((Number(p.price) || 0) * (Number(p.quantity) || 0));
