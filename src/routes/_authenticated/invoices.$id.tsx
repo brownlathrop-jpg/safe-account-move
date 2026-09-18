@@ -553,7 +553,7 @@ function InvoiceView() {
           {isShipment && inv.status === "posted" && <Button variant="outline" onClick={() => setStatus.mutate("draft")}><FileEdit className="h-4 w-4 mr-1" /> Распровести</Button>}
           {inv.status !== "cancelled" && (
             <Button variant="outline" onClick={() => {
-              if (!confirm(`Отменить ${docLabels[docType].one}?`)) return;
+              if (!confirm(`Отменить ${docTitleAccusative(docType, kind)}?`)) return;
               setStatus.mutate("cancelled", { onSuccess: () => navigate({ to: "/invoices" }) });
             }}><XCircle className="h-4 w-4 mr-1" /> Отменить</Button>
           )}
