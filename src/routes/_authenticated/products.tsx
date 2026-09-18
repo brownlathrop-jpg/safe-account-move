@@ -19,6 +19,7 @@ import { useActiveWorkspaceId } from "@/lib/workspace";
 import { downloadCsv, type CsvColumn } from "@/lib/export-csv";
 import { printList } from "@/lib/print-list";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { costBatches } from "@/lib/cost.functions";
 import { usePriceTypes, useMyPriceTypeId, priceOf } from "@/lib/price-types";
 
 
@@ -140,6 +141,23 @@ function ProductsPage() {
 
   const { data: priceTypes = [] } = usePriceTypes(wsId);
   const myPriceTypeId = useMyPriceTypeId(wsId);
+
+  // Себестоимость по партиям поступлений (FIFO) для открытой карточки товара.
+  const { data: costData } = useQuery({
+    queryKey: ["cost_batches_one", wsId, editing?.id],
+    enabled: !!wsId && !!editing?.id && open,
+    queryFn: async () => {
+      const res = await costBatches({ data: { workspaceId: wsId!, productId: editing!.id! } });
+      if (res.error) throw new Error(res.error.message);
+      return res;
+    },
+  });
+  const costInfo = {
+    hasBatches: (costData?.batches?.length ?? 0) > 0,
+    qty: costData?.qty ?? 0,
+    cost: costData?.cost ?? 0,
+  };
+
 
   const getTypePrice = (typeId: string) => {
     const map = editing?.prices ?? {};
@@ -1026,7 +1044,17 @@ function ProductsPage() {
               <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label>Себестоимость</Label>
-                  <Input type="number" step="0.01" value={editing.cost ?? 0} onChange={e => setEditing({ ...editing, cost: Number(e.target.value) })} />
+                  <Input type="number" step="0.01" value={editing.cost ?? 0}
+                    onChange={e => setEditing({ ...editing, cost: Number(e.target.value) })}
+                    readOnly={!!editing.id && costInfo.hasBatches}
+                    className={!!editing.id && costInfo.hasBatches ? "bg-muted" : undefined} />
+                  <p className="text-xs text-muted-foreground">
+                    {editing.id
+                      ? costInfo.hasBatches
+                        ? `По партиям поступлений: остаток ${costInfo.qty}, себестоимость ${fmt.format(costInfo.cost)}`
+                        : "Поступлений ещё нет — значение можно указать вручную, дальше оно считается по поступлениям"
+                      : "Дальше считается автоматически по поступлениям (партиями, FIFO)"}
+                  </p>
                 </div>
                 {priceTypes.length === 0 && (
                   <div className="space-y-2">
