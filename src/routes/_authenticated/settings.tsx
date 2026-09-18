@@ -248,6 +248,10 @@ function SettingsPage() {
           <InvoiceStatusesRef />
         </TabsContent>
 
+        <TabsContent value="kkt" className="mt-3 space-y-2">
+          <KktSettingsPanel />
+        </TabsContent>
+
         <TabsContent value="import" className="mt-3 space-y-4">
           <Import1CPanel />
           <PriceImportPanel />
