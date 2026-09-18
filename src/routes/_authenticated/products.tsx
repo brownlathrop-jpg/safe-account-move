@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 // Кнопки «Excel» и «Печать» выгружают весь отфильтрованный список, не только текущую страницу.
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useRef, useState, type DragEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { toast } from "sonner";
 import { db } from "@/integrations/db";
 import { Button } from "@/components/ui/button";
