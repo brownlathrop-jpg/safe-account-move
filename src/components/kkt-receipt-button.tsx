@@ -10,13 +10,20 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Receipt, Loader2, Copy } from "lucide-react";
 import { useKktPrintReceipt, useKktSettings } from "@/hooks/use-kkt";
-import { fnsCheckUrl, printLastReceiptCopy, receiptTotal, type KktPaymentType, type KktPosition } from "@/lib/kkt-atol";
+import {
+  fnsCheckUrl, mergeServicesIntoGoods, printLastReceiptCopy, receiptTotal,
+  type KktPaymentType, type KktPosition,
+} from "@/lib/kkt-atol";
 
 const fmt = new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB" });
 
-export type KktDocItem = { name: string; quantity: number; price: number; unit?: string };
+export type KktDocItem = {
+  name: string; quantity: number; price: number; unit?: string;
+  kind?: "product" | "service";
+};
 
 export function KktReceiptButton({
   wsId, invoiceId, items, fiscal,
@@ -30,13 +37,26 @@ export function KktReceiptButton({
   const [open, setOpen] = useState(false);
   const [paymentType, setPaymentType] = useState<KktPaymentType>("cash");
   const [contact, setContact] = useState("");
+  const [mergeServices, setMergeServices] = useState(false);
   const print = useKktPrintReceipt(settings, invoiceId);
 
   if (!enabled) return null;
 
-  const positions: KktPosition[] = items.map((i) => ({
+  const allPositions: KktPosition[] = items.map((i) => ({
     name: i.name, quantity: Number(i.quantity) || 0, price: Number(i.price) || 0, unit: i.unit,
+    kind: i.kind ?? "product",
   }));
+  const hasServices = allPositions.some((p) => p.kind === "service" && p.quantity > 0);
+  let positions = allPositions;
+  let mergeError = "";
+  if (mergeServices && hasServices) {
+    try {
+      positions = mergeServicesIntoGoods(allPositions);
+    } catch (e) {
+      mergeError = (e as Error).message;
+      positions = allPositions;
+    }
+  }
   const total = receiptTotal(positions);
 
   if (fiscal?.receiptNumber || fiscal?.fiscalDocNumber) {
@@ -69,9 +89,12 @@ export function KktReceiptButton({
 
   return (
     <>
-      <Button variant="outline" onClick={() => setOpen(true)}>
-        <Receipt className="h-4 w-4 mr-1" /> Пробить чек
-      </Button>
+      <div className="flex items-center gap-2">
+        <Badge variant="outline" className="text-muted-foreground">Чек не пробит</Badge>
+        <Button variant="outline" onClick={() => setOpen(true)}>
+          <Receipt className="h-4 w-4 mr-1" /> Пробить чек
+        </Button>
+      </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
@@ -87,6 +110,24 @@ export function KktReceiptButton({
               <span className="text-muted-foreground">Сумма чека</span>
               <span className="text-lg font-semibold">{fmt.format(total)}</span>
             </div>
+            {hasServices && (
+              <div className="rounded-md border p-3 space-y-1">
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <Checkbox
+                    checked={mergeServices}
+                    onCheckedChange={(v) => setMergeServices(v === true)}
+                    className="mt-0.5"
+                  />
+                  <span>
+                    Услуги в стоимость товара
+                    <span className="block text-xs text-muted-foreground">
+                      Стоимость услуг распределится по товарам (округление до рубля), отдельными строками услуги в чек не попадут. Сумма чека не изменится.
+                    </span>
+                  </span>
+                </label>
+                {mergeError && <p className="text-xs text-destructive">{mergeError}</p>}
+              </div>
+            )}
             <div className="space-y-1">
               <Label className="text-xs">Оплата</Label>
               <Select value={paymentType} onValueChange={(v) => setPaymentType(v as KktPaymentType)}>
@@ -111,7 +152,7 @@ export function KktReceiptButton({
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Отмена</Button>
             <Button
-              disabled={print.isPending || total <= 0}
+              disabled={print.isPending || total <= 0 || !!mergeError}
               onClick={() =>
                 print.mutate(
                   { positions, paymentType, clientContact: contact.trim() || undefined, operationId: invoiceId },
