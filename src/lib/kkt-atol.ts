@@ -79,6 +79,10 @@ export type KktPosition = {
   quantity: number;
   price: number;
   unit?: string;
+  /** Товар или услуга — нужно для режима «услуги в стоимость товара». */
+  kind?: "product" | "service";
+  /** Итог по строке; если задан, в чек попадёт именно он. */
+  amount?: number;
 };
 
 export type KktReceiptInput = {
