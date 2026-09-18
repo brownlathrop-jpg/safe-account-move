@@ -276,6 +276,56 @@ function splitRow(item: Row) {
   };
 }
 
+/**
+ * Пересчитать сумму (total) документов после изменения их позиций.
+ * Вызывается для таблицы invoice_items, чтобы сумма всегда совпадала
+ * с позициями, а также заполняет базу (workspace_id) у строк.
+ */
+async function syncInvoiceTotals(table: string, rows: Row[]) {
+  if (table !== "invoice_items" || !rows.length) return;
+  const s = sql();
+  const ids = Array.from(
+    new Set(rows.map((r) => (r as any).invoice_id).filter((v): v is string => typeof v === "string" && !!v)),
+  );
+  if (!ids.length) return;
+  try {
+    await s.unsafe(
+      `update invoice_items it
+          set workspace_id = i.workspace_id
+         from invoices i
+        where i.id = it.data->>'invoice_id'
+          and it.workspace_id is null
+          and (it.data->>'invoice_id') = any($1::text[])`,
+      [ids] as any,
+    );
+    await s.unsafe(
+      `update invoices i
+          set data = jsonb_set(i.data, '{total}', to_jsonb(coalesce(t.s, 0)), true),
+              updated_at = now()
+         from (
+           select (data->>'invoice_id') as inv,
+                  sum(coalesce((data->>'sum')::numeric,
+                               coalesce((data->>'quantity')::numeric, 0) * coalesce((data->>'price')::numeric, 0))) as s
+             from invoice_items
+            where (data->>'invoice_id') = any($1::text[])
+            group by 1
+         ) t
+        where i.id = t.inv`,
+      [ids] as any,
+    );
+    // документы, у которых позиций больше не осталось
+    await s.unsafe(
+      `update invoices i
+          set data = jsonb_set(i.data, '{total}', to_jsonb(0), true), updated_at = now()
+        where i.id = any($1::text[])
+          and not exists (select 1 from invoice_items it where it.data->>'invoice_id' = i.id)`,
+      [ids] as any,
+    );
+  } catch {
+    // пересчёт суммы не должен ломать сохранение позиций
+  }
+}
+
 export async function runQuery(
   spec: QuerySpec,
   userId: string,
@@ -431,6 +481,7 @@ export async function runQuery(
         }
       }
       log(spec.mode === "upsert" ? "update" : "insert", out);
+      await syncInvoiceTotals(table, out);
       if (spec.single) return { data: out[0] ?? null, error: null };
       return { data: out, error: null };
     }
@@ -449,6 +500,7 @@ export async function runQuery(
       const res = await s.unsafe(buf.text, buf.params as any);
       const rows = (res as any[]).map(toRow);
       log("update", rows, patch as Record<string, unknown>);
+      await syncInvoiceTotals(table, rows);
       if (spec.single) return { data: rows[0] ?? null, error: null };
       return { data: rows, error: null };
     }
@@ -462,6 +514,7 @@ export async function runQuery(
     const res = await s.unsafe(buf.text, buf.params as any);
     const deleted = (res as any[]).map(toRow);
     log("delete", deleted);
+    await syncInvoiceTotals(table, deleted);
     return { data: deleted, error: null };
   } catch (e: any) {
     return { data: null, error: { message: e?.message ?? String(e) } };

@@ -257,7 +257,13 @@ function InvoiceView() {
       }
       if (isShipment) await applyShipmentStock(id);
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["invoice", id] }); toast.success("Сохранено"); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["invoice", id] });
+      qc.invalidateQueries({ queryKey: ["invoices"] });
+      qc.invalidateQueries({ queryKey: ["cash"] });
+      qc.invalidateQueries({ queryKey: ["shipments"] });
+      toast.success("Сохранено");
+    },
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -322,6 +328,8 @@ function InvoiceView() {
     },
     onSuccess: (newId) => {
       qc.invalidateQueries({ queryKey: ["invoice-children", id] });
+      qc.invalidateQueries({ queryKey: ["invoices"] });
+      qc.invalidateQueries({ queryKey: ["shipments"] });
       toast.success("Накладная создана");
       navigate({ to: "/invoices/$id", params: { id: newId } });
     },
@@ -336,14 +344,15 @@ function InvoiceView() {
       const { data: pko, error } = await (db as any).from("invoices").insert({
         user_id: user.id,
         workspace_id: inv!.workspace_id ?? wsId,
-        number: `ПКО-${cleanNum}`,
-        kind: inv!.kind,
+        // продажа → деньги приходят в кассу (ПКО), закупка → деньги уходят (РКО)
+        number: `${inv!.kind === "outgoing" ? "ПКО" : "РКО"}-${cleanNum}`,
+        kind: inv!.kind === "outgoing" ? "incoming" : "outgoing",
         partner_id: inv!.partner_id,
         issue_date: new Date().toISOString().slice(0, 10),
         status: "draft",
         doc_type: "cash_receipt",
         parent_id: id,
-        cash_received: Number(inv!.total),
+        cash_received: Number(inv!.total) || total || 0,
         cash_basis: `Оплата по заявке № ${cleanNum} от ${dfmt.format(new Date(inv!.issue_date))}`,
       }).select().single();
       if (error) throw error;
@@ -351,6 +360,8 @@ function InvoiceView() {
     },
     onSuccess: (newId) => {
       qc.invalidateQueries({ queryKey: ["invoice-children", id] });
+      qc.invalidateQueries({ queryKey: ["invoices"] });
+      qc.invalidateQueries({ queryKey: ["cash"] });
       toast.success("ПКО создан");
       navigate({ to: "/invoices/$id", params: { id: newId } });
     },
