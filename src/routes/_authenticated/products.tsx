@@ -73,6 +73,8 @@ function ProductsPage() {
   const [moveTarget, setMoveTarget] = useState<string>(ROOT);
   const lastClickedRef = useRef<string | null>(null);
   const dragIdsRef = useRef<string[]>([]);
+  const dragFolderRef = useRef<string | null>(null);
+
   const [dropFolder, setDropFolder] = useState<string | null>(null);
   const [deleteFolder, setDeleteFolder] = useState<FolderRow | null>(null);
   const [page, setPage] = useState(0);
@@ -419,20 +421,69 @@ function ProductsPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const moveFolder = useMutation({
+    mutationFn: async ({ id, parentId }: { id: string; parentId: string | null }) => {
+      const { error } = await db.from("product_folders").update({ parent_id: parentId } as never).eq("id", id);
+      if (error) throw error;
+      return { id, parentId };
+    },
+    onSuccess: ({ id, parentId }) => {
+      qc.setQueryData(["product_folders", wsId], (old?: FolderRow[]) =>
+        old ? old.map(f => (f.id === id ? { ...f, parent_id: parentId } : f)) : old);
+      qc.invalidateQueries({ queryKey: ["product_folders"] });
+      toast.success("Папка перенесена");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const dropOnFolder = (folderId: string | null) => {
+    const draggedFolder = dragFolderRef.current;
+    dragFolderRef.current = null;
+    setDropFolder(null);
+    if (draggedFolder) {
+      const current = folders.find(f => f.id === draggedFolder);
+      if (!current) return;
+      if (folderId === draggedFolder) { toast.error("Нельзя перенести папку внутрь самой себя"); return; }
+      if (folderId && descendantsOf(draggedFolder).includes(folderId)) {
+        toast.error("Нельзя перенести папку в свою же вложенную папку");
+        return;
+      }
+      if ((current.parent_id ?? null) === folderId) return;
+      moveFolder.mutate({ id: draggedFolder, parentId: folderId });
+      return;
+    }
     const ids = dragIdsRef.current.length ? dragIdsRef.current : selectedIds;
     dragIdsRef.current = [];
-    setDropFolder(null);
     if (!ids.length) return;
     moveProducts.mutate({ ids, folderId });
   };
 
-  // Свойства для папки-приёмника при перетаскивании товаров.
+  // Свойства для папки-приёмника при перетаскивании товаров или папок.
   const dropProps = (folderId: string | null, key: string) => ({
-    onDragOver: (e: DragEvent) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; setDropFolder(key); },
+    onDragOver: (e: DragEvent) => {
+      e.preventDefault();
+      const dragged = dragFolderRef.current;
+      const forbidden = !!dragged && (dragged === folderId || (!!folderId && descendantsOf(dragged).includes(folderId)));
+      e.dataTransfer.dropEffect = forbidden ? "none" : "move";
+      setDropFolder(forbidden ? null : key);
+    },
     onDragLeave: () => setDropFolder(cur => (cur === key ? null : cur)),
-    onDrop: (e: DragEvent) => { e.preventDefault(); dropOnFolder(folderId); },
+    onDrop: (e: DragEvent) => { e.preventDefault(); e.stopPropagation(); dropOnFolder(folderId); },
   });
+
+  // Свойства для перетаскиваемой папки в дереве.
+  const folderDragProps = (folderId: string) => ({
+    draggable: true,
+    onDragStart: (e: DragEvent) => {
+      e.stopPropagation();
+      dragFolderRef.current = folderId;
+      dragIdsRef.current = [];
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData("text/plain", folderId);
+    },
+    onDragEnd: () => { dragFolderRef.current = null; setDropFolder(null); },
+  });
+
 
   const openNew = () => {
     const folder_id = getSelectedRealFolderId();
@@ -463,6 +514,8 @@ function ProductsPage() {
             onClick={() => selectFolder(f.id)}
             title={f.name}
             {...dropProps(f.id, f.id)}
+            {...folderDragProps(f.id)}
+
           >
             <button
               type="button"
@@ -634,6 +687,8 @@ function ProductsPage() {
                   className={`cursor-pointer hover:bg-muted/40 ${dropFolder === `row-${f.id}` ? "bg-primary/10" : ""}`}
                   onClick={() => selectFolder(f.id)}
                   {...dropProps(f.id, `row-${f.id}`)}
+                  {...folderDragProps(f.id)}
+
                 >
                   <TableCell></TableCell>
                   <TableCell className="text-muted-foreground"></TableCell>
