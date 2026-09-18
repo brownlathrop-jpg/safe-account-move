@@ -289,8 +289,15 @@ function ProductsPage() {
       if (prodErr) throw prodErr;
       const { error: foldErr } = await db.from("product_folders").delete().in("id", folderIdsToDelete);
       if (foldErr) throw foldErr;
+      return folderIdsToDelete;
     },
-    onSuccess: () => {
+    onSuccess: (folderIdsToDelete: string[]) => {
+      const gone = new Set(folderIdsToDelete);
+      // Сразу убираем удалённое из кэша, чтобы список не ждал ответа сервера.
+      qc.setQueryData(["product_folders", wsId], (old?: FolderRow[]) =>
+        old ? old.filter((f) => !gone.has(f.id)) : old);
+      qc.setQueryData(["products", wsId], (old?: Product[]) =>
+        old ? old.filter((p) => !(p.folder_id && gone.has(p.folder_id))) : old);
       qc.invalidateQueries({ queryKey: ["product_folders"] });
       qc.invalidateQueries({ queryKey: ["products"] });
       if (selectedFolder !== ALL && selectedFolder !== ROOT) setSelectedFolder(ALL);
