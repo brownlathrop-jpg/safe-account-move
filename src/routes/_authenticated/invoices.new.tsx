@@ -88,7 +88,7 @@ function NewInvoice() {
   const { data: products = [] } = useQuery({
     queryKey: ["products", wsId],
     enabled: !!wsId,
-    queryFn: async () => (await (db as any).from("products").select("id,name,price,cost,unit,kind,prices").eq("workspace_id", wsId).order("name")).data ?? [],
+    queryFn: async () => (await (db as any).from("products").select("id,name,price,cost,unit,kind,prices,folder_id").eq("workspace_id", wsId).order("name")).data ?? [],
   });
   const { data: partners = [] } = useQuery({
     queryKey: ["partners", wsId],
@@ -280,6 +280,7 @@ function NewInvoice() {
               products={products as any}
               kind={kind}
               priceTypeId={priceTypeId}
+              workspaceId={wsId}
               onAdd={(picked: PickedItem[]) => setItems([...items, ...picked])}
             />
           </div>
