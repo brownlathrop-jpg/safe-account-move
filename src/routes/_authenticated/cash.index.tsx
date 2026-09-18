@@ -5,10 +5,11 @@ import { db } from "@/integrations/db";
 import { useActiveWorkspaceId } from "@/lib/workspace";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowDownToLine, ArrowUpFromLine, Wallet, Search, Download } from "lucide-react";
+import { ArrowDownToLine, ArrowUpFromLine, Wallet, Search, Download, Printer } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { downloadCsv, csvDate } from "@/lib/export-csv";
+import { printList } from "@/lib/print-list";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/cash/")({
@@ -61,14 +62,16 @@ function CashPage() {
   const income = useMemo(() => filtered.filter(i => i.kind === "incoming").reduce((s, i) => s + Number(i.cash_received ?? i.total ?? 0), 0), [filtered]);
   const outcome = useMemo(() => filtered.filter(i => i.kind !== "incoming").reduce((s, i) => s + Number(i.cash_received ?? i.total ?? 0), 0), [filtered]);
 
-  const exportCsv = () => downloadCsv("касса", filtered, [
-    { header: "№", value: i => i.number },
-    { header: "Дата", value: i => csvDate(i.issue_date) },
-    { header: "Тип", value: i => (i.kind === "incoming" ? "Приход" : "Расход") },
-    { header: "Контрагент", value: i => i.partner?.name ?? "" },
-    { header: "Сумма", value: i => Number(i.cash_received ?? i.total ?? 0) },
-    { header: "Основание", value: i => i.note ?? "" },
-  ]);
+  const listColumns = [
+    { header: "№", value: (i: any) => i.number },
+    { header: "Дата", value: (i: any) => csvDate(i.issue_date) },
+    { header: "Тип", value: (i: any) => (i.kind === "incoming" ? "Приход" : "Расход") },
+    { header: "Контрагент", value: (i: any) => i.partner?.name ?? "" },
+    { header: "Сумма", value: (i: any) => Number(i.cash_received ?? i.total ?? 0) },
+    { header: "Основание", value: (i: any) => i.note ?? "" },
+  ];
+  const exportCsv = () => downloadCsv("касса", filtered, listColumns);
+  const printCash = () => printList("Касса", filtered, listColumns);
 
   return (
     <div className="space-y-5">
@@ -80,8 +83,11 @@ function CashPage() {
           <h1 className="text-2xl font-semibold">Касса и банк</h1>
           <p className="text-sm text-muted-foreground">ПКО/РКО и движения по расчётному счёту.</p>
         </div>
-        <Button variant="outline" className="ml-auto" onClick={exportCsv} disabled={!filtered.length}>
+        <Button variant="outline" className="ml-auto" onClick={exportCsv} disabled={!filtered.length} title="Выгрузить в Excel">
           <Download className="h-4 w-4 mr-1" /> Excel
+        </Button>
+        <Button variant="outline" onClick={printCash} disabled={!filtered.length} title="Печать списка / сохранить в PDF">
+          <Printer className="h-4 w-4 mr-1" /> Печать
         </Button>
       </div>
 
