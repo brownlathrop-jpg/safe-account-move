@@ -79,6 +79,7 @@ function ProductsPage() {
 
   const [dropFolder, setDropFolder] = useState<string | null>(null);
   const [deleteFolder, setDeleteFolder] = useState<FolderRow | null>(null);
+  const [deleteManyOpen, setDeleteManyOpen] = useState(false);
   const [page, setPage] = useState(0);
 
 
