@@ -66,6 +66,7 @@ const empty: Org = {
   bank_name: "", bank_bik: "", bank_corr_account: "", bank_account: "",
   director_name: "", accountant_name: "", taxation_system: "usn_6", is_primary: true,
   invoice_number_mask: "{YYYY}-{MM}-{DD}-{NNN}",
+  logo_url: null, print_name: "",
 };
 
 function SettingsPage() {
