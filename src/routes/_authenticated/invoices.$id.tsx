@@ -115,6 +115,7 @@ function InvoiceView() {
   const [printMode, setPrintMode] = useState<PrintMode>("standard");
   const [cashReceived, setCashReceived] = useState<number>(0);
   const [cashBasis, setCashBasis] = useState<string>("");
+  const [paymentMethod, setPaymentMethod] = useState<"cash" | "card">("cash");
 
   const doPrint = (mode: PrintMode) => {
     setPrintMode(mode);
@@ -132,6 +133,7 @@ function InvoiceView() {
     setNote(inv.note ?? "");
     setCashReceived(Number(inv.cash_received ?? 0));
     setCashBasis(inv.cash_basis ?? "");
+    setPaymentMethod(inv.payment_method === "card" ? "card" : "cash");
     setItems((inv.items ?? []).map((it: any) => ({
       id: it.id, product_id: it.product_id, name: it.name,
       quantity: Number(it.quantity), price: Number(it.price),
@@ -216,6 +218,7 @@ function InvoiceView() {
         warehouse_id: isShipment ? (warehouseId || null) : null,
         cash_received: isPKO ? cashReceived : null,
         cash_basis: isPKO ? (cashBasis || null) : null,
+        payment_method: paymentMethod,
       }).eq("id", id);
       if (upErr) throw upErr;
 
@@ -472,12 +475,29 @@ function InvoiceView() {
           )}
           {editable && <Button variant="outline" onClick={() => save.mutate()} disabled={save.isPending}><Save className="h-4 w-4 mr-1" /> Сохранить</Button>}
           {isShipment && kind === "outgoing" && inv.status !== "cancelled" && (
-            <KktReceiptButton
-              wsId={wsId}
-              invoiceId={id}
-              items={items.map((it) => ({ name: it.name, quantity: it.quantity, price: it.price, kind: it.kind }))}
-              fiscal={inv.fiscal}
-            />
+            <>
+              <Select value={paymentMethod} onValueChange={(v) => {
+                const m = v as "cash" | "card";
+                setPaymentMethod(m);
+                (db as any).from("invoices").update({ payment_method: m }).eq("id", id)
+                  .then(() => qc.invalidateQueries({ queryKey: ["invoice", id] }));
+              }}>
+                <SelectTrigger className="w-[170px] h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cash">Наличные</SelectItem>
+                  <SelectItem value="card">По терминалу</SelectItem>
+                </SelectContent>
+              </Select>
+              <KktReceiptButton
+                wsId={wsId}
+                invoiceId={id}
+                items={items.map((it) => ({ name: it.name, quantity: it.quantity, price: it.price, kind: it.kind }))}
+                fiscal={inv.fiscal}
+                defaultPaymentType={paymentMethod === "card" ? "electronically" : "cash"}
+              />
+            </>
           )}
           {isShipment && inv.status === "draft" && <Button onClick={() => setStatus.mutate("posted")}><CheckCircle2 className="h-4 w-4 mr-1" /> Провести</Button>}
           {isShipment && inv.status === "posted" && <Button variant="outline" onClick={() => setStatus.mutate("draft")}><FileEdit className="h-4 w-4 mr-1" /> Распровести</Button>}
