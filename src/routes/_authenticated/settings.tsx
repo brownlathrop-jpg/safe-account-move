@@ -246,8 +246,9 @@ function SettingsPage() {
           <InvoiceStatusesRef />
         </TabsContent>
 
-        <TabsContent value="import" className="mt-3">
+        <TabsContent value="import" className="mt-3 space-y-4">
           <Import1CPanel />
+          <PriceImportPanel />
         </TabsContent>
       </Tabs>
     </div>
