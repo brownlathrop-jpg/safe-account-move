@@ -198,6 +198,8 @@ function KudirPage() {
 
   const selected = useMemo(() => filterKudirByMode(rows, mode), [rows, mode]);
   const book = useMemo(() => buildKudir(selected, year), [selected, year]);
+  const contribBook = useMemo(() => buildContribBook(contribs, year), [contribs, year]);
+
   const years = useMemo(() => {
     const set = new Set<number>(rows.map((r) => Number(r.date.slice(0, 4))).filter(Boolean));
     set.add(new Date().getFullYear());
