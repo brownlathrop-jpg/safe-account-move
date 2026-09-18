@@ -284,19 +284,11 @@ function ProductsPage() {
   const removeFolder = useMutation({
     mutationFn: async (id: string) => {
       const folderIdsToDelete = descendantsOf(id);
-      const set = new Set(folderIdsToDelete);
-      const productIds = products.filter(p => p.folder_id && set.has(p.folder_id)).map(p => p.id);
-      const chunk = 25;
-      for (let i = 0; i < productIds.length; i += chunk) {
-        const res = await Promise.all(productIds.slice(i, i + chunk).map(pid => db.from("products").delete().eq("id", pid)));
-        const bad = res.find(r => r.error);
-        if (bad?.error) throw bad.error;
-      }
-      // удаляем сначала вложенные папки, затем саму
-      for (const fid of [...folderIdsToDelete].reverse()) {
-        const { error } = await db.from("product_folders").delete().eq("id", fid);
-        if (error) throw error;
-      }
+      // Удаляем одним массовым запросом вместо поштучного перебора.
+      const { error: prodErr } = await db.from("products").delete().in("folder_id", folderIdsToDelete);
+      if (prodErr) throw prodErr;
+      const { error: foldErr } = await db.from("product_folders").delete().in("id", folderIdsToDelete);
+      if (foldErr) throw foldErr;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["product_folders"] });
