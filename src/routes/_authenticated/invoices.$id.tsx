@@ -1220,9 +1220,8 @@ function InvoiceView() {
 
       <style>{`
         @media print {
-          @page { size: A4; margin: 15mm; }
-          @page landscape { size: A4 landscape; margin: 10mm; }
-          .invoice-print-landscape { page: landscape; max-width: none !important; }
+          @page { size: ${printMode === "torg12" || printMode === "upd" ? "A4 landscape; margin: 10mm" : "A4; margin: 15mm"}; }
+          .invoice-print-landscape { max-width: none !important; }
           body { background: white !important; }
           body * { visibility: hidden !important; }
           .invoice-print, .invoice-print * { visibility: visible !important; }
