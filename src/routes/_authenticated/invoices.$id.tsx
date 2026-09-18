@@ -480,7 +480,7 @@ function InvoiceView() {
         <div className="flex gap-2 items-center flex-wrap">
           {statuses.length > 0 && (
             <Select value={inv.status_id ?? undefined} onValueChange={(v) => setStatusId.mutate(v)}>
-              <SelectTrigger className="w-[180px] h-9">
+              <SelectTrigger className="w-[160px] h-9">
                 <div className="flex items-center gap-2">
                   <span
                     className="inline-block h-2.5 w-2.5 rounded-full"
@@ -501,64 +501,23 @@ function InvoiceView() {
               </SelectContent>
             </Select>
           )}
-          {isShipment && (
-            <Badge variant={inv.status === "posted" ? "default" : inv.status === "draft" ? "secondary" : "destructive"}>
-              Учёт: {inv.status === "posted" ? "Проведена" : inv.status === "draft" ? "Черновик" : "Отменена"}
-            </Badge>
-          )}
-          {editable && <Button variant="outline" onClick={() => save.mutate()} disabled={save.isPending}><Save className="h-4 w-4 mr-1" /> Сохранить</Button>}
+          {editable && <Button onClick={() => save.mutate()} disabled={save.isPending}><Save className="h-4 w-4 mr-1" /> Сохранить</Button>}
+          {isShipment && inv.status === "draft" && <Button variant="outline" onClick={() => setStatus.mutate("posted")}><CheckCircle2 className="h-4 w-4 mr-1" /> Провести</Button>}
           {isShipment && kind === "outgoing" && inv.status !== "cancelled" && (
-            <>
-              <Select value={paymentMethod} onValueChange={(v) => {
-                const m = v as "cash" | "card";
-                setPaymentMethod(m);
-                (db as any).from("invoices").update({ payment_method: m }).eq("id", id)
-                  .then(() => qc.invalidateQueries({ queryKey: ["invoice", id] }));
-              }}>
-                <SelectTrigger className="w-[170px] h-9">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="cash">Наличные</SelectItem>
-                  <SelectItem value="card">По терминалу</SelectItem>
-                </SelectContent>
-              </Select>
-              <KktReceiptButton
-                wsId={wsId}
-                invoiceId={id}
-                items={items.map((it) => ({
-                  name: it.name,
-                  quantity: it.quantity,
-                  price: it.quantity ? Math.round((lineNet(it) / it.quantity) * 100) / 100 : it.price,
-                  kind: it.kind,
-                }))}
-                fiscal={inv.fiscal}
-                isReturn={!!inv.is_return}
-                defaultPaymentType={paymentMethod === "card" ? "electronically" : "cash"}
-              />
-            </>
+            <KktReceiptButton
+              wsId={wsId}
+              invoiceId={id}
+              items={items.map((it) => ({
+                name: it.name,
+                quantity: it.quantity,
+                price: it.quantity ? Math.round((lineNet(it) / it.quantity) * 100) / 100 : it.price,
+                kind: it.kind,
+              }))}
+              fiscal={inv.fiscal}
+              isReturn={!!inv.is_return}
+              defaultPaymentType={paymentMethod === "card" ? "electronically" : "cash"}
+            />
           )}
-          {isShipment && inv.status === "draft" && <Button onClick={() => setStatus.mutate("posted")}><CheckCircle2 className="h-4 w-4 mr-1" /> Провести</Button>}
-          {isShipment && inv.status === "posted" && <Button variant="outline" onClick={() => setStatus.mutate("draft")}><FileEdit className="h-4 w-4 mr-1" /> Распровести</Button>}
-          {inv.status !== "cancelled" && (
-            <Button variant="outline" onClick={() => {
-              if (!confirm(`Отменить ${docTitleAccusative(docType, kind)}?`)) return;
-              setStatus.mutate("cancelled", { onSuccess: () => navigate({ to: "/invoices" }) });
-            }}><XCircle className="h-4 w-4 mr-1" /> Отменить</Button>
-          )}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline"><Copy className="h-4 w-4 mr-1" /> Создать <ChevronDown className="h-4 w-4 ml-1" /></Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => duplicate.mutate("copy")}>Копию этого документа</DropdownMenuItem>
-              {!isPKO && (
-                <DropdownMenuItem onClick={() => duplicate.mutate("return")}>
-                  {kind === "outgoing" ? "Возврат от покупателя" : "Возврат поставщику"}
-                </DropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline"><Printer className="h-4 w-4 mr-1" /> Печать <ChevronDown className="h-4 w-4 ml-1" /></Button>
@@ -579,6 +538,37 @@ function InvoiceView() {
                   <DropdownMenuItem onClick={() => doPrint("torg12")}>Товарная накладная ТОРГ-12</DropdownMenuItem>
                   <DropdownMenuItem onClick={() => doPrint("upd")}>Универсальный передаточный документ (УПД)</DropdownMenuItem>
                 </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline">Ещё <ChevronDown className="h-4 w-4 ml-1" /></Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {isShipment && inv.status === "posted" && (
+                <DropdownMenuItem onClick={() => setStatus.mutate("draft")}>
+                  <FileEdit className="h-4 w-4 mr-2" /> Распровести
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem onClick={() => duplicate.mutate("copy")}>
+                <Copy className="h-4 w-4 mr-2" /> Копия документа
+              </DropdownMenuItem>
+              {!isPKO && (
+                <DropdownMenuItem onClick={() => duplicate.mutate("return")}>
+                  <Copy className="h-4 w-4 mr-2" /> {kind === "outgoing" ? "Возврат от покупателя" : "Возврат поставщику"}
+                </DropdownMenuItem>
+              )}
+              {inv.status !== "cancelled" && (
+                <DropdownMenuItem
+                  className="text-destructive"
+                  onClick={() => {
+                    if (!confirm(`Отменить ${docTitleAccusative(docType, kind)}?`)) return;
+                    setStatus.mutate("cancelled", { onSuccess: () => navigate({ to: "/invoices" }) });
+                  }}
+                >
+                  <XCircle className="h-4 w-4 mr-2" /> Отменить документ
+                </DropdownMenuItem>
               )}
             </DropdownMenuContent>
           </DropdownMenu>
