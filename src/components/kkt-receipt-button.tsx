@@ -149,7 +149,7 @@ export function KktReceiptButton({
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Отмена</Button>
             <Button
-              disabled={print.isPending || total <= 0}
+              disabled={print.isPending || total <= 0 || !!mergeError}
               onClick={() =>
                 print.mutate(
                   { positions, paymentType, clientContact: contact.trim() || undefined, operationId: invoiceId },
