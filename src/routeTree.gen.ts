@@ -33,6 +33,8 @@ import { Route as AuthenticatedPartnerIdRouteImport } from './routes/_authentica
 import { Route as AuthenticatedInvoicesNewRouteImport } from './routes/_authenticated/invoices.new'
 import { Route as AuthenticatedInvoicesIdRouteImport } from './routes/_authenticated/invoices.$id'
 import { Route as AuthenticatedCashNewRouteImport } from './routes/_authenticated/cash.new'
+import { Route as AuthenticatedCashKudirRouteImport } from './routes/_authenticated/cash.kudir'
+import { Route as AuthenticatedCashBookRouteImport } from './routes/_authenticated/cash.book'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
@@ -157,6 +159,16 @@ const AuthenticatedCashNewRoute = AuthenticatedCashNewRouteImport.update({
   path: '/new',
   getParentRoute: () => AuthenticatedCashRoute,
 } as any)
+const AuthenticatedCashKudirRoute = AuthenticatedCashKudirRouteImport.update({
+  id: '/kudir',
+  path: '/kudir',
+  getParentRoute: () => AuthenticatedCashRoute,
+} as any)
+const AuthenticatedCashBookRoute = AuthenticatedCashBookRouteImport.update({
+  id: '/book',
+  path: '/book',
+  getParentRoute: () => AuthenticatedCashRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -173,6 +185,8 @@ export interface FileRoutesByFullPath {
   '/stock': typeof AuthenticatedStockRoute
   '/team': typeof AuthenticatedTeamRoute
   '/api/realtime': typeof ApiRealtimeRoute
+  '/cash/book': typeof AuthenticatedCashBookRoute
+  '/cash/kudir': typeof AuthenticatedCashKudirRoute
   '/cash/new': typeof AuthenticatedCashNewRoute
   '/invoices/$id': typeof AuthenticatedInvoicesIdRoute
   '/invoices/new': typeof AuthenticatedInvoicesNewRoute
@@ -195,6 +209,8 @@ export interface FileRoutesByTo {
   '/stock': typeof AuthenticatedStockRoute
   '/team': typeof AuthenticatedTeamRoute
   '/api/realtime': typeof ApiRealtimeRoute
+  '/cash/book': typeof AuthenticatedCashBookRoute
+  '/cash/kudir': typeof AuthenticatedCashKudirRoute
   '/cash/new': typeof AuthenticatedCashNewRoute
   '/invoices/$id': typeof AuthenticatedInvoicesIdRoute
   '/invoices/new': typeof AuthenticatedInvoicesNewRoute
@@ -222,6 +238,8 @@ export interface FileRoutesById {
   '/_authenticated/stock': typeof AuthenticatedStockRoute
   '/_authenticated/team': typeof AuthenticatedTeamRoute
   '/api/realtime': typeof ApiRealtimeRoute
+  '/_authenticated/cash/book': typeof AuthenticatedCashBookRoute
+  '/_authenticated/cash/kudir': typeof AuthenticatedCashKudirRoute
   '/_authenticated/cash/new': typeof AuthenticatedCashNewRoute
   '/_authenticated/invoices/$id': typeof AuthenticatedInvoicesIdRoute
   '/_authenticated/invoices/new': typeof AuthenticatedInvoicesNewRoute
@@ -249,6 +267,8 @@ export interface FileRouteTypes {
     | '/stock'
     | '/team'
     | '/api/realtime'
+    | '/cash/book'
+    | '/cash/kudir'
     | '/cash/new'
     | '/invoices/$id'
     | '/invoices/new'
@@ -271,6 +291,8 @@ export interface FileRouteTypes {
     | '/stock'
     | '/team'
     | '/api/realtime'
+    | '/cash/book'
+    | '/cash/kudir'
     | '/cash/new'
     | '/invoices/$id'
     | '/invoices/new'
@@ -297,6 +319,8 @@ export interface FileRouteTypes {
     | '/_authenticated/stock'
     | '/_authenticated/team'
     | '/api/realtime'
+    | '/_authenticated/cash/book'
+    | '/_authenticated/cash/kudir'
     | '/_authenticated/cash/new'
     | '/_authenticated/invoices/$id'
     | '/_authenticated/invoices/new'
@@ -486,15 +510,33 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCashNewRouteImport
       parentRoute: typeof AuthenticatedCashRoute
     }
+    '/_authenticated/cash/kudir': {
+      id: '/_authenticated/cash/kudir'
+      path: '/kudir'
+      fullPath: '/cash/kudir'
+      preLoaderRoute: typeof AuthenticatedCashKudirRouteImport
+      parentRoute: typeof AuthenticatedCashRoute
+    }
+    '/_authenticated/cash/book': {
+      id: '/_authenticated/cash/book'
+      path: '/book'
+      fullPath: '/cash/book'
+      preLoaderRoute: typeof AuthenticatedCashBookRouteImport
+      parentRoute: typeof AuthenticatedCashRoute
+    }
   }
 }
 
 interface AuthenticatedCashRouteChildren {
+  AuthenticatedCashBookRoute: typeof AuthenticatedCashBookRoute
+  AuthenticatedCashKudirRoute: typeof AuthenticatedCashKudirRoute
   AuthenticatedCashNewRoute: typeof AuthenticatedCashNewRoute
   AuthenticatedCashIndexRoute: typeof AuthenticatedCashIndexRoute
 }
 
 const AuthenticatedCashRouteChildren: AuthenticatedCashRouteChildren = {
+  AuthenticatedCashBookRoute: AuthenticatedCashBookRoute,
+  AuthenticatedCashKudirRoute: AuthenticatedCashKudirRoute,
   AuthenticatedCashNewRoute: AuthenticatedCashNewRoute,
   AuthenticatedCashIndexRoute: AuthenticatedCashIndexRoute,
 }
