@@ -393,11 +393,13 @@ export async function kktOpenShift(s: KktSettings) {
 export async function printSellReceipt(s: KktSettings, input: KktReceiptInput): Promise<KktFiscalResult> {
   const task = buildSellReceipt(s, input);
   // Смена должна быть открыта, иначе чек по закону пробить нельзя.
-  const info = await kktDeviceInfo(s).catch(() => null);
-  if (info?.shiftState === "expired") {
+  // Если окно печати только что проверило смену и она открыта — не опрашиваем
+  // кассу повторно: каждый лишний запрос к драйверу добавляет секунды ожидания.
+  const state = input.knownShiftState ?? (await kktShiftState(s).catch(() => "unknown" as const));
+  if (state === "expired") {
     throw new KktError("Смена открыта больше 24 часов — закройте смену на кассе, затем пробейте чек.");
   }
-  if (info?.shiftState === "closed") await kktOpenShift(s);
+  if (state === "closed") await kktOpenShift(s);
   const res: any = await runTask(s.url, task);
   const doc = res?.fiscalParams ?? res ?? {};
   return {
