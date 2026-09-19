@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
 import { db } from "@/integrations/db";
@@ -235,6 +236,14 @@ function PartnersPage() {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="h-8 w-8 py-1">
+                <Checkbox
+                  checked={filtered.length > 0 && filtered.every((p) => selected.has(p.id))}
+                  onCheckedChange={(on) =>
+                    setSelected(on ? new Set(filtered.map((p) => p.id)) : new Set())
+                  }
+                />
+              </TableHead>
               <TableHead className="h-8 py-1">Название</TableHead>
               {kindFilter === "all" && <TableHead className="h-8 py-1">Тип</TableHead>}
               <TableHead className="h-8 py-1">ИНН</TableHead>
