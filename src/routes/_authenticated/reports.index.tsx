@@ -398,7 +398,100 @@ function ReportsPage() {
           <TabsTrigger value="sales">Продажи</TabsTrigger>
           <TabsTrigger value="profit">Прибыль по товарам</TabsTrigger>
           <TabsTrigger value="stock">Склад</TabsTrigger>
+          <TabsTrigger value="turnover">Оборотная ведомость</TabsTrigger>
+          <TabsTrigger value="managers">По менеджерам</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="turnover" className="space-y-4">
+          {periodFilter}
+          <Card className="p-0 overflow-hidden">
+            <div className="flex justify-end p-3">
+              <Button variant="outline" size="sm" onClick={() => downloadCsv("оборотная-ведомость", turnover, [
+                { header: "Товар", value: r => r.name },
+                { header: "Ед.", value: r => r.unit },
+                { header: "Остаток на начало", value: r => r.open },
+                { header: "Приход", value: r => r.inQty },
+                { header: "Расход", value: r => r.outQty },
+                { header: "Остаток на конец", value: r => r.close },
+                { header: "Сумма на конец", value: r => (r.close * r.cost).toFixed(2) },
+              ])}><Download className="h-4 w-4 mr-1" /> Excel</Button>
+            </div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Товар</TableHead>
+                  <TableHead>Ед.</TableHead>
+                  <TableHead className="text-right">На начало</TableHead>
+                  <TableHead className="text-right">Приход</TableHead>
+                  <TableHead className="text-right">Расход</TableHead>
+                  <TableHead className="text-right">На конец</TableHead>
+                  <TableHead className="text-right">Сумма на конец</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {turnover.length === 0 && (
+                  <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-10">За период движений нет</TableCell></TableRow>
+                )}
+                {turnover.slice(0, 500).map(r => (
+                  <TableRow key={r.id}>
+                    <TableCell>{r.name}</TableCell>
+                    <TableCell>{r.unit}</TableCell>
+                    <TableCell className="text-right">{r.open}</TableCell>
+                    <TableCell className="text-right text-emerald-600">{r.inQty || ""}</TableCell>
+                    <TableCell className="text-right text-destructive">{r.outQty || ""}</TableCell>
+                    <TableCell className={`text-right font-medium ${r.close < 0 ? "text-destructive" : ""}`}>{r.close}</TableCell>
+                    <TableCell className="text-right">{fmt.format(r.close * r.cost)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+            {turnover.length > 500 && (
+              <div className="p-3 text-xs text-muted-foreground">Показаны первые 500 позиций — полный список в выгрузке Excel.</div>
+            )}
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="managers" className="space-y-4">
+          {periodFilter}
+          <Card className="p-0 overflow-hidden">
+            <div className="flex justify-end p-3">
+              <Button variant="outline" size="sm" onClick={() => downloadCsv("продажи-по-менеджерам", byManager, [
+                { header: "Сотрудник", value: r => r.name },
+                { header: "Документов", value: r => r.docs.size },
+                { header: "Выручка", value: r => r.revenue.toFixed(2) },
+                { header: "Себестоимость", value: r => r.cost.toFixed(2) },
+                { header: "Прибыль", value: r => (r.revenue - r.cost).toFixed(2) },
+              ])}><Download className="h-4 w-4 mr-1" /> Excel</Button>
+            </div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Сотрудник</TableHead>
+                  <TableHead className="text-right">Документов</TableHead>
+                  <TableHead className="text-right">Выручка</TableHead>
+                  <TableHead className="text-right">Себестоимость</TableHead>
+                  <TableHead className="text-right">Прибыль</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {byManager.length === 0 && (
+                  <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-10">За период продаж нет</TableCell></TableRow>
+                )}
+                {byManager.map(r => (
+                  <TableRow key={r.name}>
+                    <TableCell>{r.name}</TableCell>
+                    <TableCell className="text-right">{r.docs.size}</TableCell>
+                    <TableCell className="text-right">{fmt.format(r.revenue)}</TableCell>
+                    <TableCell className="text-right">{fmt.format(r.cost)}</TableCell>
+                    <TableCell className={`text-right font-medium ${r.revenue - r.cost >= 0 ? "text-emerald-600" : "text-destructive"}`}>
+                      {fmt.format(r.revenue - r.cost)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </Card>
+        </TabsContent>
 
         <TabsContent value="sales" className="space-y-4">
           {periodFilter}
