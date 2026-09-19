@@ -29,7 +29,7 @@ export function Pko({
   vatNote = "без налога (НДС)",
   application,
 }: {
-  org?: (PrintBrand & { okpo?: string | null }) | null;
+  org?: (PrintBrand & { okpo?: string | null; director_name?: string | null }) | null;
   number: string;
   date: string;
   partnerName?: string | null;
