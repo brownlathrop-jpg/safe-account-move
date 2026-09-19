@@ -707,7 +707,7 @@ function InvoiceView() {
         {inv.parent_id && (
           <p className="text-sm text-muted-foreground mt-1">
             На основании{" "}
-            {docTitleOf(parent?.doc_type, parent?.kind).toLowerCase()}
+            {docTitleOf(parent?.doc_type, parent?.kind, parent?.is_return, parent?.number).toLowerCase()}
             {" — "}
             <Link to="/invoices/$id" params={{ id: inv.parent_id }} className="text-primary hover:underline">
               {parent?.number ? `№ ${parent.number}` : "открыть"}
