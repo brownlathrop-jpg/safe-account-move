@@ -150,3 +150,16 @@ export const teamSetOrg = createServerFn({ method: "POST" })
       return { data: null, error: { message: e?.message ?? String(e) } };
     }
   });
+
+export const teamDocAuthors = createServerFn({ method: "POST" })
+  .inputValidator((input: { workspaceId: string }) => input)
+  .handler(async ({ data }) => {
+    try {
+      const { user, team } = await ctx();
+      const role = await team.roleIn(user.id, data.workspaceId);
+      if (!role) throw new Error("Нет доступа к этой базе");
+      return { data: await team.docAuthors(data.workspaceId), error: null };
+    } catch (e: any) {
+      return { data: null, error: { message: e?.message ?? String(e) } };
+    }
+  });

@@ -15,6 +15,7 @@ import { downloadCsv } from "@/lib/export-csv";
 import { fetchBalances } from "@/lib/stock";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useOrganizations } from "@/lib/organizations";
+import { teamDocAuthors } from "@/lib/team.functions";
 
 export const Route = createFileRoute("/_authenticated/reports/")({
   head: () => ({
@@ -286,6 +287,73 @@ function ReportsPage() {
 
   const stockTotal = useMemo(() => stockRows.reduce((s, r) => s + r.qty * r.cost, 0), [stockRows]);
 
+  // ------------------------------------------------------- оборотная ведомость по складу
+  const { data: movements = [] } = useQuery({
+    queryKey: ["stock-movements-report", wsId],
+    enabled: !!wsId,
+    queryFn: async () => (await (db as any).from("stock_movements")
+      .select("product_id,qty,moved_at").eq("workspace_id", wsId)).data ?? [],
+  });
+
+  /** Начальный остаток, приход, расход и конечный остаток за период. */
+  const turnover = useMemo(() => {
+    const m = new Map<string, { id: string; name: string; unit: string; cost: number; open: number; inQty: number; outQty: number }>();
+    const row = (pid: string) => {
+      const p = productById.get(pid);
+      const cur = m.get(pid) ?? {
+        id: pid, name: p?.name ?? "Товар удалён", unit: p?.unit ?? "", cost: Number(p?.cost ?? 0),
+        open: 0, inQty: 0, outQty: 0,
+      };
+      m.set(pid, cur);
+      return cur;
+    };
+    for (const mv of movements as any[]) {
+      const pid = String(mv.product_id ?? "");
+      if (!pid) continue;
+      const day = String(mv.moved_at ?? "").slice(0, 10);
+      const qty = Number(mv.qty ?? 0);
+      if (from && day < from) { row(pid).open += qty; continue; }
+      if (to && day > to) continue;
+      const r = row(pid);
+      if (qty >= 0) r.inQty += qty; else r.outQty += -qty;
+    }
+    return [...m.values()]
+      .map(r => ({ ...r, close: r.open + r.inQty - r.outQty }))
+      .filter(r => Math.abs(r.open) > 0.0001 || r.inQty > 0.0001 || r.outQty > 0.0001 || Math.abs(r.close) > 0.0001)
+      .sort((a, b) => (b.inQty + b.outQty) - (a.inQty + a.outQty));
+  }, [movements, productById, from, to]);
+
+  // ------------------------------------------------------- продажи по менеджерам
+  const { data: authors = [] } = useQuery({
+    queryKey: ["doc-authors", wsId],
+    enabled: !!wsId,
+    queryFn: async () => {
+      const res = await teamDocAuthors({ data: { workspaceId: wsId! } });
+      if (res.error) return [];
+      return (res.data ?? []) as { doc_id: string; user_email: string | null }[];
+    },
+  });
+
+  const authorByDoc = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const a of authors) m.set(String(a.doc_id), a.user_email || "—");
+    return m;
+  }, [authors]);
+
+  const byManager = useMemo(() => {
+    const m = new Map<string, { name: string; docs: Set<string>; revenue: number; cost: number }>();
+    for (const r of soldItems) {
+      const name = authorByDoc.get(String(r.invoice_id)) ?? "Автор неизвестен";
+      const cur = m.get(name) ?? { name, docs: new Set<string>(), revenue: 0, cost: 0 };
+      cur.revenue += r.revenue;
+      cur.cost += r.cost;
+      cur.docs.add(String(r.invoice_id));
+      m.set(name, cur);
+    }
+    return [...m.values()].sort((a, b) => b.revenue - a.revenue);
+  }, [soldItems, authorByDoc]);
+
+
   const periodFilter = (
     <Card className="p-4 flex flex-wrap gap-4 items-end">
       <div className="space-y-1">
@@ -330,7 +398,100 @@ function ReportsPage() {
           <TabsTrigger value="sales">Продажи</TabsTrigger>
           <TabsTrigger value="profit">Прибыль по товарам</TabsTrigger>
           <TabsTrigger value="stock">Склад</TabsTrigger>
+          <TabsTrigger value="turnover">Оборотная ведомость</TabsTrigger>
+          <TabsTrigger value="managers">По менеджерам</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="turnover" className="space-y-4">
+          {periodFilter}
+          <Card className="p-0 overflow-hidden">
+            <div className="flex justify-end p-3">
+              <Button variant="outline" size="sm" onClick={() => downloadCsv("оборотная-ведомость", turnover, [
+                { header: "Товар", value: r => r.name },
+                { header: "Ед.", value: r => r.unit },
+                { header: "Остаток на начало", value: r => r.open },
+                { header: "Приход", value: r => r.inQty },
+                { header: "Расход", value: r => r.outQty },
+                { header: "Остаток на конец", value: r => r.close },
+                { header: "Сумма на конец", value: r => (r.close * r.cost).toFixed(2) },
+              ])}><Download className="h-4 w-4 mr-1" /> Excel</Button>
+            </div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Товар</TableHead>
+                  <TableHead>Ед.</TableHead>
+                  <TableHead className="text-right">На начало</TableHead>
+                  <TableHead className="text-right">Приход</TableHead>
+                  <TableHead className="text-right">Расход</TableHead>
+                  <TableHead className="text-right">На конец</TableHead>
+                  <TableHead className="text-right">Сумма на конец</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {turnover.length === 0 && (
+                  <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-10">За период движений нет</TableCell></TableRow>
+                )}
+                {turnover.slice(0, 500).map(r => (
+                  <TableRow key={r.id}>
+                    <TableCell>{r.name}</TableCell>
+                    <TableCell>{r.unit}</TableCell>
+                    <TableCell className="text-right">{r.open}</TableCell>
+                    <TableCell className="text-right text-emerald-600">{r.inQty || ""}</TableCell>
+                    <TableCell className="text-right text-destructive">{r.outQty || ""}</TableCell>
+                    <TableCell className={`text-right font-medium ${r.close < 0 ? "text-destructive" : ""}`}>{r.close}</TableCell>
+                    <TableCell className="text-right">{fmt.format(r.close * r.cost)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+            {turnover.length > 500 && (
+              <div className="p-3 text-xs text-muted-foreground">Показаны первые 500 позиций — полный список в выгрузке Excel.</div>
+            )}
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="managers" className="space-y-4">
+          {periodFilter}
+          <Card className="p-0 overflow-hidden">
+            <div className="flex justify-end p-3">
+              <Button variant="outline" size="sm" onClick={() => downloadCsv("продажи-по-менеджерам", byManager, [
+                { header: "Сотрудник", value: r => r.name },
+                { header: "Документов", value: r => r.docs.size },
+                { header: "Выручка", value: r => r.revenue.toFixed(2) },
+                { header: "Себестоимость", value: r => r.cost.toFixed(2) },
+                { header: "Прибыль", value: r => (r.revenue - r.cost).toFixed(2) },
+              ])}><Download className="h-4 w-4 mr-1" /> Excel</Button>
+            </div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Сотрудник</TableHead>
+                  <TableHead className="text-right">Документов</TableHead>
+                  <TableHead className="text-right">Выручка</TableHead>
+                  <TableHead className="text-right">Себестоимость</TableHead>
+                  <TableHead className="text-right">Прибыль</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {byManager.length === 0 && (
+                  <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-10">За период продаж нет</TableCell></TableRow>
+                )}
+                {byManager.map(r => (
+                  <TableRow key={r.name}>
+                    <TableCell>{r.name}</TableCell>
+                    <TableCell className="text-right">{r.docs.size}</TableCell>
+                    <TableCell className="text-right">{fmt.format(r.revenue)}</TableCell>
+                    <TableCell className="text-right">{fmt.format(r.cost)}</TableCell>
+                    <TableCell className={`text-right font-medium ${r.revenue - r.cost >= 0 ? "text-emerald-600" : "text-destructive"}`}>
+                      {fmt.format(r.revenue - r.cost)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </Card>
+        </TabsContent>
 
         <TabsContent value="sales" className="space-y-4">
           {periodFilter}

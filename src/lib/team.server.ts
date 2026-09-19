@@ -263,3 +263,18 @@ export async function setMemberOrg(workspaceId: string, memberId: string, orgId:
     `;
   }
 }
+
+/**
+ * Авторы документов базы: doc_id → e-mail того, кто создал документ.
+ * Берём самую раннюю запись истории с операцией insert.
+ */
+export async function docAuthors(workspaceId: string, table = "invoices") {
+  const s = sql();
+  const rows = await s`
+    select doc_id, min(user_email) as user_email
+    from document_log
+    where workspace_id = ${workspaceId} and doc_table = ${table} and op = 'insert'
+    group by doc_id
+  `;
+  return rows as unknown as { doc_id: string; user_email: string | null }[];
+}
