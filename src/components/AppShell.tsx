@@ -8,17 +8,34 @@ import { WorkspaceSwitcher } from "@/components/WorkspaceSwitcher";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import { useRealtime } from "@/hooks/use-realtime";
 
-const nav = [
-  { to: "/dashboard", label: "Аналитика", icon: LayoutDashboard },
-  { to: "/products", label: "Товары и услуги", icon: Package },
-  { to: "/stock", label: "Склад", icon: Warehouse },
-  { to: "/invoices", label: "Документы", icon: FileText },
+type NavItem = { to: string; label: string; icon: typeof FileText };
+type NavGroup = { title: string; items: NavItem[] };
 
-  { to: "/partners", label: "Контрагенты", icon: Users },
-  { to: "/reports", label: "Отчёты", icon: BarChart3 },
-  { to: "/team", label: "Сотрудники", icon: UserCog },
-  { to: "/settings", label: "Настройки", icon: Settings },
-] as const;
+const groups: NavGroup[] = [
+  {
+    title: "Работа",
+    items: [
+      { to: "/invoices", label: "Документы", icon: FileText },
+      { to: "/products", label: "Товары и услуги", icon: Package },
+      { to: "/stock", label: "Склад", icon: Warehouse },
+      { to: "/partners", label: "Контрагенты", icon: Users },
+    ],
+  },
+  {
+    title: "Аналитика",
+    items: [
+      { to: "/dashboard", label: "Сводка", icon: LayoutDashboard },
+      { to: "/reports", label: "Отчёты и учёт", icon: BarChart3 },
+    ],
+  },
+  {
+    title: "Управление",
+    items: [
+      { to: "/team", label: "Сотрудники", icon: UserCog },
+      { to: "/settings", label: "Настройки", icon: Settings },
+    ],
+  },
+];
 
 export function AppShell({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
@@ -27,9 +44,12 @@ export function AppShell({ children }: { children: ReactNode }) {
   useEffect(() => {
     db.auth.getUser().then(({ data }) => setIsAdmin(!!(data.user?.user_metadata as any)?.is_admin));
   }, []);
-  const items = isAdmin
-    ? [...nav, { to: "/admin", label: "Админка", icon: Shield } as const]
-    : nav;
+  const navGroups: NavGroup[] = isAdmin
+    ? groups.map((g) => (g.title === "Управление"
+        ? { ...g, items: [...g.items, { to: "/admin", label: "Админка", icon: Shield }] }
+        : g))
+    : groups;
+
   const qc = useQueryClient();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
