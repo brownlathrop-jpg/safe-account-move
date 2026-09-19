@@ -108,7 +108,11 @@ export function PaymentsCard({
     },
   });
 
-  const paid = useMemo(() => payments.reduce((s, p) => s + signedPayment(p as any), 0), [payments]);
+  // Оплата в сторону документа увеличивает оплаченное, обратная (возврат денег) — уменьшает.
+  const paid = useMemo(
+    () => payments.reduce((s, p) => s + (p.direction === direction ? 1 : -1) * Number(p.amount || 0), 0),
+    [payments, direction],
+  );
   const left = Math.max(0, Number(total || 0) - paid);
 
   const triggerPkoPrint = () => {

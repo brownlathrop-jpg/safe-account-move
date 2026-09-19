@@ -20,6 +20,7 @@ import {
   type KudirContrib, type KudirContribKind, type KudirMode, type KudirRow,
 } from "@/lib/kudir";
 import { useOrganizations, useMyOrgId, pickOrg } from "@/lib/organizations";
+import { isAccounted } from "@/lib/accounting";
 
 
 export const Route = createFileRoute("/_authenticated/reports/kudir")({
