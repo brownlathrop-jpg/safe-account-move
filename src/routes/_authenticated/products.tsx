@@ -230,18 +230,29 @@ function ProductsPage() {
     return { parent_id: null };
   };
 
-  // Папка внутри раздела «Услуги» (на любой глубине) — новая позиция там по умолчанию услуга.
-  const isInServiceTree = (folderId: string | null): boolean => {
-    if (!folderId || !serviceRootFolder) return false;
+  // Папка внутри указанного корня (на любой глубине).
+  const isInTree = (folderId: string | null, rootId: string | null | undefined): boolean => {
+    if (!folderId || !rootId) return false;
     const byId = new Map(folders.map(f => [f.id, f] as const));
     let cur = byId.get(folderId);
     let guard = 0;
     while (cur && guard++ < 50) {
-      if (cur.id === serviceRootFolder.id) return true;
+      if (cur.id === rootId) return true;
       cur = cur.parent_id ? byId.get(cur.parent_id) : undefined;
     }
     return false;
   };
+  // Папка внутри раздела «Услуги» (на любой глубине) — новая позиция там по умолчанию услуга.
+  const isInServiceTree = (folderId: string | null): boolean => isInTree(folderId, serviceRootFolder?.id);
+  // Вид позиции по папке: в разделе «Услуги» — услуга, в «Товары» — товар, иначе не меняем.
+  const kindForFolder = (folderId: string | null): "product" | "service" | null => {
+    if (isInServiceTree(folderId)) return "service";
+    if (folderId && serviceRootFolder && folderId === serviceRootFolder.id) return "service";
+    if (isInTree(folderId, productRootFolder?.id)) return "product";
+    if (folderId && productRootFolder && folderId === productRootFolder.id) return "product";
+    return null;
+  };
+
 
   const descendantsOf = (id: string): string[] => {
     const result: string[] = [];
@@ -568,8 +579,12 @@ function ProductsPage() {
   const moveProducts = useMutation({
     mutationFn: async ({ ids, folderId }: { ids: string[]; folderId: string | null }) => {
       if (!ids.length) throw new Error("Не выбраны товары");
+      // Вид позиции подстраивается под раздел: папка услуг — услуга, папка товаров — товар.
+      const kind = kindForFolder(folderId);
+      const patch: Record<string, unknown> = { folder_id: folderId };
+      if (kind) patch.kind = kind;
       // Один массовый запрос вместо поштучного перебора.
-      const { error } = await db.from("products").update({ folder_id: folderId } as never).in("id", ids);
+      const { error } = await db.from("products").update(patch as never).in("id", ids);
       if (error) throw error;
       return ids.length;
     },
@@ -587,6 +602,15 @@ function ProductsPage() {
       if (!ids.length) throw new Error("Не выбраны папки");
       const { error } = await db.from("product_folders").update({ parent_id: parentId } as never).in("id", ids);
       if (error) throw error;
+      // Папка переехала в другой раздел — позиции внутри меняют вид (товар/услуга).
+      const kind = kindForFolder(parentId);
+      if (kind) {
+        const inner = [...new Set(ids.flatMap(id => descendantsOf(id)))];
+        const innerProducts = products.filter(p => p.folder_id && inner.includes(p.folder_id) && p.kind !== kind).map(p => p.id);
+        if (innerProducts.length) {
+          await db.from("products").update({ kind } as never).in("id", innerProducts);
+        }
+      }
       return { ids, parentId };
     },
     onSuccess: ({ ids, parentId }) => {
@@ -594,11 +618,13 @@ function ProductsPage() {
       qc.setQueryData(["product_folders", wsId], (old?: FolderRow[]) =>
         old ? old.map(f => (moved.has(f.id) ? { ...f, parent_id: parentId } : f)) : old);
       qc.invalidateQueries({ queryKey: ["product_folders"] });
+      qc.invalidateQueries({ queryKey: ["products"] });
       setSelectedFolderIds([]);
       toast.success(ids.length > 1 ? `Перенесено папок: ${ids.length}` : "Папка перенесена");
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
 
   // Папки, запрещённые как приёмник для перетаскиваемых папок (сами себя и своё содержимое).
   const forbiddenTargets = (draggedFolders: string[]) => {
