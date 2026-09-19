@@ -26,8 +26,8 @@ export const Route = createFileRoute("/_authenticated/partners")({
   component: PartnersPage,
 });
 
-type PartnerKind = "customer" | "supplier" | "employee";
-const KIND_LABELS: Record<PartnerKind, string> = { customer: "Покупатель", supplier: "Поставщик", employee: "Сотрудник" };
+type PartnerKind = "customer" | "supplier" | "employee" | "other";
+const KIND_LABELS: Record<PartnerKind, string> = { customer: "Покупатель", supplier: "Поставщик", employee: "Сотрудник", other: "Прочее" };
 type Partner = {
   id: string;
   kind: PartnerKind;
@@ -133,6 +133,7 @@ function PartnersPage() {
     customer: partners.filter(p => p.kind === "customer").length,
     supplier: partners.filter(p => p.kind === "supplier").length,
     employee: partners.filter(p => p.kind === "employee").length,
+    other: partners.filter(p => p.kind === "other").length,
   }), [partners]);
 
   const listColumns: CsvColumn<Partner>[] = [
@@ -170,10 +171,11 @@ function PartnersPage() {
       </div>
 
       <Tabs value={kindFilter} onValueChange={(v) => setKindFilter(v as any)}>
-        <TabsList>
+        <TabsList className="flex-wrap h-auto">
           <TabsTrigger value="customer">Покупатели ({counts.customer})</TabsTrigger>
           <TabsTrigger value="supplier">Поставщики ({counts.supplier})</TabsTrigger>
           <TabsTrigger value="employee">Сотрудники ({counts.employee})</TabsTrigger>
+          <TabsTrigger value="other">Прочее ({counts.other})</TabsTrigger>
           <TabsTrigger value="all">Все ({counts.all})</TabsTrigger>
         </TabsList>
       </Tabs>
@@ -206,7 +208,7 @@ function PartnersPage() {
                   <Link to="/partner/$id" params={{ id: p.id }} className="text-primary hover:underline">{p.name}</Link>
                 </TableCell>
                 {kindFilter === "all" && (
-                  <TableCell className="py-1"><Badge variant={p.kind === "customer" ? "default" : p.kind === "employee" ? "outline" : "secondary"}>{KIND_LABELS[p.kind]}</Badge></TableCell>
+                  <TableCell className="py-1"><Badge variant={p.kind === "customer" ? "default" : p.kind === "employee" ? "outline" : p.kind === "other" ? "ghost" : "secondary"}>{KIND_LABELS[p.kind]}</Badge></TableCell>
                 )}
                 <TableCell className="py-1">{p.inn || "—"}</TableCell>
                 <TableCell className="py-1">{p.phone || "—"}</TableCell>
@@ -237,6 +239,7 @@ function PartnersPage() {
                       <SelectItem value="customer">Покупатель</SelectItem>
                       <SelectItem value="supplier">Поставщик</SelectItem>
                       <SelectItem value="employee">Сотрудник</SelectItem>
+                      <SelectItem value="other">Прочее</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
