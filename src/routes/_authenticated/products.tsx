@@ -319,20 +319,35 @@ function ProductsPage() {
       // Удаляем папки рекурсивно: потомки + содержимое.
       const allFolderIds = new Set<string>();
       folderIds.forEach(id => descendantsOf(id).forEach(d => allFolderIds.add(d)));
+      let keptFolders: string[] = [];
+      let kept = 0;
+      let removedProducts: string[] = [];
       if (allFolderIds.size) {
         const folderIdList = [...allFolderIds];
-        const { error: prodErr } = await db.from("products").delete().in("folder_id", folderIdList);
-        if (prodErr) throw prodErr;
-        const { error: foldErr } = await db.from("product_folders").delete().in("id", folderIdList);
-        if (foldErr) throw foldErr;
+        const { data: delProds, error: prodErr } = await db.from("products").delete().in("folder_id", folderIdList);
+        if (prodErr && !(delProds as any[])?.length) throw prodErr;
+        // Папки с оставшимися товарами (есть движения/документы) не удаляем.
+        const { data: rest } = await (db as any)
+          .from("products").select("id,folder_id").in("folder_id", folderIdList);
+        keptFolders = [...new Set(((rest ?? []) as { folder_id: string | null }[])
+          .map(r => r.folder_id).filter(Boolean) as string[])];
+        kept += (rest ?? []).length;
+        keptFolders.forEach(id => allFolderIds.delete(id));
+        const toDelete = [...allFolderIds];
+        if (toDelete.length) {
+          const { error: foldErr } = await db.from("product_folders").delete().in("id", toDelete);
+          if (foldErr) throw foldErr;
+        }
       }
       if (productIds.length) {
-        const { error } = await db.from("products").delete().in("id", productIds);
-        if (error) throw error;
+        const { data, error } = await db.from("products").delete().in("id", productIds);
+        if (error && !(data as any[])?.length) throw error;
+        removedProducts = ((data ?? []) as { id: string }[]).map(r => String(r.id));
+        kept += productIds.length - removedProducts.length;
       }
-      return { productIds, folderIds: [...allFolderIds] };
+      return { productIds: removedProducts, folderIds: [...allFolderIds], kept };
     },
-    onSuccess: ({ productIds, folderIds }) => {
+    onSuccess: ({ productIds, folderIds, kept }) => {
       const goneFolders = new Set(folderIds);
       const goneProducts = new Set(productIds);
       qc.setQueryData(["product_folders", wsId], (old?: FolderRow[]) =>
@@ -347,7 +362,11 @@ function ProductsPage() {
       setSelectedIds([]);
       setSelectedFolderIds([]);
       setDeleteManyOpen(false);
-      toast.success("Удалено");
+      if (kept > 0) {
+        toast.warning(`Удалено. Осталось ${kept} позиц. — по ним есть движения или документы, удалить их нельзя`);
+      } else {
+        toast.success("Удалено");
+      }
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -398,13 +417,21 @@ function ProductsPage() {
     mutationFn: async (id: string) => {
       const folderIdsToDelete = descendantsOf(id);
       // Удаляем одним массовым запросом вместо поштучного перебора.
-      const { error: prodErr } = await db.from("products").delete().in("folder_id", folderIdsToDelete);
-      if (prodErr) throw prodErr;
-      const { error: foldErr } = await db.from("product_folders").delete().in("id", folderIdsToDelete);
-      if (foldErr) throw foldErr;
-      return folderIdsToDelete;
+      const { data: delProds, error: prodErr } = await db.from("products").delete().in("folder_id", folderIdsToDelete);
+      if (prodErr && !(delProds as any[])?.length) throw prodErr;
+      // Папки, в которых остались товары с движениями/документами, оставляем.
+      const { data: rest } = await (db as any)
+        .from("products").select("id,folder_id").in("folder_id", folderIdsToDelete);
+      const keptFolders = new Set(((rest ?? []) as { folder_id: string | null }[])
+        .map(r => r.folder_id).filter(Boolean) as string[]);
+      const toDelete = folderIdsToDelete.filter(f => !keptFolders.has(f));
+      if (toDelete.length) {
+        const { error: foldErr } = await db.from("product_folders").delete().in("id", toDelete);
+        if (foldErr) throw foldErr;
+      }
+      return { gone: toDelete, kept: (rest ?? []).length };
     },
-    onSuccess: (folderIdsToDelete: string[]) => {
+    onSuccess: ({ gone: folderIdsToDelete, kept }: { gone: string[]; kept: number }) => {
       const gone = new Set(folderIdsToDelete);
       // Сразу убираем удалённое из кэша, чтобы список не ждал ответа сервера.
       qc.setQueryData(["product_folders", wsId], (old?: FolderRow[]) =>
@@ -416,7 +443,11 @@ function ProductsPage() {
       if (selectedFolder !== ALL && selectedFolder !== ROOT) setSelectedFolder(ALL);
       setDeleteFolder(null);
       setSelectedFolderIds([]);
-      toast.success("Папка и её содержимое удалены");
+      if (kept > 0) {
+        toast.warning(`Удалено. Осталось ${kept} позиц. — по ним есть движения или документы, папка сохранена`);
+      } else {
+        toast.success("Папка и её содержимое удалены");
+      }
     },
     onError: (e: Error) => toast.error(e.message),
   });
