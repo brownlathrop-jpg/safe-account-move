@@ -508,6 +508,7 @@ export async function runQuery(
 
     // delete
     await assertWrite(await affectedWorkspaces(s, table, spec.filters ?? [], scope));
+    if (table === "products") await assertProductsUnused(s, spec.filters ?? [], scope);
     const buf = new SqlBuf();
     buf.text = `delete from ${table}`;
     applyWhere(buf, spec.filters ?? [], scope, table);
