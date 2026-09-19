@@ -22,6 +22,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { costBatches } from "@/lib/cost.functions";
 import { usePriceTypes, useMyPriceTypeId, priceOf } from "@/lib/price-types";
 import { usePrintBrand } from "@/hooks/use-print-brand";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 
 export const Route = createFileRoute("/_authenticated/products")({
