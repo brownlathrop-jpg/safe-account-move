@@ -89,6 +89,38 @@ function KudirPage() {
     onError: (e: any) => toast.error(e?.message ?? "Не удалось сохранить взносы"),
   });
 
+  // Реквизиты патента для шапки книги учёта доходов на ПСН.
+  const { data: savedPatent } = useQuery({
+    queryKey: ["kudir-patent", wsId],
+    enabled: !!wsId,
+    queryFn: async () => {
+      const { data } = await (db as any).from("workspaces").select("*").eq("id", wsId).maybeSingle();
+      const p = (data as any)?.kudir_patent;
+      return (p && typeof p === "object" ? p : {}) as { number?: string; from?: string; to?: string; accounts?: string };
+    },
+  });
+
+  const patentValue = patent ?? {
+    number: savedPatent?.number ?? "",
+    from: savedPatent?.from ?? "",
+    to: savedPatent?.to ?? "",
+    accounts: savedPatent?.accounts ?? "",
+  };
+
+  const savePatent = useMutation({
+    mutationFn: async (p: typeof patentValue) => {
+      if (!wsId) throw new Error("Не выбрана база данных");
+      const { error } = await (db as any).from("workspaces").update({ kudir_patent: p }).eq("id", wsId);
+      if (error) throw error;
+      return p;
+    },
+    onSuccess: () => {
+      toast.success("Данные патента сохранены");
+      qc.invalidateQueries({ queryKey: ["kudir-patent", wsId] });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Не удалось сохранить данные патента"),
+  });
+
   const [form, setForm] = useState<{ date: string; doc: string; period: string; kind: KudirContribKind; amount: string }>({
     date: new Date().toISOString().slice(0, 10),
     doc: "",
