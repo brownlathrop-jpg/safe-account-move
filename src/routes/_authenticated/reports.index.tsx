@@ -15,6 +15,7 @@ import { downloadCsv } from "@/lib/export-csv";
 import { fetchBalances } from "@/lib/stock";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useOrganizations } from "@/lib/organizations";
+import { signedPayment } from "@/lib/accounting";
 
 export const Route = createFileRoute("/_authenticated/reports/")({
   head: () => ({
@@ -180,15 +181,37 @@ function ReportsPage() {
 
   /** Проведённые продажи за период: документ → знак (возврат уменьшает). */
   const salesDocs = useMemo(() => {
-    const m = new Map<string, { sign: number; date: string }>();
+    const m = new Map<string, { sign: number; date: string; costTotal: number }>();
     for (const d of docsF) {
       if (d.doc_type !== "shipment" || d.status !== "posted" || d.kind !== "outgoing") continue;
       const day = String(d.issue_date ?? "").slice(0, 10);
       if ((from && day < from) || (to && day > to)) continue;
-      m.set(d.id, { sign: d.is_return ? -1 : 1, date: day });
+      m.set(d.id, { sign: d.is_return ? -1 : 1, date: day, costTotal: Number(d.cost_total ?? 0) });
     }
     return m;
   }, [docsF, from, to]);
+
+  /**
+   * Себестоимость берём из документа (cost_total) — она зафиксирована по партиям
+   * на момент продажи. Внутри документа распределяем её по строкам
+   * пропорционально текущей себестоимости товара, чтобы итог по документу
+   * совпадал с зафиксированным.
+   */
+  const docCostRatio = useMemo(() => {
+    const base = new Map<string, number>();
+    for (const it of items as any[]) {
+      const id = String(it.invoice_id);
+      if (!salesDocs.has(id)) continue;
+      const c = Number(it.quantity || 0) * Number(productById.get(String(it.product_id))?.cost ?? 0);
+      base.set(id, (base.get(id) ?? 0) + c);
+    }
+    const m = new Map<string, number>();
+    for (const [id, doc] of salesDocs) {
+      const b = base.get(id) ?? 0;
+      m.set(id, doc.costTotal > 0 && b > 0.005 ? doc.costTotal / b : 1);
+    }
+    return m;
+  }, [items, salesDocs, productById]);
 
   const soldItems = useMemo(
     () => (items as any[]).flatMap((it) => {
@@ -196,10 +219,11 @@ function ReportsPage() {
       if (!doc) return [];
       const qty = doc.sign * Number(it.quantity || 0);
       const revenue = doc.sign * Number(it.sum ?? Number(it.quantity || 0) * Number(it.price || 0));
-      const cost = qty * Number(productById.get(String(it.product_id))?.cost ?? 0);
+      const unit = Number(productById.get(String(it.product_id))?.cost ?? 0);
+      const cost = qty * unit * (docCostRatio.get(String(it.invoice_id)) ?? 1);
       return [{ ...it, day: doc.date, qty, revenue, cost }];
     }),
-    [items, salesDocs, productById],
+    [items, salesDocs, productById, docCostRatio],
   );
 
   const salesByDay = useMemo(() => {
