@@ -87,6 +87,7 @@ function ProductsPage() {
   const [page, setPage] = useState(0);
   const [activePriceType, setActivePriceType] = useState<string | null>(null);
   const [activePriceInput, setActivePriceInput] = useState("");
+  const [cardMore, setCardMore] = useState(false);
 
 
   const { data: products = [] } = useQuery({
