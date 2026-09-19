@@ -35,7 +35,7 @@ function InvoicesLayout() {
             }`}
           >
             <FileText className="h-4 w-4" />
-            Список заявок
+            Общий журнал
           </Link>
           <Link
             to="/invoices/new"

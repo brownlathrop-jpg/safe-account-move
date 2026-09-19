@@ -12,7 +12,7 @@ const nav = [
   { to: "/dashboard", label: "Аналитика", icon: LayoutDashboard },
   { to: "/products", label: "Товары и услуги", icon: Package },
   { to: "/stock", label: "Склад", icon: Warehouse },
-  { to: "/invoices", label: "Заявки", icon: FileText },
+  { to: "/invoices", label: "Документы", icon: FileText },
   { to: "/shipments", label: "Накладные", icon: Truck },
   { to: "/cash", label: "Касса и банк", icon: Wallet },
   { to: "/partners", label: "Контрагенты", icon: Users },
