@@ -996,7 +996,9 @@ function InvoiceView() {
             total={Number(inv.total ?? 0)}
             direction={kind === "outgoing" ? "in" : "out"}
             invoiceNumber={cleanNumber}
+            chainIds={chainIds}
           />
+
         )}
 
         <details className="rounded-lg border bg-card">
