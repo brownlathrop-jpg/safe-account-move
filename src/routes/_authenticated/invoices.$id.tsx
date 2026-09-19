@@ -636,9 +636,9 @@ function InvoiceView() {
       </div>
 
       {/* Header label */}
-      <div className="-mt-4 border-x bg-card px-5 pb-4 pt-5 print:hidden">
-        <div className="flex items-center gap-2 flex-wrap">
-          <h1 className="font-display text-xl font-semibold">
+      <div className="-mt-4 border-x bg-card px-5 pb-3 pt-4 print:hidden">
+        <div className="flex items-center gap-2">
+          <h1 className="font-display text-lg font-semibold leading-tight">
             {docTitle} № {cleanNumber}
           </h1>
           {isShipment && (
