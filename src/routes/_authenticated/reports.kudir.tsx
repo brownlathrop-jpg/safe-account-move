@@ -47,6 +47,8 @@ function KudirPage() {
   const [year, setYear] = useState(new Date().getFullYear());
   const [mode, setMode] = useState<KudirMode>("all");
   const [object, setObject] = useState<"income" | "income_minus">("income");
+  /** Режим книги: УСН — доходы и расходы, ПСН — только доходы. */
+  const [regime, setRegime] = useState<"usn" | "psn" | null>(null);
 
   const { data: org } = useQuery({
     queryKey: ["org-kudir", wsId],
@@ -55,6 +57,14 @@ function KudirPage() {
       (await (db as any).from("organizations").select("*").eq("workspace_id", wsId)
         .order("is_primary", { ascending: false }).limit(1).maybeSingle()).data,
   });
+
+  // По умолчанию режим берём из системы налогообложения организации.
+  const orgRegime: "usn" | "psn" = (org as any)?.taxation_system === "psn" ? "psn" : "usn";
+  const activeRegime = regime ?? orgRegime;
+  const isPsn = activeRegime === "psn";
+
+  // Данные патента для шапки книги (номер, срок, счета) — храним в базе данных.
+  const [patent, setPatent] = useState<{ number: string; from: string; to: string; accounts: string } | null>(null);
 
   // Раздел IV: уплаченные взносы. Храним в настройках базы данных.
   const qc = useQueryClient();
