@@ -253,7 +253,7 @@ function PartnersPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.length === 0 && <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Ничего не найдено</TableCell></TableRow>}
+            {filtered.length === 0 && <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Ничего не найдено</TableCell></TableRow>}
             {filtered.map(p => (
               <TableRow key={p.id} className="h-9">
                 <TableCell className="py-1">
