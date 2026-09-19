@@ -17,7 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Receipt, Loader2, Copy, QrCode } from "lucide-react";
 import QRCode from "qrcode";
-import { useKktPrintReceipt, useKktSettings, useKktShift, useKktShiftAction } from "@/hooks/use-kkt";
+import { useKktPrintReceipt, useKktSettingsForOrg, useKktShift, useKktShiftAction } from "@/hooks/use-kkt";
 import {
   fnsCheckUrl, fnsQrPayload, mergeServicesIntoGoods, printLastReceiptCopy, receiptTotal,
   type KktPaymentType, type KktPosition,
@@ -31,7 +31,7 @@ export type KktDocItem = {
 };
 
 export function KktReceiptButton({
-  wsId, invoiceId, items, fiscal, defaultPaymentType = "cash", isReturn = false,
+  wsId, invoiceId, items, fiscal, defaultPaymentType = "cash", isReturn = false, orgId = null,
 }: {
   wsId: string | null | undefined;
   invoiceId: string;
@@ -40,8 +40,10 @@ export function KktReceiptButton({
   defaultPaymentType?: KktPaymentType;
   /** Возвратная накладная — пробивается чек возврата продажи. */
   isReturn?: boolean;
+  /** Юрлицо документа: если у него своя касса — чек бьётся с её реквизитами. */
+  orgId?: string | null;
 }) {
-  const { settings, enabled } = useKktSettings(wsId);
+  const { settings, enabled } = useKktSettingsForOrg(wsId, orgId);
   const [open, setOpen] = useState(false);
   const [paymentType, setPaymentType] = useState<KktPaymentType>(defaultPaymentType);
   useEffect(() => { setPaymentType(defaultPaymentType); }, [defaultPaymentType]);

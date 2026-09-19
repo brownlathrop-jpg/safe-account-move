@@ -20,6 +20,7 @@ import { PriceImportPanel } from "@/components/price-import-panel";
 import { KktSettingsPanel } from "@/components/kkt-settings-panel";
 import { prepareLogo } from "@/lib/logo-image";
 import { PrintHeader } from "@/components/print/PrintHeader";
+import { SNO_LABELS, VAT_LABELS, PAYMENT_METHOD_LABELS, PAYMENT_OBJECT_LABELS } from "@/lib/kkt-atol";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({
@@ -60,6 +61,15 @@ type Org = {
   logo_url?: string | null;
   /** Название, которое печатается в шапке документов (если пусто — краткое название). */
   print_name?: string | null;
+  /** Своя онлайн-касса организации (АТОЛ). */
+  kkt_enabled?: boolean;
+  kkt_sno?: string;
+  kkt_vat?: string;
+  kkt_payment_method?: string;
+  kkt_payment_object?: string;
+  kkt_cashier?: string;
+  kkt_cashier_vatin?: string;
+  kkt_place?: string;
 };
 
 const empty: Org = {
@@ -75,22 +85,26 @@ function SettingsPage() {
   const qc = useQueryClient();
   const wsId = useActiveWorkspaceId();
   const { tab } = Route.useSearch();
-  const { data: org } = useQuery({
-    queryKey: ["my-organization", wsId],
+  const { data: orgs = [] } = useQuery({
+    queryKey: ["organizations", wsId],
     enabled: !!wsId,
     queryFn: async () => {
       const { data, error } = await (db as any)
         .from("organizations").select("*")
         .eq("workspace_id", wsId)
         .order("is_primary", { ascending: false })
-        .limit(1).maybeSingle();
+        .order("name");
       if (error) throw error;
-      return data as Org | null;
+      return (data ?? []) as Org[];
     },
   });
 
+  // Какая организация открыта в форме (по умолчанию — основная/первая)
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const org = orgs.find((o) => o.id === selectedId) ?? orgs[0] ?? null;
+
   const [form, setForm] = useState<Org>(empty);
-  useEffect(() => { if (org) setForm(org as Org); }, [org]);
+  useEffect(() => { setForm(org ? ({ ...empty, ...(org as Org) }) : empty); }, [org?.id, orgs]);
 
   const upd = (k: keyof Org, v: any) => setForm({ ...form, [k]: v });
 
@@ -123,16 +137,45 @@ function SettingsPage() {
       if (!user) throw new Error("Нет сессии");
       if (!wsId) throw new Error("Не выбрана база данных");
       if (!form.name.trim()) throw new Error("Укажите название организации");
-      const payload = { ...form, user_id: user.id, workspace_id: wsId, is_primary: true };
+      // Первая сохраняемая организация автоматически становится основной
+      const makePrimary = form.is_primary || orgs.filter((o) => o.id !== form.id).length === 0;
+      const payload = { ...form, user_id: user.id, workspace_id: wsId, is_primary: makePrimary };
+      let savedId = form.id;
       if (form.id) {
         const { error } = await (db as any).from("organizations").update(payload).eq("id", form.id);
         if (error) throw error;
       } else {
-        const { error } = await (db as any).from("organizations").insert(payload);
+        const { data: ins, error } = await (db as any).from("organizations").insert(payload).select("id").single();
         if (error) throw error;
+        savedId = ins?.id;
       }
+      if (makePrimary && savedId) {
+        // основная может быть только одна — снимаем флаг с остальных
+        await (db as any).from("organizations").update({ is_primary: false })
+          .eq("workspace_id", wsId).neq("id", savedId);
+      }
+      return savedId as string | undefined;
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["my-organization"] }); toast.success("Сохранено"); },
+    onSuccess: (savedId) => {
+      if (savedId) setSelectedId(savedId);
+      qc.invalidateQueries({ queryKey: ["organizations"] });
+      qc.invalidateQueries({ queryKey: ["my-organization"] });
+      toast.success("Сохранено");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const removeOrg = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await (db as any).from("organizations").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      setSelectedId(null);
+      qc.invalidateQueries({ queryKey: ["organizations"] });
+      qc.invalidateQueries({ queryKey: ["my-organization"] });
+      toast.success("Организация удалена");
+    },
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -159,6 +202,45 @@ function SettingsPage() {
         </TabsContent>
 
         <TabsContent value="org" className="mt-3">
+          {/* Список юрлиц базы: из одной базы можно торговать под разными организациями */}
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <Label className="text-xs text-muted-foreground shrink-0">Юрлицо:</Label>
+            <Select value={org?.id ?? ""} onValueChange={setSelectedId}>
+              <SelectTrigger className="h-8 w-64">
+                <SelectValue placeholder="Организация не создана" />
+              </SelectTrigger>
+              <SelectContent>
+                {orgs.map((o) => (
+                  <SelectItem key={o.id} value={o.id!}>
+                    {o.name}{o.is_primary ? " ★" : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button size="sm" variant="outline" className="h-8"
+              onClick={() => { setSelectedId(null); setForm({ ...empty, is_primary: orgs.length === 0 }); }}>
+              <Plus className="h-3.5 w-3.5 mr-1" /> Добавить организацию
+            </Button>
+            {org?.id && (
+              <>
+                <label className="flex items-center gap-1.5 text-xs cursor-pointer select-none">
+                  <Switch checked={!!form.is_primary}
+                    onCheckedChange={(v) => setForm((f) => ({ ...f, is_primary: v }))} />
+                  Основная
+                </label>
+                {!form.is_primary && (
+                  <Button size="sm" variant="ghost" className="h-8 text-red-600 hover:text-red-700"
+                    disabled={removeOrg.isPending}
+                    onClick={() => {
+                      if (confirm(`Удалить организацию «${org.name}»? Документы, выписанные от неё, останутся.`))
+                        removeOrg.mutate(org.id!);
+                    }}>
+                    <Trash2 className="h-3.5 w-3.5 mr-1" /> Удалить
+                  </Button>
+                )}
+              </>
+            )}
+          </div>
       <Card className="p-3 space-y-3">
         <div>
           <h2 className="font-medium text-xs uppercase tracking-wide text-muted-foreground mb-2">Основное</h2>
@@ -288,6 +370,74 @@ function SettingsPage() {
               <p className="text-[11px] text-neutral-500">Ниже печатается название документа, стороны, таблица товаров и итоги.</p>
             </div>
           </div>
+        </div>
+
+        {/* Своя онлайн-касса у этого юрлица: чеки бьются с его реквизитами */}
+        <div className="rounded-md border p-3 space-y-2">
+          <label className="flex items-center gap-2 text-sm font-medium cursor-pointer select-none">
+            <Switch checked={!!form.kkt_enabled}
+              onCheckedChange={(v) => setForm((f) => ({ ...f, kkt_enabled: v }))} />
+            Своя онлайн-касса (АТОЛ)
+          </label>
+          <p className="text-[11px] text-muted-foreground">
+            Если включено, чеки этого юрлица бьются с его реквизитами (СНО, НДС, кассир, место расчётов).
+            Если выключено — используются общие настройки кассы базы (вкладка «Касса»).
+          </p>
+          {form.kkt_enabled && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-3 gap-y-2 pt-1">
+              <div>
+                <Label className="text-xs">Система налогообложения</Label>
+                <Select value={form.kkt_sno || "usn_income"} onValueChange={(v) => setForm((f) => ({ ...f, kkt_sno: v }))}>
+                  <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(SNO_LABELS).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs">Ставка НДС по умолчанию</Label>
+                <Select value={form.kkt_vat || "none"} onValueChange={(v) => setForm((f) => ({ ...f, kkt_vat: v }))}>
+                  <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(VAT_LABELS).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs">Признак способа расчёта</Label>
+                <Select value={form.kkt_payment_method || "full_payment"} onValueChange={(v) => setForm((f) => ({ ...f, kkt_payment_method: v }))}>
+                  <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(PAYMENT_METHOD_LABELS).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs">Признак предмета расчёта</Label>
+                <Select value={form.kkt_payment_object || "commodity"} onValueChange={(v) => setForm((f) => ({ ...f, kkt_payment_object: v }))}>
+                  <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(PAYMENT_OBJECT_LABELS).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs">Кассир (ФИО)</Label>
+                <Input className="h-8" value={form.kkt_cashier || ""}
+                  onChange={(e) => setForm((f) => ({ ...f, kkt_cashier: e.target.value }))} />
+              </div>
+              <div>
+                <Label className="text-xs">ИНН кассира</Label>
+                <Input className="h-8" value={form.kkt_cashier_vatin || ""}
+                  onChange={(e) => setForm((f) => ({ ...f, kkt_cashier_vatin: e.target.value }))} />
+              </div>
+              <div className="sm:col-span-2 lg:col-span-3">
+                <Label className="text-xs">Место расчётов (адрес/сайт)</Label>
+                <Input className="h-8" value={form.kkt_place || ""}
+                  onChange={(e) => setForm((f) => ({ ...f, kkt_place: e.target.value }))} />
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="flex justify-end">

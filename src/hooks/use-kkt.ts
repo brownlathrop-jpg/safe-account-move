@@ -143,3 +143,41 @@ export function useKktPrintReceipt(settings: KktSettings, invoiceId: string) {
     },
   });
 }
+
+/**
+ * Настройки кассы конкретной организации: если у юрлица включена своя касса,
+ * чеки бьются с её реквизитами (СНО, НДС, кассир, место), иначе — общие
+ * настройки базы. Адрес драйвера всегда берётся с этого рабочего места.
+ */
+export function useKktSettingsForOrg(wsId: string | null | undefined, orgId: string | null | undefined) {
+  const base = useKktSettings(wsId);
+  const orgQ = useQuery({
+    queryKey: ["org-kkt", orgId],
+    enabled: !!orgId,
+    queryFn: async () => {
+      const { data } = await (db as any)
+        .from("organizations")
+        .select("id,kkt_enabled,kkt_sno,kkt_vat,kkt_payment_method,kkt_payment_object,kkt_cashier,kkt_cashier_vatin,kkt_place")
+        .eq("id", orgId).maybeSingle();
+      return (data ?? null) as (WsKkt & { id: string }) | null;
+    },
+  });
+  const org = orgId ? orgQ.data : null;
+  if (!org?.kkt_enabled) return { ...base, hasOwnKkt: false };
+  return {
+    settings: {
+      ...base.settings,
+      sno: (org.kkt_sno as any) || base.settings.sno,
+      vat: (org.kkt_vat as any) || base.settings.vat,
+      paymentMethod: org.kkt_payment_method || base.settings.paymentMethod,
+      paymentObject: org.kkt_payment_object || base.settings.paymentObject,
+      cashier: org.kkt_cashier || base.settings.cashier,
+      cashierVatin: org.kkt_cashier_vatin || base.settings.cashierVatin,
+      place: org.kkt_place || base.settings.place,
+    },
+    enabled: true,
+    isLoading: base.isLoading || orgQ.isLoading,
+    raw: base.raw,
+    hasOwnKkt: true,
+  };
+}
