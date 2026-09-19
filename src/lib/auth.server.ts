@@ -1,6 +1,6 @@
 // Свой вход по email и паролю: пароли scrypt, сессия в зашифрованном cookie.
 import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
-import { useSession } from "@tanstack/react-start/server";
+import { getRequestHeader, useSession } from "@tanstack/react-start/server";
 import { sql } from "./pg.server";
 
 export type AppUser = { id: string; email: string; name: string; is_admin?: boolean };
@@ -53,11 +53,57 @@ export async function signUp(email: string, password: string, name = ""): Promis
   return user;
 }
 
+/** IP посетителя (за прокси заголовок ставит nginx). */
+function clientIp(): string {
+  try {
+    const fwd = getRequestHeader("x-forwarded-for") ?? "";
+    const first = String(fwd).split(",")[0]?.trim();
+    return first || String(getRequestHeader("x-real-ip") ?? "") || "";
+  } catch {
+    return "";
+  }
+}
+
+const MAX_TRIES = 8;         // столько неудачных попыток разрешено
+const WINDOW_MIN = 15;       // за такое время (минут)
+
+/** Записать попытку входа и почистить старые записи. */
+async function recordAttempt(email: string, ip: string, ok: boolean) {
+  try {
+    const s = sql();
+    await s`insert into auth_attempts (email, ip, ok) values (${email}, ${ip}, ${ok})`;
+    await s`delete from auth_attempts where created_at < now() - interval '7 days'`;
+  } catch {
+    /* журнал попыток не должен ломать вход */
+  }
+}
+
+/** Слишком много неудачных попыток по этому email или с этого адреса? */
+async function tooManyAttempts(email: string, ip: string): Promise<boolean> {
+  try {
+    const s = sql();
+    const rows = await s`
+      select count(*)::int as c from auth_attempts
+       where ok = false
+         and created_at > now() - (${WINDOW_MIN} || ' minutes')::interval
+         and (lower(email) = lower(${email}) or (ip <> '' and ip = ${ip}))`;
+    return Number((rows[0] as any)?.c ?? 0) >= MAX_TRIES;
+  } catch {
+    return false;
+  }
+}
+
 export async function signIn(email: string, password: string): Promise<AppUser> {
+  const ip = clientIp();
+  if (await tooManyAttempts(email, ip)) {
+    throw new Error("Слишком много попыток входа. Попробуйте через 15 минут.");
+  }
   const row = await findByEmail(email);
   if (!row || !verifyPassword(password, row.password_hash)) {
+    await recordAttempt(email, ip, false);
     throw new Error("Неверный email или пароль");
   }
+  await recordAttempt(email, ip, true);
   const user: AppUser = { id: row.id, email: row.email, name: row.name ?? "", is_admin: !!row.is_admin };
   await acceptInvites(user);
   await startSession(user);
