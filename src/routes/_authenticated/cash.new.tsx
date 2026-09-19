@@ -73,11 +73,13 @@ function NewCashDoc() {
       const { data: { user } } = await db.auth.getUser();
       if (!user) throw new Error("Нет сессии");
 
+      // Вид кассового ордера всегда берём из префикса номера, чтобы ПКО/РКО не рассинхронизовались.
+      const normalizedKind = (effectiveCashKind("cash_receipt", kind, effectiveNumber) ?? kind) as "incoming" | "outgoing";
       const payload: Record<string, unknown> = {
         user_id: user.id,
         workspace_id: wsId,
         number: effectiveNumber,
-        kind,
+        kind: normalizedKind,
         partner_id: partnerId || null,
         issue_date: date,
         status: "draft",
