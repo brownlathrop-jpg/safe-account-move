@@ -1,5 +1,5 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import { LayoutDashboard, Package, FileText, Users, LogOut, Plus, Settings, Warehouse, PanelLeftClose, PanelLeftOpen, Truck, Wallet, Shield, BarChart3, UserCog, Menu } from "lucide-react";
+import { LayoutDashboard, Package, FileText, Users, LogOut, Plus, Settings, Warehouse, PanelLeftClose, PanelLeftOpen, Shield, BarChart3, UserCog, Menu } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { db } from "@/integrations/db";
 import { Button } from "@/components/ui/button";
@@ -8,18 +8,34 @@ import { WorkspaceSwitcher } from "@/components/WorkspaceSwitcher";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import { useRealtime } from "@/hooks/use-realtime";
 
-const nav = [
-  { to: "/dashboard", label: "Аналитика", icon: LayoutDashboard },
-  { to: "/products", label: "Товары и услуги", icon: Package },
-  { to: "/stock", label: "Склад", icon: Warehouse },
-  { to: "/invoices", label: "Документы", icon: FileText },
-  { to: "/shipments", label: "Накладные", icon: Truck },
-  { to: "/cash", label: "Касса и банк", icon: Wallet },
-  { to: "/partners", label: "Контрагенты", icon: Users },
-  { to: "/reports", label: "Отчёты", icon: BarChart3 },
-  { to: "/team", label: "Сотрудники", icon: UserCog },
-  { to: "/settings", label: "Настройки", icon: Settings },
-] as const;
+type NavItem = { to: string; label: string; icon: typeof FileText };
+type NavGroup = { title: string; items: NavItem[] };
+
+const groups: NavGroup[] = [
+  {
+    title: "Работа",
+    items: [
+      { to: "/invoices", label: "Документы", icon: FileText },
+      { to: "/products", label: "Товары и услуги", icon: Package },
+      { to: "/stock", label: "Склад", icon: Warehouse },
+      { to: "/partners", label: "Контрагенты", icon: Users },
+    ],
+  },
+  {
+    title: "Аналитика",
+    items: [
+      { to: "/dashboard", label: "Сводка", icon: LayoutDashboard },
+      { to: "/reports", label: "Отчёты и учёт", icon: BarChart3 },
+    ],
+  },
+  {
+    title: "Управление",
+    items: [
+      { to: "/team", label: "Сотрудники", icon: UserCog },
+      { to: "/settings", label: "Настройки", icon: Settings },
+    ],
+  },
+];
 
 export function AppShell({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
@@ -28,9 +44,12 @@ export function AppShell({ children }: { children: ReactNode }) {
   useEffect(() => {
     db.auth.getUser().then(({ data }) => setIsAdmin(!!(data.user?.user_metadata as any)?.is_admin));
   }, []);
-  const items = isAdmin
-    ? [...nav, { to: "/admin", label: "Админка", icon: Shield } as const]
-    : nav;
+  const navGroups: NavGroup[] = isAdmin
+    ? groups.map((g) => (g.title === "Управление"
+        ? { ...g, items: [...g.items, { to: "/admin", label: "Админка", icon: Shield }] }
+        : g))
+    : groups;
+
   const qc = useQueryClient();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
@@ -86,31 +105,43 @@ export function AppShell({ children }: { children: ReactNode }) {
             </Button>
           </div>
         )}
-        <nav className={`flex-1 overflow-y-auto ${narrow ? "px-1" : "px-2"} py-2 space-y-0.5`}>
-          {items.map(({ to, label, icon: Icon }) => {
-            const active = pathname === to || pathname.startsWith(to + "/");
-            return (
-              <Link
-                key={to}
-                to={to}
-                onClick={() => { flushInvoiceDraft(); setMobileOpen(false); }}
-                title={narrow ? label : undefined}
-                className={`flex items-center gap-3 rounded-md text-sm font-medium transition-colors ${
-                  narrow ? "justify-center px-0 py-2" : "px-3 py-2 sm:py-1.5"
-                } ${active ? "bg-primary text-primary-foreground" : "text-sidebar-foreground hover:bg-sidebar-accent"}`}
-              >
-                <Icon className="h-4 w-4 shrink-0" />
-                {!narrow && <span className="truncate">{label}</span>}
-              </Link>
-            );
-          })}
+        <nav className={`flex-1 overflow-y-auto ${narrow ? "px-1" : "px-2"} py-2 space-y-2`}>
+          {navGroups.map((group, gi) => (
+            <div key={group.title} className="space-y-0.5">
+              {narrow
+                ? gi > 0 && <div className="mx-2 my-2 border-t" />
+                : (
+                  <div className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    {group.title}
+                  </div>
+                )}
+              {group.items.map(({ to, label, icon: Icon }) => {
+                const active = pathname === to || pathname.startsWith(to + "/");
+                return (
+                  <Link
+                    key={to}
+                    to={to}
+                    onClick={() => { flushInvoiceDraft(); setMobileOpen(false); }}
+                    title={narrow ? label : undefined}
+                    className={`flex items-center gap-3 rounded-md text-sm font-medium transition-colors ${
+                      narrow ? "justify-center px-0 py-2" : "px-3 py-2 sm:py-1.5"
+                    } ${active ? "bg-primary text-primary-foreground" : "text-sidebar-foreground hover:bg-sidebar-accent"}`}
+                  >
+                    <Icon className="h-4 w-4 shrink-0" />
+                    {!narrow && <span className="truncate">{label}</span>}
+                  </Link>
+                );
+              })}
+            </div>
+          ))}
         </nav>
+
         <div className={`border-t ${narrow ? "p-1 space-y-1" : "p-2 space-y-1.5"}`}>
           {!narrow && <WorkspaceSwitcher />}
           <Link to="/invoices/new" className="block" onClick={() => { flushInvoiceDraft(); setMobileOpen(false); }}>
-            <Button className={`w-full ${narrow ? "px-0" : ""}`} size="sm" title="Новая заявка">
+            <Button className={`w-full ${narrow ? "px-0" : ""}`} size="sm" title="Новый документ">
               <Plus className="h-4 w-4" />
-              {!narrow && <span className="ml-1">Новая заявка</span>}
+              {!narrow && <span className="ml-1">Новый документ</span>}
             </Button>
           </Link>
           <Button

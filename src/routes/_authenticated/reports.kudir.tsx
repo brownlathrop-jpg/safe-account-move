@@ -21,7 +21,7 @@ import {
 } from "@/lib/kudir";
 
 
-export const Route = createFileRoute("/_authenticated/cash/kudir")({
+export const Route = createFileRoute("/_authenticated/reports/kudir")({
   head: () => ({
     meta: [
       { title: "КУДиР — книга учёта доходов и расходов — КабинетCRM" },
