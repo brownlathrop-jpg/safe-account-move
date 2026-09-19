@@ -38,6 +38,7 @@ export function PaymentsCard({
   total,
   direction,
   invoiceNumber,
+  chainIds,
 }: {
   invoiceId: string;
   partnerId: string | null;
@@ -46,6 +47,8 @@ export function PaymentsCard({
   /** in — деньги получаем (продажа), out — платим поставщику. */
   direction: "in" | "out";
   invoiceNumber?: string;
+  /** Все документы цепочки (заявка → накладная → ордера): оплаты считаются по ним всем. */
+  chainIds?: string[];
 }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -59,18 +62,24 @@ export function PaymentsCard({
     note: "",
   });
 
+  const ids = useMemo(() => {
+    const set = new Set<string>([invoiceId, ...(chainIds ?? [])]);
+    return [...set];
+  }, [invoiceId, chainIds]);
+
   const { data: payments = [] } = useQuery({
-    queryKey: ["invoice_payments", invoiceId],
+    queryKey: ["invoice_payments", ...ids.slice().sort()],
     queryFn: async () => {
       const { data, error } = await db
         .from("invoice_payments")
         .select("*")
-        .eq("invoice_id", invoiceId)
+        .in("invoice_id", ids)
         .order("date", { ascending: true });
       if (error) throw error;
       return (data ?? []) as unknown as Payment[];
     },
   });
+
 
   const { data: cashflowItems = [] } = useQuery({
     queryKey: ["cashflow_items", workspaceId],
