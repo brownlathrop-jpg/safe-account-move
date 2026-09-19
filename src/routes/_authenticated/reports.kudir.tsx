@@ -610,6 +610,7 @@ function KudirPage() {
           </Button>
         )}
       </Card>
+      )}
     </div>
 
   );
