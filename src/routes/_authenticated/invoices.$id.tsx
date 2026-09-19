@@ -294,30 +294,24 @@ function InvoiceView() {
 
   const save = useMutation({
     mutationFn: async () => {
-      const wasPosted = inv?.status === "posted";
-      if (wasPosted) {
-        const { error } = await db.from("invoices").update({ status: "draft" }).eq("id", id);
-        if (error) throw error;
-      }
-
       // Для кассовых ордеров вид документа должен соответствовать префиксу номера,
       // иначе ПКО может отображаться как РКО (или наоборот).
       const normalizedKind = isPKO
         ? ((effectiveCashKind("cash_receipt", kind, number) ?? kind) as "incoming" | "outgoing")
         : kind;
-      const { error: upErr } = await (db as any).from("invoices").update({
+
+      const header = {
         kind: normalizedKind, number, issue_date: date, partner_id: partnerId || null, note: note || null,
         warehouse_id: isShipment ? (warehouseId || null) : null,
         cash_received: isPKO ? cashReceived : null,
         cash_basis: isPKO ? (cashBasis || null) : null,
         payment_method: paymentMethod,
         organization_id: orgId || null,
-      }).eq("id", id);
-      if (upErr) throw upErr;
+      };
 
       const rows = items.map(it => ({
-        id: it.id,
-        invoice_id: id, product_id: it.product_id, name: it.name,
+        id: it.id ?? null,
+        product_id: it.product_id, name: it.name,
         quantity: it.quantity, price: it.price, sum: lineNet(it),
         kind: it.kind ?? "product",
         discount_kind: it.discount_kind ?? "percent",
@@ -325,32 +319,11 @@ function InvoiceView() {
         discount_name: it.discount_name ?? null,
       }));
 
-      const existingRows = rows.filter((row) => Boolean(row.id));
-      const newRows = rows.filter((row) => !row.id).map(({ id: _id, ...row }) => row);
+      // Шапка и позиции сохраняются одной транзакцией: при ошибке документ
+      // остаётся прежним, полусохранённых документов не бывает.
+      const res: any = await invoiceSaveTx({ data: { invoiceId: id, header, items: rows } });
+      if (res.error) throw new Error(res.error.message);
 
-      for (const row of existingRows) {
-        const { id: itemId, ...patch } = row;
-        const { error: itemErr } = await db.from("invoice_items").update(patch).eq("id", itemId as string);
-        if (itemErr) throw itemErr;
-      }
-
-      if (newRows.length) {
-        const { error: insErr } = await db.from("invoice_items").insert(newRows);
-        if (insErr) throw insErr;
-      }
-
-      const keptIds = existingRows.map((row) => row.id).filter(Boolean) as string[];
-      const originalIds = (inv?.items ?? []).map((it: any) => it.id).filter(Boolean) as string[];
-      const removedIds = originalIds.filter((itemId) => !keptIds.includes(itemId));
-      if (removedIds.length) {
-        const { error: delErr } = await db.from("invoice_items").delete().in("id", removedIds).eq("invoice_id", id);
-        if (delErr) throw delErr;
-      }
-
-      if (wasPosted) {
-        const { error } = await db.from("invoices").update({ status: "posted" }).eq("id", id);
-        if (error) throw error;
-      }
       if (isShipment) await applyShipmentStock(id);
     },
     onSuccess: () => {
