@@ -818,7 +818,7 @@ function ProductsPage() {
           )}
           <Table>
             <TableHeader>
-              <TableRow>
+              <TableRow className="[&>th]:py-2 [&>th]:px-2">
                 <TableHead className="w-8">
                   <Checkbox
                     checked={(filtered.length > 0 || rightFolders.length > 0)
