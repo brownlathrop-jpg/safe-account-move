@@ -642,7 +642,7 @@ function InvoiceView() {
                 <DropdownMenuItem
                   className="text-destructive"
                   onClick={() => {
-                    if (!confirm(`Отменить ${docTitleAccusative(docType, kind)}?`)) return;
+                    if (!confirm(`Отменить ${docTitleAccusative(docType, kind, inv.number)}?`)) return;
                     setStatus.mutate("cancelled", { onSuccess: () => navigate({ to: "/invoices" }) });
                   }}
                 >
