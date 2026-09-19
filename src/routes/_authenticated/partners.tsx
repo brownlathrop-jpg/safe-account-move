@@ -118,6 +118,25 @@ function PartnersPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const toggleOne = (id: string, on: boolean) =>
+    setSelected((s) => { const n = new Set(s); if (on) n.add(id); else n.delete(id); return n; });
+
+  const bulkRemove = useMutation({
+    mutationFn: async (ids: string[]) => { const { error } = await db.from("partners").delete().in("id", ids); if (error) throw error; },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["partners-list"] }); setSelected(new Set()); toast.success("Удалено"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const bulkMove = useMutation({
+    mutationFn: async ({ ids, kind }: { ids: string[]; kind: PartnerKind }) => {
+      const { error } = await (db as any).from("partners").update({ kind }).in("id", ids);
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["partners-list"] }); qc.invalidateQueries({ queryKey: ["partners"] }); setSelected(new Set()); toast.success("Перенесено"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return partners.filter(p => {
