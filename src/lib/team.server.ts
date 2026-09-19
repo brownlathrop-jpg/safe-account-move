@@ -148,6 +148,7 @@ export async function listMembers(workspaceId: string) {
       email: (m.user_email as string) ?? (m.data?.email as string) ?? "",
       name: (m.user_name as string) ?? "",
       role: ((m.data?.role as Role) ?? "manager") as Role,
+      organization_id: (m.data?.organization_id as string | undefined) ?? null,
       created_at: m.created_at,
     })),
     invites: (invites as any[]).map((i) => ({
