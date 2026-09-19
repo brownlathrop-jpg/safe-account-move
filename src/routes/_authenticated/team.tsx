@@ -97,10 +97,12 @@ function logText(h: { doc_table: string; op: string }) {
 }
 
 function TeamPage() {
+  useViewLog("team");
   const wsId = useActiveWorkspaceId();
   const qc = useQueryClient();
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<string>("manager");
+  const [logKind, setLogKind] = useState<"all" | "changes" | "views">("all");
   const { data: orgs = [] } = useOrganizations(wsId);
 
   const { data: myRole } = useQuery({
@@ -121,10 +123,10 @@ function TeamPage() {
   });
 
   const { data: history = [] } = useQuery({
-    queryKey: ["ws-history", wsId],
+    queryKey: ["ws-history", wsId, logKind],
     enabled: !!wsId,
     queryFn: async () => {
-      const res = await teamWorkspaceHistory({ data: { workspaceId: wsId! } });
+      const res = await teamWorkspaceHistory({ data: { workspaceId: wsId!, kind: logKind } });
       if (res.error) throw new Error(res.error.message);
       return (res.data ?? []) as any[];
     },
