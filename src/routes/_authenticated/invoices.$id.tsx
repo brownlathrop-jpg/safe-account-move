@@ -30,7 +30,7 @@ import type { PrintItem } from "@/components/print/print-types";
 import { PrintHeader } from "@/components/print/PrintHeader";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useDiscounts, grossSum, discountSum, netSum, discountLabel, type DiscountKind } from "@/lib/discounts";
-import { DocTreeCard } from "@/components/DocTreeCard";
+import { DocTreeCard, loadChain } from "@/components/DocTreeCard";
 import { docTitle as docTitleOf, docTitleAccusative } from "@/lib/doc-tree";
 
 export const Route = createFileRoute("/_authenticated/invoices/$id")({
@@ -216,6 +216,13 @@ function InvoiceView() {
   const isShipment = docType === "shipment";
   const isPKO = docType === "cash_receipt";
 
+
+  // Вся цепочка документов: оплаты считаются по заявке и по её накладным/ордерам вместе.
+  const { data: chain } = useQuery({
+    queryKey: ["doc-chain", id],
+    queryFn: () => loadChain(id),
+  });
+  const chainIds = (chain?.docs ?? []).map((d) => d.id);
 
   const { data: parent } = useQuery({
     queryKey: ["invoice-parent", inv?.parent_id],
@@ -538,29 +545,8 @@ function InvoiceView() {
           <ArrowLeft className="h-4 w-4" /> К списку заявок
         </Link>
         <div className="flex gap-2 items-center flex-wrap">
-          {statuses.length > 0 && (
-            <Select value={inv.status_id ?? undefined} onValueChange={(v) => setStatusId.mutate(v)}>
-              <SelectTrigger className="w-[160px] h-9">
-                <div className="flex items-center gap-2">
-                  <span
-                    className="inline-block h-2.5 w-2.5 rounded-full"
-                    style={{ background: statuses.find(s => s.id === inv.status_id)?.color ?? "#cbd5e1" }}
-                  />
-                  <SelectValue placeholder="Статус" />
-                </div>
-              </SelectTrigger>
-              <SelectContent>
-                {statuses.map(s => (
-                  <SelectItem key={s.id} value={s.id}>
-                    <span className="inline-flex items-center gap-2">
-                      <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: s.color }} />
-                      {s.name}
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
+          {null}
+
           {editable && <Button onClick={() => save.mutate()} disabled={save.isPending}><Save className="h-4 w-4 mr-1" /> Сохранить</Button>}
           {isShipment && inv.status === "draft" && <Button variant="outline" onClick={() => setStatus.mutate("posted")}><CheckCircle2 className="h-4 w-4 mr-1" /> Провести</Button>}
           {isShipment && kind === "outgoing" && inv.status !== "cancelled" && (
@@ -637,7 +623,7 @@ function InvoiceView() {
 
       {/* Header label */}
       <div className="-mt-4 border-x bg-card px-5 pb-3 pt-4 print:hidden">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <h1 className="font-display text-lg font-semibold leading-tight">
             {docTitle} № {cleanNumber}
           </h1>
@@ -646,7 +632,31 @@ function InvoiceView() {
               {inv.status === "posted" ? "Проведена" : inv.status === "draft" ? "Черновик" : "Отменена"}
             </Badge>
           )}
+          {statuses.length > 0 && (
+            <Select value={inv.status_id ?? undefined} onValueChange={(v) => setStatusId.mutate(v)}>
+              <SelectTrigger className="h-8 w-[170px]" title="Статус документа">
+                <div className="flex items-center gap-2">
+                  <span
+                    className="inline-block h-2.5 w-2.5 rounded-full"
+                    style={{ background: statuses.find(s => s.id === inv.status_id)?.color ?? "#cbd5e1" }}
+                  />
+                  <SelectValue placeholder="Статус" />
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                {statuses.map(s => (
+                  <SelectItem key={s.id} value={s.id}>
+                    <span className="inline-flex items-center gap-2">
+                      <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: s.color }} />
+                      {s.name}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
+
         {isShipment && inv.status === "posted" && kind === "outgoing" && (
           <p className="text-sm mt-1">
             Себестоимость: <b>{fmt.format(Number(inv.cost_total ?? 0))}</b>{" · "}
@@ -986,7 +996,9 @@ function InvoiceView() {
             total={Number(inv.total ?? 0)}
             direction={kind === "outgoing" ? "in" : "out"}
             invoiceNumber={cleanNumber}
+            chainIds={chainIds}
           />
+
         )}
 
         <details className="rounded-lg border bg-card">

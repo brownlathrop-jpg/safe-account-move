@@ -38,6 +38,7 @@ export function PaymentsCard({
   total,
   direction,
   invoiceNumber,
+  chainIds,
 }: {
   invoiceId: string;
   partnerId: string | null;
@@ -46,6 +47,8 @@ export function PaymentsCard({
   /** in — деньги получаем (продажа), out — платим поставщику. */
   direction: "in" | "out";
   invoiceNumber?: string;
+  /** Все документы цепочки (заявка → накладная → ордера): оплаты считаются по ним всем. */
+  chainIds?: string[];
 }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -59,18 +62,24 @@ export function PaymentsCard({
     note: "",
   });
 
+  const ids = useMemo(() => {
+    const set = new Set<string>([invoiceId, ...(chainIds ?? [])]);
+    return [...set];
+  }, [invoiceId, chainIds]);
+
   const { data: payments = [] } = useQuery({
-    queryKey: ["invoice_payments", invoiceId],
+    queryKey: ["invoice_payments", invoiceId, ids.slice().sort().join(",")],
     queryFn: async () => {
       const { data, error } = await db
         .from("invoice_payments")
         .select("*")
-        .eq("invoice_id", invoiceId)
+        .in("invoice_id", ids)
         .order("date", { ascending: true });
       if (error) throw error;
       return (data ?? []) as unknown as Payment[];
     },
   });
+
 
   const { data: cashflowItems = [] } = useQuery({
     queryKey: ["cashflow_items", workspaceId],
@@ -234,31 +243,40 @@ export function PaymentsCard({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {payments.map(p => (
+            {payments.map(p => {
+              const own = p.invoice_id === invoiceId;
+              return (
               <TableRow key={p.id}>
                 <TableCell>{p.date ? dfmt.format(new Date(p.date)) : "—"}</TableCell>
                 <TableCell>{p.method === "bank" ? "Банк" : "Наличные"}</TableCell>
                 <TableCell className="text-sm text-muted-foreground">
                   {cashflowItems.find(c => c.id === p.cashflow_item_id)?.name ?? "—"}
                 </TableCell>
-                <TableCell className="text-sm text-muted-foreground">{p.note || "—"}</TableCell>
+                <TableCell className="text-sm text-muted-foreground">
+                  {p.note || "—"}
+                  {!own && <span className="ml-1 text-xs">(по связанному документу)</span>}
+                </TableCell>
                 <TableCell className="text-right font-medium">{fmt.format(Number(p.amount || 0))}</TableCell>
                 <TableCell className="text-right">
-                  {direction === "in" && p.method === "cash" && (
+                  {own && direction === "in" && p.method === "cash" && (
                     <Button size="icon" variant="ghost" onClick={() => openPaymentPrint(p)} title="Распечатать ПКО" aria-label="Распечатать ПКО">
                       <Printer className="h-4 w-4" />
                     </Button>
                   )}
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => { if (confirm("Удалить оплату?")) removePayment.mutate(p.id); }}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  {own && (
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => { if (confirm("Удалить оплату?")) removePayment.mutate(p.id); }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
                 </TableCell>
               </TableRow>
-            ))}
+              );
+            })}
+
           </TableBody>
         </Table>
       )}
