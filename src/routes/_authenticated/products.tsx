@@ -362,7 +362,11 @@ function ProductsPage() {
       setSelectedIds([]);
       setSelectedFolderIds([]);
       setDeleteManyOpen(false);
-      toast.success("Удалено");
+      if (kept > 0) {
+        toast.warning(`Удалено. Осталось ${kept} позиц. — по ним есть движения или документы, удалить их нельзя`);
+      } else {
+        toast.success("Удалено");
+      }
     },
     onError: (e: Error) => toast.error(e.message),
   });
