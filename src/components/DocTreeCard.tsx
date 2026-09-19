@@ -65,15 +65,13 @@ export function DocTreeCard({
   });
 
   const rows = data ? buildDocTree(data.docs, data.rootId) : [];
-  const single = rows.length <= 1;
-
   return (
     <section className="overflow-hidden rounded-lg border bg-card print:hidden">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/30 px-4 py-2.5">
         <h3 className="font-display text-sm font-semibold">Документы</h3>
         {actions}
       </div>
-      {single ? (
+      {rows.length === 0 ? (
         <p className="px-4 py-3 text-sm text-muted-foreground">
           {hint ?? "Связанных документов пока нет."}
         </p>
@@ -107,6 +105,7 @@ export function DocTreeCard({
             );
           })}
           </div>
+          {rows.length === 1 && hint && <p className="mt-2 text-xs text-muted-foreground">{hint}</p>}
         </div>
       )}
     </section>
