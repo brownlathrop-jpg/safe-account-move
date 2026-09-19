@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { db } from "@/integrations/db";
+import { PartnerPicker } from "@/components/PartnerPicker";
 import { PaymentsCard } from "@/components/PaymentsCard";
 import { DocHistoryCard } from "@/components/DocHistoryCard";
 import { KktReceiptButton } from "@/components/kkt-receipt-button";
@@ -721,13 +722,7 @@ function InvoiceView() {
           <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <div className="space-y-1">
               <Label className="text-xs">{kind === "outgoing" ? "Покупатель" : "Поставщик"}</Label>
-              <Select value={partnerId} onValueChange={setPartnerId} disabled={!editable}>
-                <SelectTrigger className="h-8"><SelectValue placeholder="Не выбран" /></SelectTrigger>
-                <SelectContent>
-                  {filteredPartners.length === 0 && <div className="px-2 py-1.5 text-sm text-muted-foreground">Нет контрагентов</div>}
-                  {filteredPartners.map((p: any) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <PartnerPicker value={partnerId || null} onChange={setPartnerId} kind={kind === "outgoing" ? "customer" : "supplier"} disabled={!editable} />
             </div>
             {isShipment && kind === "outgoing" && (
               <div className="space-y-1">

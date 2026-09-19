@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 import { db } from "@/integrations/db";
+import { PartnerPicker } from "@/components/PartnerPicker";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -221,13 +222,7 @@ function NewInvoice() {
           </div>
           <div className="space-y-1">
             <Label className="text-xs">{kind === "outgoing" ? "Покупатель" : "Поставщик"}</Label>
-            <Select value={partnerId} onValueChange={(v) => invoiceDraft.set({ partnerId: v })}>
-              <SelectTrigger className="h-8"><SelectValue placeholder="Не выбран" /></SelectTrigger>
-              <SelectContent>
-                {filteredPartners.length === 0 && <div className="px-2 py-1.5 text-sm text-muted-foreground">Нет контрагентов</div>}
-                {filteredPartners.map((p: any) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <PartnerPicker value={partnerId || null} onChange={(v) => invoiceDraft.set({ partnerId: v })} kind={kind === "outgoing" ? "customer" : "supplier"} />
           </div>
           <div className="space-y-1">
             <Label className="text-xs">Дата</Label>
