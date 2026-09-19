@@ -1017,70 +1017,29 @@ function ProductsPage() {
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>{editing?.id ? "Редактировать товар или услугу" : "Новый товар или услуга"}</DialogTitle></DialogHeader>
           {editing && (
-            <form onSubmit={(e) => { e.preventDefault(); upsert.mutate(editing); }} className="space-y-4">
-              <div className="space-y-2">
+            <form onSubmit={(e) => { e.preventDefault(); upsert.mutate(editing); }} className="space-y-3">
+              <div className="space-y-1.5">
                 <Label>Название *</Label>
                 <Input required value={editing.name ?? ""} onChange={e => setEditing({ ...editing, name: e.target.value })} />
               </div>
-              <div className="space-y-2">
-                <Label>Фото</Label>
-                <div className="flex items-center gap-3">
-                  <div
-                    className={`h-20 w-20 rounded-md border bg-muted/40 flex items-center justify-center overflow-hidden shrink-0 ${editing.image_url ? "cursor-zoom-in" : ""}`}
-                    onClick={() => { if (editing?.image_url) setZoomImage(editing.image_url); }}
-                    title={editing.image_url ? "Открыть фото" : undefined}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Папка</Label>
+                  <Select
+                    value={editing.folder_id ?? ROOT}
+                    onValueChange={v => {
+                      const folderId = v === ROOT ? null : v;
+                      setEditing({ ...editing, folder_id: folderId, kind: kindForFolder(folderId) ?? editing.kind });
+                    }}
                   >
-                    {editing.image_url ? (
-                      <img src={editing.image_url} alt="" className="max-h-full max-w-full object-contain" />
-                    ) : (
-                      <ImageIcon className="h-6 w-6 text-muted-foreground" />
-                    )}
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <label className="inline-flex items-center gap-2 text-sm cursor-pointer px-3 h-8 rounded-md border hover:bg-accent">
-                      <Upload className="h-4 w-4" />
-                      {uploadingImage ? "Загрузка…" : "Загрузить"}
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        disabled={uploadingImage}
-                        onChange={async (e) => {
-                          const file = e.target.files?.[0];
-                          e.target.value = "";
-                          if (!file) return;
-                          try {
-                            setUploadingImage(true);
-                            const { data: { user } } = await db.auth.getUser();
-                            if (!user) throw new Error("Нет сессии");
-                            const ext = file.name.split(".").pop() || "jpg";
-                            const path = `${user.id}/${crypto.randomUUID()}.${ext}`;
-                            const { error: upErr } = await db.storage.from("product-images").upload(path, file, { contentType: file.type });
-                            if (upErr) throw upErr;
-                            const { data: pub } = await db.storage.from("product-images").getUrl(path);
-                            setEditing(cur => cur ? { ...cur, image_url: pub.publicUrl } : cur);
-                          } catch (err) {
-                            toast.error(err instanceof Error ? err.message : "Ошибка загрузки");
-                          } finally {
-                            setUploadingImage(false);
-                          }
-                        }}
-                      />
-                    </label>
-                    {editing.image_url && (
-                      <button
-                        type="button"
-                        className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-destructive"
-                        onClick={() => setEditing({ ...editing, image_url: null })}
-                      >
-                        <X className="h-3 w-3" /> Убрать фото
-                      </button>
-                    )}
-                  </div>
+                    <SelectTrigger><SelectValue placeholder="Выберите папку" /></SelectTrigger>
+                    <SelectContent className="max-h-72">
+                      <SelectItem value={ROOT}>Без папки</SelectItem>
+                      {folderOptions.map(o => <SelectItem key={o.id} value={o.id}>{o.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                 </div>
-              </div>
-              <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   <Label>Тип</Label>
                   <Select value={editing.kind ?? "product"} onValueChange={v => setEditing({ ...editing, kind: v as "product" | "service" })}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
@@ -1090,11 +1049,9 @@ function ProductsPage() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-2">
-                  <Label>Артикул</Label>
-                  <Input value={editing.sku ?? ""} onChange={e => setEditing({ ...editing, sku: e.target.value })} />
-                </div>
-                <div className="space-y-2">
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
                   <Label>Единица</Label>
                   {units.length > 0 ? (
                     <Select
@@ -1103,7 +1060,6 @@ function ProductsPage() {
                     >
                       <SelectTrigger><SelectValue placeholder="Выберите" /></SelectTrigger>
                       <SelectContent>
-                        {/* show current value even if not in list */}
                         {editing.unit && !units.some(u => u.short_name === editing.unit) && (
                           <SelectItem value={editing.unit}>{editing.unit}</SelectItem>
                         )}
@@ -1114,35 +1070,15 @@ function ProductsPage() {
                     <Input value={editing.unit ?? "шт"} onChange={e => setEditing({ ...editing, unit: e.target.value })} placeholder="Добавьте в Настройках → Справочники" />
                   )}
                 </div>
-              </div>
-              <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label>Себестоимость</Label>
-                  <Input type="number" step="0.01" value={editing.cost ?? 0}
-                    onChange={e => setEditing({ ...editing, cost: Number(e.target.value) })}
-                    readOnly={!!editing.id && costInfo.hasBatches}
-                    className={!!editing.id && costInfo.hasBatches ? "bg-muted" : undefined} />
-                  <p className="text-xs text-muted-foreground">
-                    {editing.id
-                      ? costInfo.hasBatches
-                        ? `По партиям поступлений: остаток ${costInfo.qty}, себестоимость ${fmt.format(costInfo.cost)}`
-                        : "Поступлений ещё нет — значение можно указать вручную, дальше оно считается по поступлениям"
-                      : "Дальше считается автоматически по поступлениям (партиями, FIFO)"}
-                  </p>
-                </div>
                 {priceTypes.length === 0 && (
-                  <div className="space-y-2">
+                  <div className="space-y-1.5">
                     <Label>Цена продажи</Label>
                     <Input type="number" step="0.01" value={editing.price ?? 0} onChange={e => setEditing({ ...editing, price: Number(e.target.value) })} />
                   </div>
                 )}
-                <div className="space-y-2">
-                  <Label>Начальный остаток</Label>
-                  <Input type="number" step="0.001" value={editing.stock ?? 0} onChange={e => setEditing({ ...editing, stock: Number(e.target.value) })} disabled={!!editing.id} />
-                </div>
               </div>
               {priceTypes.length > 0 && (
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   <Label>Цены по типам</Label>
                   <div className="flex items-center gap-2">
                     <Select
@@ -1207,27 +1143,116 @@ function ProductsPage() {
                       );
                     })}
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Типы цен добавляются в Настройках → Справочники. В документы подставляется тип цены, выбранный пользователем.
-                  </p>
                 </div>
               )}
-              <div className="space-y-2">
-                <Label>Ставка НДС</Label>
-                <Select value={editing.vat_rate ?? "none"} onValueChange={v => setEditing({ ...editing, vat_rate: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Без НДС</SelectItem>
-                    <SelectItem value="0">0%</SelectItem>
-                    <SelectItem value="10">10%</SelectItem>
-                    <SelectItem value="20">20%</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Описание</Label>
-                <Textarea rows={2} value={editing.description ?? ""} onChange={e => setEditing({ ...editing, description: e.target.value })} />
-              </div>
+
+              <Collapsible open={cardMore} onOpenChange={setCardMore}>
+                <CollapsibleTrigger asChild>
+                  <Button type="button" variant="ghost" size="sm" className="px-0 text-muted-foreground">
+                    {cardMore ? <ChevronDown className="h-4 w-4 mr-1" /> : <ChevronRight className="h-4 w-4 mr-1" />}
+                    Дополнительно: фото, артикул, себестоимость, НДС, описание
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="space-y-3 pt-2">
+                  <div className="space-y-1.5">
+                    <Label>Фото</Label>
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`h-20 w-20 rounded-md border bg-muted/40 flex items-center justify-center overflow-hidden shrink-0 ${editing.image_url ? "cursor-zoom-in" : ""}`}
+                        onClick={() => { if (editing?.image_url) setZoomImage(editing.image_url); }}
+                        title={editing.image_url ? "Открыть фото" : undefined}
+                      >
+                        {editing.image_url ? (
+                          <img src={editing.image_url} alt="" className="max-h-full max-w-full object-contain" />
+                        ) : (
+                          <ImageIcon className="h-6 w-6 text-muted-foreground" />
+                        )}
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <label className="inline-flex items-center gap-2 text-sm cursor-pointer px-3 h-8 rounded-md border hover:bg-accent">
+                          <Upload className="h-4 w-4" />
+                          {uploadingImage ? "Загрузка…" : "Загрузить"}
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            disabled={uploadingImage}
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              e.target.value = "";
+                              if (!file) return;
+                              try {
+                                setUploadingImage(true);
+                                const { data: { user } } = await db.auth.getUser();
+                                if (!user) throw new Error("Нет сессии");
+                                const ext = file.name.split(".").pop() || "jpg";
+                                const path = `${user.id}/${crypto.randomUUID()}.${ext}`;
+                                const { error: upErr } = await db.storage.from("product-images").upload(path, file, { contentType: file.type });
+                                if (upErr) throw upErr;
+                                const { data: pub } = await db.storage.from("product-images").getUrl(path);
+                                setEditing(cur => cur ? { ...cur, image_url: pub.publicUrl } : cur);
+                              } catch (err) {
+                                toast.error(err instanceof Error ? err.message : "Ошибка загрузки");
+                              } finally {
+                                setUploadingImage(false);
+                              }
+                            }}
+                          />
+                        </label>
+                        {editing.image_url && (
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-destructive"
+                            onClick={() => setEditing({ ...editing, image_url: null })}
+                          >
+                            <X className="h-3 w-3" /> Убрать фото
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="space-y-1.5">
+                      <Label>Артикул</Label>
+                      <Input value={editing.sku ?? ""} onChange={e => setEditing({ ...editing, sku: e.target.value })} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Себестоимость</Label>
+                      <Input type="number" step="0.01" value={editing.cost ?? 0}
+                        onChange={e => setEditing({ ...editing, cost: Number(e.target.value) })}
+                        readOnly={!!editing.id && costInfo.hasBatches}
+                        className={!!editing.id && costInfo.hasBatches ? "bg-muted" : undefined} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Начальный остаток</Label>
+                      <Input type="number" step="0.001" value={editing.stock ?? 0} onChange={e => setEditing({ ...editing, stock: Number(e.target.value) })} disabled={!!editing.id} />
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {editing.id
+                      ? costInfo.hasBatches
+                        ? `Себестоимость по партиям поступлений: остаток ${costInfo.qty}, ${fmt.format(costInfo.cost)}`
+                        : "Поступлений ещё нет — себестоимость можно указать вручную, дальше считается по поступлениям"
+                      : "Себестоимость дальше считается автоматически по поступлениям (партиями, FIFO)"}
+                  </p>
+                  <div className="space-y-1.5">
+                    <Label>Ставка НДС</Label>
+                    <Select value={editing.vat_rate ?? "none"} onValueChange={v => setEditing({ ...editing, vat_rate: v })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Без НДС</SelectItem>
+                        <SelectItem value="0">0%</SelectItem>
+                        <SelectItem value="10">10%</SelectItem>
+                        <SelectItem value="20">20%</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Описание</Label>
+                    <Textarea rows={2} value={editing.description ?? ""} onChange={e => setEditing({ ...editing, description: e.target.value })} />
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
               <DialogFooter>
                 <Button type="button" variant="ghost" onClick={() => setOpen(false)}>Отмена</Button>
                 <Button type="submit" disabled={upsert.isPending}>Сохранить</Button>
