@@ -207,6 +207,30 @@ function PartnersPage() {
         <span className="text-sm text-muted-foreground">Найдено: {filtered.length}</span>
       </div>
 
+      {selected.size > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/40 px-3 py-2">
+          <span className="text-sm">Выбрано: {selected.size}</span>
+          <Select onValueChange={(v) => bulkMove.mutate({ ids: [...selected], kind: v as PartnerKind })}>
+            <SelectTrigger className="h-8 w-[220px]"><SelectValue placeholder="Перенести во вкладку…" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="customer">Покупатели</SelectItem>
+              <SelectItem value="supplier">Поставщики</SelectItem>
+              <SelectItem value="employee">Сотрудники</SelectItem>
+              <SelectItem value="other">Прочее</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button
+            size="sm"
+            variant="destructive"
+            disabled={bulkRemove.isPending}
+            onClick={() => { if (confirm(`Удалить выбранные (${selected.size})? Это действие нельзя отменить.`)) bulkRemove.mutate([...selected]); }}
+          >
+            <Trash2 className="h-4 w-4 mr-1" /> Удалить
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>Снять выделение</Button>
+        </div>
+      )}
+
       <Card className="p-0 overflow-x-auto">
         <Table>
           <TableHeader>
