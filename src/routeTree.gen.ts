@@ -25,6 +25,7 @@ import { Route as AuthenticatedDashboardRouteImport } from './routes/_authentica
 import { Route as AuthenticatedCashRouteImport } from './routes/_authenticated/cash'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedShipmentsIndexRouteImport } from './routes/_authenticated/shipments.index'
+import { Route as AuthenticatedReportsIndexRouteImport } from './routes/_authenticated/reports.index'
 import { Route as AuthenticatedInvoicesIndexRouteImport } from './routes/_authenticated/invoices.index'
 import { Route as AuthenticatedCashIndexRouteImport } from './routes/_authenticated/cash.index'
 import { Route as ApiFileSplatRouteImport } from './routes/api/file.$'
@@ -116,6 +117,12 @@ const AuthenticatedShipmentsIndexRoute =
     path: '/',
     getParentRoute: () => AuthenticatedShipmentsRoute,
   } as any)
+const AuthenticatedReportsIndexRoute =
+  AuthenticatedReportsIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedReportsRoute,
+  } as any)
 const AuthenticatedInvoicesIndexRoute =
   AuthenticatedInvoicesIndexRouteImport.update({
     id: '/',
@@ -197,6 +204,7 @@ export interface FileRoutesByFullPath {
   '/api/file/$': typeof ApiFileSplatRoute
   '/cash/': typeof AuthenticatedCashIndexRoute
   '/invoices/': typeof AuthenticatedInvoicesIndexRoute
+  '/reports/': typeof AuthenticatedReportsIndexRoute
   '/shipments/': typeof AuthenticatedShipmentsIndexRoute
 }
 export interface FileRoutesByTo {
@@ -206,7 +214,6 @@ export interface FileRoutesByTo {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/partners': typeof AuthenticatedPartnersRoute
   '/products': typeof AuthenticatedProductsRoute
-  '/reports': typeof AuthenticatedReportsRouteWithChildren
   '/settings': typeof AuthenticatedSettingsRoute
   '/stock': typeof AuthenticatedStockRoute
   '/team': typeof AuthenticatedTeamRoute
@@ -221,6 +228,7 @@ export interface FileRoutesByTo {
   '/api/file/$': typeof ApiFileSplatRoute
   '/cash': typeof AuthenticatedCashIndexRoute
   '/invoices': typeof AuthenticatedInvoicesIndexRoute
+  '/reports': typeof AuthenticatedReportsIndexRoute
   '/shipments': typeof AuthenticatedShipmentsIndexRoute
 }
 export interface FileRoutesById {
@@ -250,6 +258,7 @@ export interface FileRoutesById {
   '/api/file/$': typeof ApiFileSplatRoute
   '/_authenticated/cash/': typeof AuthenticatedCashIndexRoute
   '/_authenticated/invoices/': typeof AuthenticatedInvoicesIndexRoute
+  '/_authenticated/reports/': typeof AuthenticatedReportsIndexRoute
   '/_authenticated/shipments/': typeof AuthenticatedShipmentsIndexRoute
 }
 export interface FileRouteTypes {
@@ -279,6 +288,7 @@ export interface FileRouteTypes {
     | '/api/file/$'
     | '/cash/'
     | '/invoices/'
+    | '/reports/'
     | '/shipments/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -288,7 +298,6 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/partners'
     | '/products'
-    | '/reports'
     | '/settings'
     | '/stock'
     | '/team'
@@ -303,6 +312,7 @@ export interface FileRouteTypes {
     | '/api/file/$'
     | '/cash'
     | '/invoices'
+    | '/reports'
     | '/shipments'
   id:
     | '__root__'
@@ -331,6 +341,7 @@ export interface FileRouteTypes {
     | '/api/file/$'
     | '/_authenticated/cash/'
     | '/_authenticated/invoices/'
+    | '/_authenticated/reports/'
     | '/_authenticated/shipments/'
   fileRoutesById: FileRoutesById
 }
@@ -456,6 +467,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedShipmentsIndexRouteImport
       parentRoute: typeof AuthenticatedShipmentsRoute
     }
+    '/_authenticated/reports/': {
+      id: '/_authenticated/reports/'
+      path: '/'
+      fullPath: '/reports/'
+      preLoaderRoute: typeof AuthenticatedReportsIndexRouteImport
+      parentRoute: typeof AuthenticatedReportsRoute
+    }
     '/_authenticated/invoices/': {
       id: '/_authenticated/invoices/'
       path: '/'
@@ -562,11 +580,13 @@ const AuthenticatedInvoicesRouteWithChildren =
 interface AuthenticatedReportsRouteChildren {
   AuthenticatedReportsBookRoute: typeof AuthenticatedReportsBookRoute
   AuthenticatedReportsKudirRoute: typeof AuthenticatedReportsKudirRoute
+  AuthenticatedReportsIndexRoute: typeof AuthenticatedReportsIndexRoute
 }
 
 const AuthenticatedReportsRouteChildren: AuthenticatedReportsRouteChildren = {
   AuthenticatedReportsBookRoute: AuthenticatedReportsBookRoute,
   AuthenticatedReportsKudirRoute: AuthenticatedReportsKudirRoute,
+  AuthenticatedReportsIndexRoute: AuthenticatedReportsIndexRoute,
 }
 
 const AuthenticatedReportsRouteWithChildren =
