@@ -536,9 +536,34 @@ async function affectedWorkspaces(
   const col = table === "workspaces" ? "id" : "workspace_id";
   c.text = `select distinct ${col} as ws from ${table}`;
   applyWhere(c, filters, scope, table);
-  c.text += " limit 20";
   const rows = await s.unsafe(c.text, c.params as any);
   return (rows as any[]).map((r) => (r.ws ? String(r.ws) : null));
+}
+
+/**
+ * Товар нельзя удалить, если по нему есть движения по складу или строки
+ * документов: иначе остатки, себестоимость и отчёты «теряют» историю.
+ */
+async function assertProductsUnused(s: any, filters: Filter[], scope: string[] | null) {
+  const c = new SqlBuf();
+  c.text = "select id from products";
+  applyWhere(c, filters, scope, "products");
+  const ids = ((await s.unsafe(c.text, c.params as any)) as any[]).map((r) => String(r.id));
+  if (!ids.length) return;
+  const used = (await s`
+    select p.id, p.data->>'name' as name from products p
+    where p.id = any(${ids}) and (
+      exists (select 1 from stock_movements m where m.data->>'product_id' = p.id)
+      or exists (select 1 from invoice_items i where i.data->>'product_id' = p.id)
+      or exists (select 1 from stock_receipt_items r where r.data->>'product_id' = p.id)
+    )
+  `) as unknown as { id: string; name: string | null }[];
+  if (used.length) {
+    const names = used.slice(0, 3).map((u) => u.name || u.id).join(", ");
+    throw new Error(
+      `Нельзя удалить товар, по которому есть движения или документы: ${names}${used.length > 3 ? ` и ещё ${used.length - 3}` : ""}`,
+    );
+  }
 }
 
 /** WHERE со сквозной нумерацией параметров. */
