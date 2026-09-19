@@ -26,9 +26,11 @@ export const Route = createFileRoute("/_authenticated/partners")({
   component: PartnersPage,
 });
 
+type PartnerKind = "customer" | "supplier" | "employee";
+const KIND_LABELS: Record<PartnerKind, string> = { customer: "Покупатель", supplier: "Поставщик", employee: "Сотрудник" };
 type Partner = {
   id: string;
-  kind: "customer" | "supplier";
+  kind: PartnerKind;
   name: string;
   full_name: string | null;
   inn: string | null;
@@ -48,7 +50,7 @@ function PartnersPage() {
   const [editing, setEditing] = useState<Partial<Partner> | null>(null);
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const [kindFilter, setKindFilter] = useState<"all" | "customer" | "supplier">("customer");
+  const [kindFilter, setKindFilter] = useState<"all" | PartnerKind>("customer");
   const lookupOrg = useServerFn(lookupOrgByInn);
   const innLookup = useMutation({
     mutationFn: (inn: string) => lookupOrg({ data: { inn } }),
