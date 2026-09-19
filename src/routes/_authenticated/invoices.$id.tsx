@@ -21,6 +21,7 @@ import { ArrowLeft, Printer, CheckCircle2, XCircle, Trash2, Plus, Save, FileEdit
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { amountInWords } from "@/lib/amount-in-words";
+import { Pko } from "@/components/print/Pko";
 import { ProductPicker, type PickedItem } from "@/components/ProductPicker";
 import { ProductPickerSingle } from "@/components/ProductPickerSingle";
 import { useActiveWorkspaceId } from "@/lib/workspace";
