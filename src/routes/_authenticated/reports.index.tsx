@@ -13,6 +13,8 @@ import { Badge } from "@/components/ui/badge";
 import { Download } from "lucide-react";
 import { downloadCsv } from "@/lib/export-csv";
 import { fetchBalances } from "@/lib/stock";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useOrganizations } from "@/lib/organizations";
 
 export const Route = createFileRoute("/_authenticated/reports/")({
   head: () => ({
