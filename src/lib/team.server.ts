@@ -247,3 +247,19 @@ export async function myWorkspaces(userId: string) {
     is_owner: !!r.is_owner,
   }));
 }
+
+/** Привязать логин сотрудника к юрлицу (null — без привязки). */
+export async function setMemberOrg(workspaceId: string, memberId: string, orgId: string | null) {
+  const s = sql();
+  if (orgId) {
+    await s`
+      update workspace_members set data = data || ${s.json({ organization_id: orgId } as any)}, updated_at = now()
+      where id = ${memberId} and workspace_id = ${workspaceId}
+    `;
+  } else {
+    await s`
+      update workspace_members set data = data - 'organization_id', updated_at = now()
+      where id = ${memberId} and workspace_id = ${workspaceId}
+    `;
+  }
+}

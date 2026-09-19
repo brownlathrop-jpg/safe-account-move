@@ -138,3 +138,15 @@ export const teamWorkspaceHistory = createServerFn({ method: "POST" })
       return { data: null, error: { message: e?.message ?? String(e) } };
     }
   });
+
+export const teamSetOrg = createServerFn({ method: "POST" })
+  .inputValidator((input: { workspaceId: string; memberId: string; orgId: string | null }) => input)
+  .handler(async ({ data }) => {
+    try {
+      const { team } = await requireOwner(data.workspaceId);
+      await team.setMemberOrg(data.workspaceId, data.memberId, data.orgId);
+      return { data: true, error: null };
+    } catch (e: any) {
+      return { data: null, error: { message: e?.message ?? String(e) } };
+    }
+  });
