@@ -443,7 +443,11 @@ function ProductsPage() {
       if (selectedFolder !== ALL && selectedFolder !== ROOT) setSelectedFolder(ALL);
       setDeleteFolder(null);
       setSelectedFolderIds([]);
-      toast.success("Папка и её содержимое удалены");
+      if (kept > 0) {
+        toast.warning(`Удалено. Осталось ${kept} позиц. — по ним есть движения или документы, папка сохранена`);
+      } else {
+        toast.success("Папка и её содержимое удалены");
+      }
     },
     onError: (e: Error) => toast.error(e.message),
   });
