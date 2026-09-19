@@ -27,13 +27,13 @@ const TABLES = [
 export type BackupDump = {
   exported_at: string;
   workspace_id: string;
-  tables: Record<string, unknown[]>;
+  tables: Record<string, any[]>;
   counts: Record<string, number>;
 };
 
 export async function exportWorkspace(workspaceId: string): Promise<BackupDump> {
   const s = sql();
-  const tables: Record<string, unknown[]> = {};
+  const tables: Record<string, any[]> = {};
   const counts: Record<string, number> = {};
   for (const t of TABLES) {
     const rows =
@@ -43,8 +43,8 @@ export async function exportWorkspace(workspaceId: string): Promise<BackupDump> 
             `select id, workspace_id, user_id, data, created_at, updated_at from ${t} where workspace_id = $1`,
             [workspaceId],
           );
-    tables[t] = rows as unknown[];
-    counts[t] = (rows as unknown[]).length;
+    tables[t] = rows as any[];
+    counts[t] = (rows as any[]).length;
   }
   return { exported_at: new Date().toISOString(), workspace_id: workspaceId, tables, counts };
 }

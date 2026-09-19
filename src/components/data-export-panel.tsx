@@ -16,7 +16,7 @@ export function DataExportPanel() {
     if (!wsId) return;
     setBusy(true);
     try {
-      const res = await backupExport({ data: { workspaceId: wsId } });
+      const res: any = await backupExport({ data: { workspaceId: wsId } });
       if (res.error || !res.data) throw new Error(res.error?.message ?? "Не удалось выгрузить данные");
       const dump = res.data;
       const blob = new Blob([JSON.stringify(dump, null, 2)], { type: "application/json" });

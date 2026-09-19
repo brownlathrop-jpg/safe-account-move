@@ -276,5 +276,5 @@ export async function docAuthors(workspaceId: string, table = "invoices") {
     where workspace_id = ${workspaceId} and doc_table = ${table} and op = 'insert'
     group by doc_id
   `;
-  return rows as { doc_id: string; user_email: string | null }[];
+  return rows as unknown as { doc_id: string; user_email: string | null }[];
 }
