@@ -113,6 +113,17 @@ function NewCashDoc() {
       </div>
 
       <Card className="p-3">
+        {orgs.length > 1 && (
+          <div className="mb-2 flex items-center gap-2">
+            <Label className="text-xs text-muted-foreground shrink-0">От юрлица:</Label>
+            <Select value={effOrgId ?? ""} onValueChange={setOrgId}>
+              <SelectTrigger className="h-8 w-72"><SelectValue placeholder="Выберите организацию" /></SelectTrigger>
+              <SelectContent>
+                {orgs.map((o) => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           <div className="space-y-1">
             <Label className="text-xs">Тип</Label>
