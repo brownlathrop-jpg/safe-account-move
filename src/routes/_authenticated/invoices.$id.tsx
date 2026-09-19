@@ -217,6 +217,13 @@ function InvoiceView() {
   const isPKO = docType === "cash_receipt";
 
 
+  // Вся цепочка документов: оплаты считаются по заявке и по её накладным/ордерам вместе.
+  const { data: chain } = useQuery({
+    queryKey: ["doc-chain", id],
+    queryFn: () => loadChain(id),
+  });
+  const chainIds = (chain?.docs ?? []).map((d) => d.id);
+
   const { data: parent } = useQuery({
     queryKey: ["invoice-parent", inv?.parent_id],
     enabled: !!inv?.parent_id,
