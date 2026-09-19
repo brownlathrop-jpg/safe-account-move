@@ -359,12 +359,30 @@ function TeamPage() {
 
         <TabsContent value="history" className="mt-3">
           <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Последние изменения</CardTitle>
+            <CardHeader className="pb-3 flex flex-row flex-wrap items-center justify-between gap-2">
+              <CardTitle className="text-base">Журнал действий</CardTitle>
+              <div className="flex gap-1">
+                {(
+                  [
+                    { v: "all", l: "Всё" },
+                    { v: "changes", l: "Изменения" },
+                    { v: "views", l: "Просмотры" },
+                  ] as const
+                ).map((o) => (
+                  <Button
+                    key={o.v}
+                    size="sm"
+                    variant={logKind === o.v ? "default" : "outline"}
+                    onClick={() => setLogKind(o.v)}
+                  >
+                    {o.l}
+                  </Button>
+                ))}
+              </div>
             </CardHeader>
             <CardContent>
               {history.length === 0 ? (
-                <div className="text-sm text-muted-foreground">Изменений пока нет.</div>
+                <div className="text-sm text-muted-foreground">Записей пока нет.</div>
               ) : (
                 <div className="divide-y text-sm">
                   {history.map((h: any) => (
@@ -373,9 +391,7 @@ function TeamPage() {
                         {new Date(h.created_at).toLocaleString("ru-RU")}
                       </span>
                       <span className="font-medium">{h.user_email || "—"}</span>
-                      <span>
-                        {TABLE_LABEL[h.doc_table] ?? h.doc_table} {OP_LABEL[h.op] ?? h.op}
-                      </span>
+                      <span>{logText(h)}</span>
                     </div>
                   ))}
                 </div>
