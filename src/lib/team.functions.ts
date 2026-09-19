@@ -127,15 +127,36 @@ export const teamDocHistory = createServerFn({ method: "POST" })
   });
 
 export const teamWorkspaceHistory = createServerFn({ method: "POST" })
-  .inputValidator((input: { workspaceId: string }) => input)
+  .inputValidator((input: { workspaceId: string; kind?: "all" | "changes" | "views" }) => input)
   .handler(async ({ data }) => {
     try {
       const { user, team } = await ctx();
       const role = await team.roleIn(user.id, data.workspaceId);
       if (!role) throw new Error("Нет доступа к этой базе");
-      return { data: await team.workspaceHistory(data.workspaceId), error: null };
+      return {
+        data: await team.workspaceHistory(data.workspaceId, 200, data.kind ?? "all"),
+        error: null,
+      };
     } catch (e: any) {
       return { data: null, error: { message: e?.message ?? String(e) } };
+    }
+  });
+
+/** Записать, что сотрудник открыл важный раздел. */
+export const teamLogView = createServerFn({ method: "POST" })
+  .inputValidator((input: { workspaceId: string | null; section: string }) => input)
+  .handler(async ({ data }) => {
+    try {
+      const { user, team } = await ctx();
+      await team.logView({
+        section: data.section,
+        workspaceId: data.workspaceId,
+        userId: user.id,
+        userEmail: user.email ?? "",
+      });
+      return { data: true, error: null };
+    } catch {
+      return { data: null, error: null };
     }
   });
 
