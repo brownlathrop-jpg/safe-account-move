@@ -300,8 +300,13 @@ function InvoiceView() {
         if (error) throw error;
       }
 
+      // Для кассовых ордеров вид документа должен соответствовать префиксу номера,
+      // иначе ПКО может отображаться как РКО (или наоборот).
+      const normalizedKind = isPKO
+        ? ((effectiveCashKind("cash_receipt", kind, number) ?? kind) as "incoming" | "outgoing")
+        : kind;
       const { error: upErr } = await (db as any).from("invoices").update({
-        kind, number, issue_date: date, partner_id: partnerId || null, note: note || null,
+        kind: normalizedKind, number, issue_date: date, partner_id: partnerId || null, note: note || null,
         warehouse_id: isShipment ? (warehouseId || null) : null,
         cash_received: isPKO ? cashReceived : null,
         cash_basis: isPKO ? (cashBasis || null) : null,
