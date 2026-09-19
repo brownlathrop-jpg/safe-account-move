@@ -213,7 +213,7 @@ function InvoicesPage() {
       </div>
 
       <Card className="p-0 overflow-x-auto">
-        <Table style={{ tableLayout: "fixed", width: cols.visible.reduce((s, c) => s + (cols.widths[c.key] ?? c.width), 0) }}>
+        <Table style={{ tableLayout: "fixed", width: "100%", minWidth: cols.visible.reduce((s, c) => s + (cols.widths[c.key] ?? c.width), 0) }}>
           <colgroup>
             {cols.visible.map(c => <col key={c.key} style={{ width: cols.widths[c.key] ?? c.width }} />)}
           </colgroup>
