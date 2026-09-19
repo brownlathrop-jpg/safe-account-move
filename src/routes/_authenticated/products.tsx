@@ -706,7 +706,7 @@ function ProductsPage() {
               {hasChildren ? (isOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />) : null}
             </button>
             {active ? <FolderOpen className="h-4 w-4 mt-0.5 shrink-0 text-primary" /> : <Folder className="h-4 w-4 mt-0.5 shrink-0 text-muted-foreground" />}
-            <span className={`flex-1 min-w-0 leading-snug ${active ? "whitespace-normal break-words" : "truncate"}`}>{f.name}</span>
+            <span className={`flex-1 min-w-0 leading-snug font-semibold ${active ? "whitespace-normal break-words" : "truncate"}`}>{f.name}</span>
             <DropdownMenu>
               <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                 <Button size="icon" variant="ghost" className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100">
@@ -754,7 +754,7 @@ function ProductsPage() {
             {hasChildren ? (isOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />) : null}
           </button>
           {active ? <FolderOpen className="h-4 w-4 shrink-0 text-primary" /> : <Folder className="h-4 w-4 shrink-0 text-muted-foreground" />}
-          <span className="flex-1 min-w-0 truncate">{label}</span>
+          <span className="flex-1 min-w-0 truncate font-semibold">{label}</span>
           <span className="text-xs text-muted-foreground shrink-0">{count}</span>
         </div>
         {hasChildren && isOpen && renderFolderTree(null, 1, list)}
@@ -819,7 +819,7 @@ function ProductsPage() {
               return trail.map(f => (
                 <span key={f.id} className="flex items-center gap-2">
                   <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-                   <button type="button" className="hover:text-primary font-medium" onClick={() => selectFolder(f.id)}>{f.name}</button>
+                   <button type="button" className="hover:text-primary font-semibold" onClick={() => selectFolder(f.id)}>{f.name}</button>
                 </span>
               ));
             })()}
@@ -888,7 +888,7 @@ function ProductsPage() {
                     <Checkbox checked={selectedFolderIds.includes(f.id)} onCheckedChange={() => {}} />
                   </TableCell>
                   <TableCell className="text-muted-foreground"></TableCell>
-                  <TableCell className="font-medium">
+                  <TableCell className="font-semibold">
                     <span className="inline-flex items-center gap-2">
                       <Folder className="h-4 w-4 text-muted-foreground" />
                       {f.name}
@@ -921,7 +921,7 @@ function ProductsPage() {
                     <Checkbox checked={selectedIds.includes(p.id)} onCheckedChange={() => {}} />
                   </TableCell>
                   <TableCell className="text-muted-foreground">{p.sku || "—"}</TableCell>
-                  <TableCell className="font-medium">{p.name}</TableCell>
+                  <TableCell>{p.name}</TableCell>
                   <TableCell>{p.unit}</TableCell>
                   <TableCell className="text-right">{fmt.format(Number(p.cost))}</TableCell>
                   <TableCell className="text-right font-medium">{fmt.format(priceOf(p, myPriceTypeId))}</TableCell>
