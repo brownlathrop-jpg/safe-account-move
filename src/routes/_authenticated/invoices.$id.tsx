@@ -26,6 +26,7 @@ import { ProductPicker, type PickedItem } from "@/components/ProductPicker";
 import { ProductPickerSingle } from "@/components/ProductPickerSingle";
 import { useActiveWorkspaceId } from "@/lib/workspace";
 import { usePriceTypes, useMyPriceTypeId, priceOf } from "@/lib/price-types";
+import { useOrganizations, pickOrg } from "@/lib/organizations";
 import { Torg12 } from "@/components/print/Torg12";
 import { Upd } from "@/components/print/Upd";
 import type { PrintItem } from "@/components/print/print-types";
@@ -97,11 +98,10 @@ function InvoiceView() {
     enabled: !!wsId,
     queryFn: async () => (await (db as any).from("warehouses").select("id,name,is_default").eq("workspace_id", wsId).order("is_default", { ascending: false }).order("name")).data as { id: string; name: string; is_default: boolean }[] ?? [],
   });
-  const { data: myOrg } = useQuery({
-    queryKey: ["my-organization", wsId],
-    enabled: !!wsId,
-    queryFn: async () => (await (db as any).from("organizations").select("*").eq("workspace_id", wsId).order("is_primary", { ascending: false }).limit(1).maybeSingle()).data,
-  });
+  // Юрлица базы; документ привязан к организации, от неё печать и чек
+  const { data: orgs = [] } = useOrganizations(wsId);
+  const [orgId, setOrgId] = useState<string>("");
+  const myOrg = pickOrg(orgs, orgId || null);
   const { data: statuses = [] } = useQuery({
     queryKey: ["invoice_statuses", wsId],
     enabled: !!wsId,
@@ -203,6 +203,7 @@ function InvoiceView() {
     setCashReceived(Number(inv.cash_received ?? 0));
     setCashBasis(inv.cash_basis ?? "");
     setPaymentMethod(inv.payment_method === "cash" ? "cash" : "card");
+    setOrgId(inv.organization_id ?? "");
     setItems((inv.items ?? []).map((it: any) => ({
       id: it.id, product_id: it.product_id, name: it.name,
       quantity: Number(it.quantity), price: Number(it.price),
@@ -305,6 +306,7 @@ function InvoiceView() {
         cash_received: isPKO ? cashReceived : null,
         cash_basis: isPKO ? (cashBasis || null) : null,
         payment_method: paymentMethod,
+        organization_id: orgId || null,
       }).eq("id", id);
       if (upErr) throw upErr;
 
@@ -401,6 +403,7 @@ function InvoiceView() {
         doc_type: "shipment",
         parent_id: id,
         note: `На основании заявки № ${cleanNum}`,
+        organization_id: inv!.organization_id ?? null,
       }).select().single();
       if (error) throw error;
       // Copy items
@@ -444,6 +447,7 @@ function InvoiceView() {
         parent_id: id,
         cash_received: Number(inv!.total) || total || 0,
         cash_basis: `Оплата по ${docTitleAccusative(inv!.doc_type, inv!.kind)} № ${cleanNum} от ${dfmt.format(new Date(inv!.issue_date))}`,
+        organization_id: inv!.organization_id ?? null,
       }).select().single();
       if (error) throw error;
       return pko.id as string;
@@ -485,6 +489,7 @@ function InvoiceView() {
         note: isReturn
           ? `Возврат по ${isShipment ? "накладной" : "документу"} № ${cleanNum}`
           : (note || null),
+        organization_id: inv!.organization_id ?? null,
       }).select("id").single();
       if (error) throw error;
       const rows = items.map(it => ({
@@ -554,6 +559,7 @@ function InvoiceView() {
           {isShipment && kind === "outgoing" && inv.status !== "cancelled" && (
             <KktReceiptButton
               wsId={wsId}
+              orgId={orgId || inv.organization_id || null}
               invoiceId={id}
               items={items.map((it) => ({
                 name: it.name,
@@ -720,7 +726,18 @@ function InvoiceView() {
               <Input className="h-8" type="date" value={date} onChange={e => setDate(e.target.value)} disabled={!editable} />
             </div>
           </div>
-          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className={`mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 ${orgs.length > 1 ? "lg:grid-cols-4" : "lg:grid-cols-3"}`}>
+            {orgs.length > 1 && (
+              <div className="space-y-1">
+                <Label className="text-xs">Организация</Label>
+                <Select value={orgId || myOrg?.id || ""} onValueChange={setOrgId} disabled={!editable}>
+                  <SelectTrigger className="h-8"><SelectValue placeholder="Юрлицо" /></SelectTrigger>
+                  <SelectContent>
+                    {orgs.map((o) => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="space-y-1">
               <Label className="text-xs">{kind === "outgoing" ? "Покупатель" : "Поставщик"}</Label>
               <PartnerPicker value={partnerId || null} onChange={setPartnerId} kind={kind === "outgoing" ? "customer" : "supplier"} disabled={!editable} />
@@ -989,6 +1006,7 @@ function InvoiceView() {
             invoiceId={id}
             partnerId={inv.partner_id ?? null}
             workspaceId={wsId}
+            orgId={orgId || inv.organization_id || null}
             total={Number(inv.total ?? 0)}
             direction={kind === "outgoing" ? "in" : "out"}
             invoiceNumber={cleanNumber}

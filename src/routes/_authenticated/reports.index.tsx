@@ -13,6 +13,8 @@ import { Badge } from "@/components/ui/badge";
 import { Download } from "lucide-react";
 import { downloadCsv } from "@/lib/export-csv";
 import { fetchBalances } from "@/lib/stock";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useOrganizations } from "@/lib/organizations";
 
 export const Route = createFileRoute("/_authenticated/reports/")({
   head: () => ({
@@ -39,6 +41,10 @@ function ReportsPage() {
   const wsId = useActiveWorkspaceId();
   const [from, setFrom] = useState(monthStart());
   const [to, setTo] = useState(new Date().toISOString().slice(0, 10));
+  // Фильтр по юрлицу: продажи/прибыль/долги/деньги — раздельно, склад общий
+  const { data: orgs = [] } = useOrganizations(wsId);
+  const [orgSel, setOrgSel] = useState<string>("all");
+  const effOrgId = orgSel === "all" ? null : orgSel;
 
   const { data: partners = [] } = useQuery({
     queryKey: ["partners-list", wsId],
@@ -50,9 +56,20 @@ function ReportsPage() {
     queryKey: ["invoices", wsId, "reports"],
     enabled: !!wsId,
     queryFn: async () => (await (db as any).from("invoices")
-      .select("id,partner_id,doc_type,kind,issue_date,total,status,is_return,number")
+      .select("id,partner_id,doc_type,kind,issue_date,total,status,is_return,number,organization_id")
       .eq("workspace_id", wsId)).data ?? [],
   });
+
+  // Документы выбранного юрлица и карта «документ → юрлицо» для оплат и позиций
+  const docOrg = useMemo(() => {
+    const m = new Map<string, string | null>();
+    for (const d of docs as any[]) m.set(String(d.id), d.organization_id ?? null);
+    return m;
+  }, [docs]);
+  const docsF = useMemo(
+    () => (effOrgId ? (docs as any[]).filter((d) => (d.organization_id ?? null) === effOrgId) : (docs as any[])),
+    [docs, effOrgId],
+  );
 
   const { data: payments = [] } = useQuery({
     queryKey: ["invoice_payments", wsId, "reports"],
@@ -67,19 +84,27 @@ function ReportsPage() {
     queryFn: async () => (await (db as any).from("cashflow_items").select("id,name").eq("workspace_id", wsId).order("name")).data ?? [],
   });
 
+  // Оплаты выбранного юрлица (по привязке к документу; без документа — только при «все юрлица»)
+  const paymentsF = useMemo(
+    () => (effOrgId
+      ? (payments as any[]).filter((p) => p.invoice_id && docOrg.get(String(p.invoice_id)) === effOrgId)
+      : (payments as any[])),
+    [payments, docOrg, effOrgId],
+  );
+
   const paidByInvoice = useMemo(() => {
     const m = new Map<string, number>();
-    for (const p of payments as any[]) {
+    for (const p of paymentsF) {
       const k = String(p.invoice_id ?? "");
       m.set(k, (m.get(k) ?? 0) + Number(p.amount || 0));
     }
     return m;
-  }, [payments]);
+  }, [paymentsF]);
 
   // ------------------------------------------------------- задолженность
   const debts = useMemo(() => {
     const rows = new Map<string, { id: string; name: string; owedToUs: number; weOwe: number }>();
-    for (const d of docs as any[]) {
+    for (const d of docsF) {
       if (d.doc_type !== "shipment" || d.status !== "posted" || !d.partner_id) continue;
       const p = (partners as any[]).find(x => x.id === d.partner_id);
       const cur = rows.get(d.partner_id) ?? { id: d.partner_id, name: p?.name ?? "Без контрагента", owedToUs: 0, weOwe: 0 };
@@ -91,7 +116,7 @@ function ReportsPage() {
     return [...rows.values()]
       .filter(r => Math.abs(r.owedToUs) > 0.005 || Math.abs(r.weOwe) > 0.005)
       .sort((a, b) => (b.owedToUs - b.weOwe) - (a.owedToUs - a.weOwe));
-  }, [docs, partners, paidByInvoice]);
+  }, [docsF, partners, paidByInvoice]);
 
   const debtTotals = useMemo(
     () => debts.reduce((s, r) => ({ owedToUs: s.owedToUs + r.owedToUs, weOwe: s.weOwe + r.weOwe }), { owedToUs: 0, weOwe: 0 }),
@@ -100,11 +125,11 @@ function ReportsPage() {
 
   // ------------------------------------------------------- движение денег
   const inPeriod = useMemo(
-    () => (payments as any[]).filter(p => {
+    () => paymentsF.filter(p => {
       const d = String(p.date ?? "").slice(0, 10);
       return (!from || d >= from) && (!to || d <= to);
     }),
-    [payments, from, to],
+    [paymentsF, from, to],
   );
 
   const cashflow = useMemo(() => {
@@ -155,14 +180,14 @@ function ReportsPage() {
   /** Проведённые продажи за период: документ → знак (возврат уменьшает). */
   const salesDocs = useMemo(() => {
     const m = new Map<string, { sign: number; date: string }>();
-    for (const d of docs as any[]) {
+    for (const d of docsF) {
       if (d.doc_type !== "shipment" || d.status !== "posted" || d.kind !== "outgoing") continue;
       const day = String(d.issue_date ?? "").slice(0, 10);
       if ((from && day < from) || (to && day > to)) continue;
       m.set(d.id, { sign: d.is_return ? -1 : 1, date: day });
     }
     return m;
-  }, [docs, from, to]);
+  }, [docsF, from, to]);
 
   const soldItems = useMemo(
     () => (items as any[]).flatMap((it) => {
@@ -240,6 +265,18 @@ function ReportsPage() {
         <Label className="text-xs">По дату</Label>
         <Input type="date" value={to} onChange={e => setTo(e.target.value)} className="h-9 w-40" />
       </div>
+      {orgs.length > 1 && (
+        <div className="space-y-1">
+          <Label className="text-xs">Юрлицо</Label>
+          <Select value={orgSel} onValueChange={setOrgSel}>
+            <SelectTrigger className="h-9 w-52"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Все юрлица</SelectItem>
+              {orgs.map((o) => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
       <div className="ml-auto text-sm">
         Выручка: <b>{fmt.format(salesTotals.revenue)}</b>{" · "}
         Себестоимость: <b>{fmt.format(salesTotals.cost)}</b>{" · "}

@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { BookOpen, Download, Printer, Receipt } from "lucide-react";
 import { downloadCsv } from "@/lib/export-csv";
+import { useOrganizations, useMyOrgId, pickOrg } from "@/lib/organizations";
 import {
   buildCashBook, filterByMode, openingBalance, printCashBook,
   type CashBookDoc, type CashBookMode,
@@ -54,13 +55,12 @@ function CashBookPage() {
   const [mode, setMode] = useState<CashBookMode>("all");
   const [cashier, setCashier] = useState("");
 
-  const { data: org } = useQuery({
-    queryKey: ["org-cashbook", wsId],
-    enabled: !!wsId,
-    queryFn: async () =>
-      (await (db as any).from("organizations").select("*").eq("workspace_id", wsId)
-        .order("is_primary", { ascending: false }).limit(1).maybeSingle()).data,
-  });
+  // Кассовая книга формируется по выбранному юрлицу
+  const { data: orgs = [] } = useOrganizations(wsId);
+  const { data: myOrgId } = useMyOrgId(wsId);
+  const [orgSel, setOrgSel] = useState<string>("");
+  const org = pickOrg(orgs, orgSel || myOrgId || null) as any;
+  const effOrgId: string | null = org?.id ?? null;
 
   // Кассовые ордера (ПКО/РКО) и продажи, оплаченные наличными по чеку.
   const { data: docs = [], isLoading } = useQuery<CashBookDoc[]>({
@@ -69,13 +69,13 @@ function CashBookPage() {
     queryFn: async () => {
       const { data: cash, error: e1 } = await (db as any)
         .from("invoices")
-        .select("id,number,kind,total,cash_received,issue_date,note,fiscal,status,partner:partners(name)")
+        .select("id,number,kind,total,cash_received,issue_date,note,fiscal,status,organization_id,partner:partners(name)")
         .eq("doc_type", "cash_receipt")
         .eq("workspace_id", wsId);
       if (e1) throw e1;
       const { data: sales, error: e2 } = await (db as any)
         .from("invoices")
-        .select("id,number,kind,total,issue_date,note,fiscal,status,is_return,partner:partners(name)")
+        .select("id,number,kind,total,issue_date,note,fiscal,status,is_return,organization_id,partner:partners(name)")
         .eq("doc_type", "shipment")
         .eq("kind", "outgoing")
         .eq("workspace_id", wsId);
@@ -96,6 +96,7 @@ function CashBookPage() {
           note: i.note ?? "",
           hasReceipt: !!(i.fiscal?.receiptNumber || i.fiscal?.fiscalDocNumber),
           receiptNumber: i.fiscal?.receiptNumber ?? i.fiscal?.fiscalDocNumber ?? null,
+          orgId: i.organization_id ?? null,
         });
       }
       // Продажи попадают в кассовую книгу, только если оплата наличными:
@@ -117,13 +118,17 @@ function CashBookPage() {
           note: i.is_return ? "Возврат по чеку" : "Продажа по чеку",
           hasReceipt: true,
           receiptNumber: f.receiptNumber ?? f.fiscalDocNumber ?? null,
+          orgId: i.organization_id ?? null,
         });
       }
       return list;
     },
   });
 
-  const selected = useMemo(() => filterByMode(docs, mode), [docs, mode]);
+  const selected = useMemo(
+    () => filterByMode(effOrgId ? docs.filter((d) => (d.orgId ?? null) === effOrgId) : docs, mode),
+    [docs, mode, effOrgId],
+  );
   const book = useMemo(
     () => buildCashBook(selected, { from, to, opening: openingBalance(selected, from) }),
     [selected, from, to],
@@ -196,6 +201,17 @@ function CashBookPage() {
 
       <Card className="p-4">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {orgs.length > 1 && (
+            <div className="space-y-1">
+              <Label className="text-xs">Юрлицо</Label>
+              <Select value={effOrgId ?? ""} onValueChange={setOrgSel}>
+                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {orgs.map((o) => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <div className="space-y-1">
             <Label className="text-xs">Период с</Label>
             <Input type="date" className="h-9" value={from} onChange={(e) => setFrom(e.target.value)} />

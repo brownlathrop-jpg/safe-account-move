@@ -148,6 +148,7 @@ export async function listMembers(workspaceId: string) {
       email: (m.user_email as string) ?? (m.data?.email as string) ?? "",
       name: (m.user_name as string) ?? "",
       role: ((m.data?.role as Role) ?? "manager") as Role,
+      organization_id: (m.data?.organization_id as string | undefined) ?? null,
       created_at: m.created_at,
     })),
     invites: (invites as any[]).map((i) => ({
@@ -245,4 +246,20 @@ export async function myWorkspaces(userId: string) {
     role: r.role as Role,
     is_owner: !!r.is_owner,
   }));
+}
+
+/** Привязать логин сотрудника к юрлицу (null — без привязки). */
+export async function setMemberOrg(workspaceId: string, memberId: string, orgId: string | null) {
+  const s = sql();
+  if (orgId) {
+    await s`
+      update workspace_members set data = data || ${s.json({ organization_id: orgId } as any)}, updated_at = now()
+      where id = ${memberId} and workspace_id = ${workspaceId}
+    `;
+  } else {
+    await s`
+      update workspace_members set data = data - 'organization_id', updated_at = now()
+      where id = ${memberId} and workspace_id = ${workspaceId}
+    `;
+  }
 }

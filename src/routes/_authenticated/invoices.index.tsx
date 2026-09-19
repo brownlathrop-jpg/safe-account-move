@@ -16,6 +16,7 @@ import { printList } from "@/lib/print-list";
 import { usePrintBrand } from "@/hooks/use-print-brand";
 import { useTableColumns, type ColumnDef } from "@/hooks/use-table-columns";
 import { docAmount, docStatusLabel, docTitle } from "@/lib/doc-tree";
+import { useOrganizations } from "@/lib/organizations";
 
 
 export const Route = createFileRoute("/_authenticated/invoices/")({
@@ -41,6 +42,7 @@ const COLUMNS: ColumnDef[] = [
   { key: "doc", label: "Документ", width: 190 },
   { key: "kind", label: "Направление", width: 130 },
   { key: "partner", label: "Контрагент", width: 240 },
+  { key: "org", label: "Организация", width: 180, hiddenByDefault: true },
   { key: "status", label: "Статус", width: 150 },
   { key: "note", label: "Комментарий", width: 240, hiddenByDefault: true },
   { key: "total", label: "Сумма", width: 140 },
@@ -57,6 +59,9 @@ function InvoicesPage() {
   const [docType, setDocType] = useState<"all" | "order" | "shipment" | "cash_receipt">("all");
   const [kind, setKind] = useState<"all" | "incoming" | "outgoing">("all");
   const [statusName, setStatusName] = useState("all");
+  const [orgFilter, setOrgFilter] = useState("all");
+  const { data: orgs = [] } = useOrganizations(wsId);
+  const orgName = (id: string | null | undefined) => orgs.find((o) => o.id === id)?.name ?? "—";
 
   // Restore saved filters after mount (localStorage is browser-only)
   useEffect(() => {
@@ -67,20 +72,21 @@ function InvoicesPage() {
       if (f.docType) setDocType(f.docType);
       if (f.kind) setKind(f.kind);
       if (f.statusName) setStatusName(f.statusName);
+      if (f.org) setOrgFilter(f.org);
     } catch { /* ignore */ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    try { localStorage.setItem(FILTERS_KEY, JSON.stringify({ docType, kind, statusName })); } catch { /* ignore */ }
-  }, [docType, kind, statusName]);
+    try { localStorage.setItem(FILTERS_KEY, JSON.stringify({ docType, kind, statusName, org: orgFilter })); } catch { /* ignore */ }
+  }, [docType, kind, statusName, orgFilter]);
   const { data: invoices = [] } = useQuery({
     queryKey: ["invoices", "journal", wsId],
     enabled: !!wsId,
     queryFn: async () => {
       const { data, error } = await (db as any)
         .from("invoices")
-        .select("id,number,doc_type,kind,status,status_id,total,cash_received,issue_date,is_return,note,partner:partners(name),status_ref:invoice_statuses(name,color)")
+        .select("id,number,doc_type,kind,status,status_id,total,cash_received,issue_date,is_return,note,organization_id,partner:partners(name),status_ref:invoice_statuses(name,color)")
 
         .eq("workspace_id", wsId)
         .order("issue_date", { ascending: false });
@@ -101,6 +107,7 @@ function InvoicesPage() {
       if (kind !== "all" && i.kind !== kind) return false;
       if (docType !== "all" && i.doc_type !== docType) return false;
       if (statusName !== "all" && (i.status_ref?.name ?? "") !== statusName) return false;
+      if (orgFilter !== "all" && (i.organization_id ?? "") !== orgFilter) return false;
       if (!q) return true;
       return String(i.number ?? "").toLowerCase().includes(q)
         || String(i.partner?.name ?? "").toLowerCase().includes(q);
@@ -125,6 +132,8 @@ function InvoicesPage() {
         );
       case "partner":
         return i.partner?.name ?? "—";
+      case "org":
+        return <span className="text-sm">{orgName(i.organization_id)}</span>;
       case "status":
         return i.status_ref ? (
           <span className="inline-flex items-center gap-2 text-sm">
@@ -150,6 +159,7 @@ function InvoicesPage() {
         case "doc": return docTitle(i.doc_type, i.kind, i.is_return);
         case "kind": return i.kind === "incoming" ? "Приход" : "Расход";
         case "partner": return i.partner?.name ?? "";
+        case "org": return orgName(i.organization_id);
         case "status": return i.status_ref?.name ?? docStatusLabel(i);
         case "note": return i.note ?? "";
         case "total": return docAmount(i);
@@ -221,6 +231,15 @@ function InvoicesPage() {
             <SelectItem value="incoming">Приход</SelectItem>
           </SelectContent>
         </Select>
+        {orgs.length > 1 && (
+          <Select value={orgFilter} onValueChange={setOrgFilter}>
+            <SelectTrigger className="w-[200px]"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Все юрлица</SelectItem>
+              {orgs.map((o) => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        )}
         <Select value={statusName} onValueChange={setStatusName}>
           <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
           <SelectContent>

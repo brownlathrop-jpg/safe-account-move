@@ -39,10 +39,13 @@ export function PaymentsCard({
   direction,
   invoiceNumber,
   chainIds,
+  orgId = null,
 }: {
   invoiceId: string;
   partnerId: string | null;
   workspaceId: string | null;
+  /** Юрлицо документа — ПКО печатается от его реквизитов. */
+  orgId?: string | null;
   total: number;
   /** in — деньги получаем (продажа), out — платим поставщику. */
   direction: "in" | "out";
@@ -91,11 +94,14 @@ export function PaymentsCard({
   });
 
   const { data: printDetails } = useQuery({
-    queryKey: ["payment-print-details", workspaceId, partnerId],
+    queryKey: ["payment-print-details", workspaceId, partnerId, orgId],
     enabled: !!workspaceId,
     queryFn: async () => {
+      let orgQuery = (db as any).from("organizations").select("*").eq("workspace_id", workspaceId);
+      if (orgId) orgQuery = orgQuery.eq("id", orgId);
+      else orgQuery = orgQuery.order("is_primary", { ascending: false }).limit(1);
       const [orgResult, partnerResult] = await Promise.all([
-        (db as any).from("organizations").select("*").eq("workspace_id", workspaceId).order("is_primary", { ascending: false }).limit(1).maybeSingle(),
+        orgQuery.maybeSingle(),
         partnerId ? (db as any).from("partners").select("name").eq("id", partnerId).maybeSingle() : Promise.resolve({ data: null }),
       ]);
       return { org: orgResult.data as (PrintBrand & { okpo?: string | null }) | null, partnerName: partnerResult.data?.name as string | undefined };
@@ -147,6 +153,7 @@ export function PaymentsCard({
           cash_received: amount,
           cash_basis: form.note || `Оплата по накладной${invoiceNumber ? ` № ${invoiceNumber}` : ""}`,
           source_payment_id: paymentId,
+          organization_id: orgId,
         });
         if (pkoError) {
           await db.from("invoice_payments").delete().eq("id", paymentId);

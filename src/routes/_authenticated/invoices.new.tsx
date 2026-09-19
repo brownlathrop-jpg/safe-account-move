@@ -18,6 +18,7 @@ import { ProductPickerSingle } from "@/components/ProductPickerSingle";
 import { invoiceDraft, type DraftItem } from "@/lib/invoice-draft";
 import { useActiveWorkspaceId } from "@/lib/workspace";
 import { usePriceTypes, useMyPriceTypeId, priceOf } from "@/lib/price-types";
+import { useOrganizations, useMyOrgId, pickOrg } from "@/lib/organizations";
 
 export const Route = createFileRoute("/_authenticated/invoices/new")({
   head: () => ({ meta: [{ title: "Новая заявка — КабинетCRM" }] }),
@@ -54,24 +55,27 @@ function NewInvoice() {
   const draft = useDraft();
   const { kind, number, date, partnerId, statusId, note, items, numberTouched } = draft;
 
-  const { data: org } = useQuery({
-    queryKey: ["my-organization-mask", wsId],
-    enabled: !!wsId,
-    queryFn: async () => {
-      const { data } = await (db as any).from("organizations").select("invoice_number_mask,invoice_number_start").eq("workspace_id", wsId).order("is_primary", { ascending: false }).limit(1).maybeSingle();
-      return data as { invoice_number_mask: string; invoice_number_start: number } | null;
-    },
-  });
+  // Юрлица базы; заявка выписывается от выбранной организации
+  // (по умолчанию — организация текущего входа, иначе основная)
+  const { data: orgs = [] } = useOrganizations(wsId);
+  const { data: myOrgId } = useMyOrgId(wsId);
+  const [orgId, setOrgId] = useState<string>("");
+  const org = pickOrg(orgs, orgId || myOrgId || null);
+  const effOrgId = org?.id ?? null;
   const { data: invoiceCount } = useQuery({
-    queryKey: ["invoices-count", wsId],
+    queryKey: ["invoices-count", wsId, effOrgId],
     enabled: !!wsId,
     queryFn: async () => {
-      const { count } = await (db as any).from("invoices").select("id", { count: "exact", head: true }).eq("workspace_id", wsId);
+      let q = (db as any).from("invoices").select("id", { count: "exact", head: true }).eq("workspace_id", wsId);
+      if (effOrgId) q = q.eq("organization_id", effOrgId);
+      const { count } = await q;
       return count ?? 0;
     },
   });
 
   const seqRef = useRef<number | null>(null);
+  // при смене юрлица нумерация пересчитывается заново
+  useEffect(() => { seqRef.current = null; }, [effOrgId]);
   const mask = org?.invoice_number_mask || "{YYYY}-{MM}-{DD}-{NNN}";
   useEffect(() => {
     if (numberTouched) return;
@@ -166,6 +170,7 @@ function NewInvoice() {
         status: "draft",
         doc_type: "order",
         note: note || null,
+        organization_id: effOrgId,
       }).select().single();
       if (error) throw error;
 
@@ -209,6 +214,17 @@ function NewInvoice() {
       </div>
 
       <Card className="p-3">
+        {orgs.length > 1 && (
+          <div className="mb-2 flex items-center gap-2">
+            <Label className="text-xs text-muted-foreground shrink-0">От юрлица:</Label>
+            <Select value={effOrgId ?? ""} onValueChange={setOrgId}>
+              <SelectTrigger className="h-8 w-72"><SelectValue placeholder="Выберите организацию" /></SelectTrigger>
+              <SelectContent>
+                {orgs.map((o) => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           <div className="space-y-1">
             <Label className="text-xs">Тип</Label>
