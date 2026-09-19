@@ -96,6 +96,13 @@ export function PaymentsCard({
   const paid = useMemo(() => payments.reduce((s, p) => s + Number(p.amount || 0), 0), [payments]);
   const left = Math.max(0, Number(total || 0) - paid);
 
+  const triggerPkoPrint = () => {
+    document.body.classList.add("payment-pko-mode");
+    const cleanup = () => document.body.classList.remove("payment-pko-mode");
+    window.addEventListener("afterprint", cleanup, { once: true });
+    setTimeout(() => window.print(), 120);
+  };
+
   const addPayment = useMutation({
     mutationFn: async () => {
       const amount = Number(String(form.amount).replace(",", "."));
@@ -114,21 +121,46 @@ export function PaymentsCard({
         user_id: user?.id ?? null,
       } as never).select("id").single();
       if (error) throw error;
-      return { id: (data as { id: string }).id, amount, date: form.date || today(), note: form.note };
+      const paymentId = (data as { id: string }).id;
+      let pkoNumber: string | null = null;
+      if (printPko && direction === "in" && form.method === "cash") {
+        pkoNumber = `ПКО-${(form.date || today()).replaceAll("-", "")}-${paymentId.slice(0, 6).toUpperCase()}`;
+        const { error: pkoError } = await (db as any).from("invoices").insert({
+          user_id: user?.id ?? null,
+          workspace_id: workspaceId,
+          number: pkoNumber,
+          kind: "incoming",
+          partner_id: partnerId,
+          issue_date: form.date || today(),
+          status: "draft",
+          doc_type: "cash_receipt",
+          parent_id: invoiceId,
+          cash_received: amount,
+          cash_basis: form.note || `Оплата по накладной${invoiceNumber ? ` № ${invoiceNumber}` : ""}`,
+          source_payment_id: paymentId,
+        });
+        if (pkoError) {
+          await db.from("invoice_payments").delete().eq("id", paymentId);
+          throw pkoError;
+        }
+      }
+      return { id: paymentId, amount, date: form.date || today(), note: form.note, pkoNumber };
     },
     onSuccess: (payment) => {
       qc.invalidateQueries({ queryKey: ["invoice_payments"] });
       qc.invalidateQueries({ queryKey: ["partner-balance"] });
+      qc.invalidateQueries({ queryKey: ["cash"] });
+      qc.invalidateQueries({ queryKey: ["doc-chain"] });
       toast.success("Оплата добавлена");
       setOpen(false);
       if (printPko && direction === "in" && form.method === "cash") {
         setPko({
-          number: `ПКО-${payment.date.replaceAll("-", "")}-${payment.id.slice(0, 6).toUpperCase()}`,
+          number: payment.pkoNumber ?? `ПКО-${payment.date.replaceAll("-", "")}-${payment.id.slice(0, 6).toUpperCase()}`,
           date: payment.date,
           amount: payment.amount,
           basis: payment.note || `Оплата по накладной${invoiceNumber ? ` № ${invoiceNumber}` : ""}`,
         });
-        setTimeout(() => window.print(), 120);
+        triggerPkoPrint();
       }
       setPrintPko(false);
       setForm({ amount: "", date: today(), method: "cash", cashflow_item_id: "", note: "" });
@@ -156,7 +188,7 @@ export function PaymentsCard({
       amount: Number(payment.amount),
       basis: payment.note || `Оплата по накладной${invoiceNumber ? ` № ${invoiceNumber}` : ""}`,
     });
-    setTimeout(() => window.print(), 120);
+    triggerPkoPrint();
   };
 
   return (
@@ -290,6 +322,7 @@ export function PaymentsCard({
     <style>{`
         @media print {
           body * { visibility: hidden !important; }
+          body.payment-pko-mode .invoice-print { display: none !important; visibility: hidden !important; }
           .payment-pko-print, .payment-pko-print * { visibility: visible !important; }
           .payment-pko-print { display: block !important; position: absolute; left: 0; top: 0; width: 100%; }
         }
