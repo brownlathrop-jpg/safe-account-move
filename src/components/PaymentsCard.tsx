@@ -8,8 +8,11 @@ import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Plus, Trash2, Wallet } from "lucide-react";
+import { Plus, Printer, Trash2, Wallet } from "lucide-react";
 import { db } from "@/integrations/db";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Pko } from "@/components/print/Pko";
+import type { PrintBrand } from "@/lib/print-header";
 
 const fmt = new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB", maximumFractionDigits: 2 });
 const dfmt = new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" });
@@ -34,6 +37,7 @@ export function PaymentsCard({
   workspaceId,
   total,
   direction,
+  invoiceNumber,
 }: {
   invoiceId: string;
   partnerId: string | null;
@@ -41,9 +45,12 @@ export function PaymentsCard({
   total: number;
   /** in — деньги получаем (продажа), out — платим поставщику. */
   direction: "in" | "out";
+  invoiceNumber?: string;
 }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [printPko, setPrintPko] = useState(false);
+  const [pko, setPko] = useState<{ number: string; date: string; amount: number; basis: string } | null>(null);
   const [form, setForm] = useState<{ amount: string; date: string; method: "cash" | "bank"; cashflow_item_id: string; note: string }>({
     amount: "",
     date: today(),
@@ -74,15 +81,34 @@ export function PaymentsCard({
     },
   });
 
+  const { data: printDetails } = useQuery({
+    queryKey: ["payment-print-details", workspaceId, partnerId],
+    enabled: !!workspaceId,
+    queryFn: async () => {
+      const [orgResult, partnerResult] = await Promise.all([
+        (db as any).from("organizations").select("*").eq("workspace_id", workspaceId).order("is_primary", { ascending: false }).limit(1).maybeSingle(),
+        partnerId ? (db as any).from("partners").select("name").eq("id", partnerId).maybeSingle() : Promise.resolve({ data: null }),
+      ]);
+      return { org: orgResult.data as (PrintBrand & { okpo?: string | null }) | null, partnerName: partnerResult.data?.name as string | undefined };
+    },
+  });
+
   const paid = useMemo(() => payments.reduce((s, p) => s + Number(p.amount || 0), 0), [payments]);
   const left = Math.max(0, Number(total || 0) - paid);
+
+  const triggerPkoPrint = () => {
+    document.body.classList.add("payment-pko-mode");
+    const cleanup = () => document.body.classList.remove("payment-pko-mode");
+    window.addEventListener("afterprint", cleanup, { once: true });
+    setTimeout(() => window.print(), 120);
+  };
 
   const addPayment = useMutation({
     mutationFn: async () => {
       const amount = Number(String(form.amount).replace(",", "."));
       if (!amount || amount <= 0) throw new Error("Укажите сумму больше нуля");
       const { data: { user } } = await db.auth.getUser();
-      const { error } = await db.from("invoice_payments").insert({
+      const { data, error } = await db.from("invoice_payments").insert({
         invoice_id: invoiceId,
         partner_id: partnerId,
         direction,
@@ -93,14 +119,50 @@ export function PaymentsCard({
         note: form.note || null,
         workspace_id: workspaceId,
         user_id: user?.id ?? null,
-      } as never);
+      } as never).select("id").single();
       if (error) throw error;
+      const paymentId = (data as { id: string }).id;
+      let pkoNumber: string | null = null;
+      if (printPko && direction === "in" && form.method === "cash") {
+        pkoNumber = `ПКО-${(form.date || today()).replaceAll("-", "")}-${paymentId.slice(0, 6).toUpperCase()}`;
+        const { error: pkoError } = await (db as any).from("invoices").insert({
+          user_id: user?.id ?? null,
+          workspace_id: workspaceId,
+          number: pkoNumber,
+          kind: "incoming",
+          partner_id: partnerId,
+          issue_date: form.date || today(),
+          status: "draft",
+          doc_type: "cash_receipt",
+          parent_id: invoiceId,
+          cash_received: amount,
+          cash_basis: form.note || `Оплата по накладной${invoiceNumber ? ` № ${invoiceNumber}` : ""}`,
+          source_payment_id: paymentId,
+        });
+        if (pkoError) {
+          await db.from("invoice_payments").delete().eq("id", paymentId);
+          throw pkoError;
+        }
+      }
+      return { id: paymentId, amount, date: form.date || today(), note: form.note, pkoNumber };
     },
-    onSuccess: () => {
+    onSuccess: (payment) => {
       qc.invalidateQueries({ queryKey: ["invoice_payments"] });
       qc.invalidateQueries({ queryKey: ["partner-balance"] });
+      qc.invalidateQueries({ queryKey: ["cash"] });
+      qc.invalidateQueries({ queryKey: ["doc-chain"] });
       toast.success("Оплата добавлена");
       setOpen(false);
+      if (printPko && direction === "in" && form.method === "cash") {
+        setPko({
+          number: payment.pkoNumber ?? `ПКО-${payment.date.replaceAll("-", "")}-${payment.id.slice(0, 6).toUpperCase()}`,
+          date: payment.date,
+          amount: payment.amount,
+          basis: payment.note || `Оплата по накладной${invoiceNumber ? ` № ${invoiceNumber}` : ""}`,
+        });
+        triggerPkoPrint();
+      }
+      setPrintPko(false);
       setForm({ amount: "", date: today(), method: "cash", cashflow_item_id: "", note: "" });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -119,8 +181,19 @@ export function PaymentsCard({
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const openPaymentPrint = (payment: Payment) => {
+    setPko({
+      number: `ПКО-${payment.date.replaceAll("-", "")}-${payment.id.slice(0, 6).toUpperCase()}`,
+      date: payment.date,
+      amount: Number(payment.amount),
+      basis: payment.note || `Оплата по накладной${invoiceNumber ? ` № ${invoiceNumber}` : ""}`,
+    });
+    triggerPkoPrint();
+  };
+
   return (
-    <Card className="p-5 print:hidden">
+    <>
+    <Card className="p-4 print:hidden">
       <div className="flex items-center justify-between mb-3">
         <h3 className="font-medium flex items-center gap-2">
           <Wallet className="h-4 w-4 text-muted-foreground" /> Оплаты
@@ -157,7 +230,7 @@ export function PaymentsCard({
               <TableHead>Статья</TableHead>
               <TableHead>Примечание</TableHead>
               <TableHead className="text-right">Сумма</TableHead>
-              <TableHead className="w-10"></TableHead>
+              <TableHead className="w-20"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -171,6 +244,11 @@ export function PaymentsCard({
                 <TableCell className="text-sm text-muted-foreground">{p.note || "—"}</TableCell>
                 <TableCell className="text-right font-medium">{fmt.format(Number(p.amount || 0))}</TableCell>
                 <TableCell className="text-right">
+                  {direction === "in" && p.method === "cash" && (
+                    <Button size="icon" variant="ghost" onClick={() => openPaymentPrint(p)} title="Распечатать ПКО" aria-label="Распечатать ПКО">
+                      <Printer className="h-4 w-4" />
+                    </Button>
+                  )}
                   <Button
                     size="icon"
                     variant="ghost"
@@ -221,6 +299,13 @@ export function PaymentsCard({
               <Label className="text-xs">Примечание</Label>
               <Input value={form.note} onChange={e => setForm({ ...form, note: e.target.value })} />
             </div>
+            {direction === "in" && form.method === "cash" && (
+              <label className="col-span-2 flex cursor-pointer items-center gap-2 rounded-md border bg-muted/30 px-3 py-2 text-sm">
+                <Checkbox checked={printPko} onCheckedChange={(checked) => setPrintPko(checked === true)} />
+                <Printer className="h-4 w-4 text-muted-foreground" />
+                Распечатать ПКО после сохранения
+              </label>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Отмена</Button>
@@ -229,5 +314,19 @@ export function PaymentsCard({
         </DialogContent>
       </Dialog>
     </Card>
+    {pko && (
+      <div className="payment-pko-print hidden print:block bg-white text-black mx-auto" style={{ maxWidth: 900 }}>
+        <Pko org={printDetails?.org} number={pko.number} date={pko.date} partnerName={printDetails?.partnerName} amount={pko.amount} basis={pko.basis} />
+      </div>
+    )}
+    <style>{`
+        @media print {
+          body * { visibility: hidden !important; }
+          body.payment-pko-mode .invoice-print { display: none !important; visibility: hidden !important; }
+          .payment-pko-print, .payment-pko-print * { visibility: visible !important; }
+          .payment-pko-print { display: block !important; position: absolute; left: 0; top: 0; width: 100%; }
+        }
+      `}</style>
+    </>
   );
 }
