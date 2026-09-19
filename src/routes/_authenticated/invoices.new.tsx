@@ -158,12 +158,7 @@ function NewInvoice() {
     mutationFn: async () => {
       if (items.length === 0) throw new Error("Добавьте хотя бы одну позицию");
       if (!wsId) throw new Error("Не выбрана база данных");
-      const { data: { user } } = await db.auth.getUser();
-      if (!user) throw new Error("Нет сессии");
-
-      const { data: inv, error } = await (db as any).from("invoices").insert({
-        user_id: user.id,
-        workspace_id: wsId,
+      const header = {
         number, kind,
         partner_id: partnerId || null,
         status_id: statusId || null,
@@ -172,11 +167,8 @@ function NewInvoice() {
         doc_type: "order",
         note: note || null,
         organization_id: effOrgId,
-      }).select().single();
-      if (error) throw error;
-
+      };
       const rows = items.map((it) => ({
-        invoice_id: inv.id,
         product_id: it.product_id,
         name: it.name,
         quantity: it.quantity,
@@ -184,10 +176,11 @@ function NewInvoice() {
         sum: grossSum(it.quantity, it.price),
         kind: it.kind ?? "product",
       }));
-      const { error: itemsErr } = await db.from("invoice_items").insert(rows);
-      if (itemsErr) throw itemsErr;
 
-      return inv.id as string;
+      // Документ и его позиции создаются одной транзакцией.
+      const res: any = await invoiceCreateTx({ data: { workspaceId: wsId, header, items: rows } });
+      if (res.error) throw new Error(res.error.message);
+      return res.data.id as string;
     },
     onSuccess: (id) => {
       invoiceDraft.reset();
