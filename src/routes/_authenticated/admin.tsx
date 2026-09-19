@@ -21,6 +21,7 @@ import {
   adminDeleteUser,
   adminSelect,
 } from "@/lib/admin.functions";
+import { useViewLog } from "@/hooks/use-view-log";
 
 export const Route = createFileRoute("/_authenticated/admin")({
   component: AdminPage,
@@ -63,6 +64,7 @@ const TABLE_LABELS: Record<string, string> = {
 
 
 function AdminPage() {
+  useViewLog("admin");
   const qc = useQueryClient();
   const [allowed, setAllowed] = useState<boolean | null>(null);
 

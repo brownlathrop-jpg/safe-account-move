@@ -26,6 +26,7 @@ import {
   teamWorkspaceHistory,
 } from "@/lib/team.functions";
 import { useOrganizations } from "@/lib/organizations";
+import { useViewLog } from "@/hooks/use-view-log";
 
 export const Route = createFileRoute("/_authenticated/team")({
   component: TeamPage,
@@ -70,17 +71,39 @@ const TABLE_LABEL: Record<string, string> = {
   stock_receipts: "Поступление",
 };
 
+const SECTION_LABEL: Record<string, string> = {
+  reports: "Отчёты",
+  kudir: "КУДиР",
+  cashbook: "Кассовая книга",
+  cash: "Касса и оплаты",
+  admin: "Админка",
+  team: "Сотрудники и роли",
+  export: "Выгрузка данных",
+  settings: "Настройки базы",
+};
+
 const OP_LABEL: Record<string, string> = {
   insert: "создано",
   update: "изменено",
   delete: "удалено",
 };
 
+/** Строка журнала человеческим языком. */
+function logText(h: { doc_table: string; op: string }) {
+  if (h.op === "view" || h.doc_table.startsWith("section:")) {
+    const key = h.doc_table.replace("section:", "");
+    return `открыл раздел «${SECTION_LABEL[key] ?? key}»`;
+  }
+  return `${TABLE_LABEL[h.doc_table] ?? h.doc_table} ${OP_LABEL[h.op] ?? h.op}`;
+}
+
 function TeamPage() {
+  useViewLog("team");
   const wsId = useActiveWorkspaceId();
   const qc = useQueryClient();
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<string>("manager");
+  const [logKind, setLogKind] = useState<"all" | "changes" | "views">("all");
   const { data: orgs = [] } = useOrganizations(wsId);
 
   const { data: myRole } = useQuery({
@@ -101,10 +124,10 @@ function TeamPage() {
   });
 
   const { data: history = [] } = useQuery({
-    queryKey: ["ws-history", wsId],
+    queryKey: ["ws-history", wsId, logKind],
     enabled: !!wsId,
     queryFn: async () => {
-      const res = await teamWorkspaceHistory({ data: { workspaceId: wsId! } });
+      const res = await teamWorkspaceHistory({ data: { workspaceId: wsId!, kind: logKind } });
       if (res.error) throw new Error(res.error.message);
       return (res.data ?? []) as any[];
     },
@@ -191,7 +214,7 @@ function TeamPage() {
       <Tabs defaultValue="people">
         <TabsList>
           <TabsTrigger value="people">Доступ к базе</TabsTrigger>
-          <TabsTrigger value="history">История изменений</TabsTrigger>
+          <TabsTrigger value="history">Журнал действий</TabsTrigger>
         </TabsList>
 
         <TabsContent value="people" className="mt-3 space-y-4">
@@ -337,12 +360,30 @@ function TeamPage() {
 
         <TabsContent value="history" className="mt-3">
           <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Последние изменения</CardTitle>
+            <CardHeader className="pb-3 flex flex-row flex-wrap items-center justify-between gap-2">
+              <CardTitle className="text-base">Журнал действий</CardTitle>
+              <div className="flex gap-1">
+                {(
+                  [
+                    { v: "all", l: "Всё" },
+                    { v: "changes", l: "Изменения" },
+                    { v: "views", l: "Просмотры" },
+                  ] as const
+                ).map((o) => (
+                  <Button
+                    key={o.v}
+                    size="sm"
+                    variant={logKind === o.v ? "default" : "outline"}
+                    onClick={() => setLogKind(o.v)}
+                  >
+                    {o.l}
+                  </Button>
+                ))}
+              </div>
             </CardHeader>
             <CardContent>
               {history.length === 0 ? (
-                <div className="text-sm text-muted-foreground">Изменений пока нет.</div>
+                <div className="text-sm text-muted-foreground">Записей пока нет.</div>
               ) : (
                 <div className="divide-y text-sm">
                   {history.map((h: any) => (
@@ -351,9 +392,7 @@ function TeamPage() {
                         {new Date(h.created_at).toLocaleString("ru-RU")}
                       </span>
                       <span className="font-medium">{h.user_email || "—"}</span>
-                      <span>
-                        {TABLE_LABEL[h.doc_table] ?? h.doc_table} {OP_LABEL[h.op] ?? h.op}
-                      </span>
+                      <span>{logText(h)}</span>
                     </div>
                   ))}
                 </div>

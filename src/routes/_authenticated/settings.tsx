@@ -23,6 +23,7 @@ import { prepareLogo } from "@/lib/logo-image";
 import { PrintHeader } from "@/components/print/PrintHeader";
 import { SNO_LABELS, VAT_LABELS, PAYMENT_METHOD_LABELS, PAYMENT_OBJECT_LABELS } from "@/lib/kkt-atol";
 import { useMyOrgId, setMyOrgPref } from "@/lib/organizations";
+import { useViewLog } from "@/hooks/use-view-log";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({
@@ -84,6 +85,7 @@ const empty: Org = {
 };
 
 function SettingsPage() {
+  useViewLog("settings");
   const qc = useQueryClient();
   const wsId = useActiveWorkspaceId();
   const { tab } = Route.useSearch();
