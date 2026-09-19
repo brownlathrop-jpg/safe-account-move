@@ -35,10 +35,22 @@ export const Route = createFileRoute("/_authenticated/invoices/")({
 const fmt = new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB" });
 const dfmt = new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" });
 
+const COLUMNS: ColumnDef[] = [
+  { key: "number", label: "№", width: 130, required: true },
+  { key: "issue_date", label: "Дата", width: 110 },
+  { key: "doc", label: "Документ", width: 190 },
+  { key: "kind", label: "Направление", width: 130 },
+  { key: "partner", label: "Контрагент", width: 240 },
+  { key: "status", label: "Статус", width: 150 },
+  { key: "note", label: "Комментарий", width: 240, hiddenByDefault: true },
+  { key: "total", label: "Сумма", width: 140 },
+];
+
 function InvoicesPage() {
   const navigate = useNavigate();
   const wsId = useActiveWorkspaceId();
   const brand = usePrintBrand();
+  const cols = useTableColumns("crm.journal.columns.v1", COLUMNS);
   const [search, setSearch] = useState("");
   const [docType, setDocType] = useState<"all" | "order" | "shipment" | "cash_receipt">("all");
   const [kind, setKind] = useState<"all" | "incoming" | "outgoing">("all");
@@ -49,7 +61,8 @@ function InvoicesPage() {
     queryFn: async () => {
       const { data, error } = await (db as any)
         .from("invoices")
-        .select("id,number,doc_type,kind,status,status_id,total,cash_received,issue_date,is_return,partner:partners(name),status_ref:invoice_statuses(name,color)")
+        .select("id,number,doc_type,kind,status,status_id,total,cash_received,issue_date,is_return,note,partner:partners(name),status_ref:invoice_statuses(name,color)")
+
         .eq("workspace_id", wsId)
         .order("issue_date", { ascending: false });
       if (error) throw error;
