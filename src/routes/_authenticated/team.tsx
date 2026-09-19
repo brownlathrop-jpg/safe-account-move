@@ -22,8 +22,10 @@ import {
   teamRemove,
   teamRevokeInvite,
   teamMyRole,
+  teamSetOrg,
   teamWorkspaceHistory,
 } from "@/lib/team.functions";
+import { useOrganizations } from "@/lib/organizations";
 
 export const Route = createFileRoute("/_authenticated/team")({
   component: TeamPage,
@@ -79,6 +81,7 @@ function TeamPage() {
   const qc = useQueryClient();
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<string>("manager");
+  const { data: orgs = [] } = useOrganizations(wsId);
 
   const { data: myRole } = useQuery({
     queryKey: ["my-role", wsId],
@@ -123,6 +126,19 @@ function TeamPage() {
           ? "Доступ выдан — сотрудник увидит базу при следующем входе"
           : "Приглашение отправлено на почту",
       );
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const changeOrg = useMutation({
+    mutationFn: async (v: { memberId: string; orgId: string | null }) => {
+      const res = await teamSetOrg({ data: { workspaceId: wsId!, ...v } });
+      if (res.error) throw new Error(res.error.message);
+    },
+    onSuccess: () => {
+      refresh();
+      qc.invalidateQueries({ queryKey: ["my-org"] });
+      toast.success("Юрлицо сотрудника изменено");
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -239,6 +255,22 @@ function TeamPage() {
                   <div className="flex items-center gap-2">
                     {isOwner ? (
                       <>
+                        {orgs.length > 0 && (
+                          <Select
+                            value={m.organization_id ?? "none"}
+                            onValueChange={(v) => changeOrg.mutate({ memberId: m.id, orgId: v === "none" ? null : v })}
+                          >
+                            <SelectTrigger className="w-48" title="Юрлицо, от которого работает этот вход">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">Основное юрлицо</SelectItem>
+                              {orgs.map((o) => (
+                                <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
                         <Select
                           value={m.role}
                           onValueChange={(v) => changeRole.mutate({ memberId: m.id, role: v })}
