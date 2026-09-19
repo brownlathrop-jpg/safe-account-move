@@ -616,7 +616,7 @@ function InvoiceView() {
 
       {/* Header label */}
       <div className="-mt-4 border-x bg-card px-5 pb-3 pt-4 print:hidden">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <h1 className="font-display text-lg font-semibold leading-tight">
             {docTitle} № {cleanNumber}
           </h1>
@@ -625,7 +625,31 @@ function InvoiceView() {
               {inv.status === "posted" ? "Проведена" : inv.status === "draft" ? "Черновик" : "Отменена"}
             </Badge>
           )}
+          {statuses.length > 0 && (
+            <Select value={inv.status_id ?? undefined} onValueChange={(v) => setStatusId.mutate(v)}>
+              <SelectTrigger className="h-8 w-[170px]" title="Статус документа">
+                <div className="flex items-center gap-2">
+                  <span
+                    className="inline-block h-2.5 w-2.5 rounded-full"
+                    style={{ background: statuses.find(s => s.id === inv.status_id)?.color ?? "#cbd5e1" }}
+                  />
+                  <SelectValue placeholder="Статус" />
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                {statuses.map(s => (
+                  <SelectItem key={s.id} value={s.id}>
+                    <span className="inline-flex items-center gap-2">
+                      <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: s.color }} />
+                      {s.name}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
+
         {isShipment && inv.status === "posted" && kind === "outgoing" && (
           <p className="text-sm mt-1">
             Себестоимость: <b>{fmt.format(Number(inv.cost_total ?? 0))}</b>{" · "}
