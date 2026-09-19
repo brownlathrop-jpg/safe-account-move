@@ -40,7 +40,11 @@ export const adminStats = createServerFn({ method: "POST" }).handler(async () =>
       union all select 'Базы', count(*) from workspaces
       union all select 'Пользователи', count(*) from app_users`;
     const size = await s`select pg_size_pretty(pg_database_size(current_database())) as size`;
-    const sessions = await s`select count(*) from app_sessions where expires_at > now()`;
+    // Сессии входа хранятся в зашифрованных куках, таблица app_sessions не используется.
+    // Вместо «активных сессий» показываем неудачные попытки входа за сутки.
+    const sessions = await s`
+      select count(*) from auth_attempts
+      where not ok and created_at > now() - interval '24 hours'`;
     // Разбивка по базам (workspaces)
     const byWorkspace = await s`
       select w.id, coalesce(w.name, 'Без названия') as name, u.email as owner,
@@ -52,7 +56,7 @@ export const adminStats = createServerFn({ method: "POST" }).handler(async () =>
              (select count(*) from stock_movements sm where sm.workspace_id = w.id) as stock_movements,
              (select count(*) from stock_receipts sr where sr.workspace_id = w.id) as stock_receipts
       from workspaces w
-      left join app_users u on u.id = w.user_id
+      left join app_users u on u.id::text = w.user_id
       order by w.name`;
     return {
       data: {
