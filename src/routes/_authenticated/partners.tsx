@@ -13,6 +13,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Plus, Pencil, Trash2, Search, Loader2, Download, Printer } from "lucide-react";
 import { BankAccountsEditor } from "@/components/bank-accounts-editor";
@@ -47,7 +48,7 @@ function PartnersPage() {
   const [editing, setEditing] = useState<Partial<Partner> | null>(null);
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const [kindFilter, setKindFilter] = useState<"all" | "customer" | "supplier">("all");
+  const [kindFilter, setKindFilter] = useState<"all" | "customer" | "supplier">("customer");
   const lookupOrg = useServerFn(lookupOrgByInn);
   const innLookup = useMutation({
     mutationFn: (inn: string) => lookupOrg({ data: { inn } }),
@@ -134,7 +135,7 @@ function PartnersPage() {
   const listColumns: CsvColumn<Partner>[] = [
     { header: "Название", value: p => p.name },
     { header: "Полное наименование", value: p => p.full_name },
-    { header: "Тип", value: p => (p.kind === "customer" ? "Клиент" : "Поставщик") },
+    { header: "Тип", value: p => (p.kind === "customer" ? "Покупатель" : "Поставщик") },
     { header: "ИНН", value: p => p.inn },
     { header: "КПП", value: p => p.kpp },
     { header: "Телефон", value: p => p.phone },
@@ -159,7 +160,7 @@ function PartnersPage() {
           <Button variant="outline" onClick={printPartners} disabled={!filtered.length} title="Печать списка / сохранить в PDF">
             <Printer className="h-4 w-4 mr-1" /> Печать
           </Button>
-          <Button onClick={() => { setEditing({ kind: "customer", name: "" }); setOpen(true); }}>
+          <Button onClick={() => { setEditing({ kind: kindFilter === "supplier" ? "supplier" : "customer", name: "" }); setOpen(true); }}>
             <Plus className="h-4 w-4 mr-1" /> Добавить
           </Button>
         </div>
@@ -229,7 +230,7 @@ function PartnersPage() {
                   <Select value={editing.kind} onValueChange={(v) => setEditing({ ...editing, kind: v as any })}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="customer">Клиент</SelectItem>
+                      <SelectItem value="customer">Покупатель</SelectItem>
                       <SelectItem value="supplier">Поставщик</SelectItem>
                     </SelectContent>
                   </Select>
