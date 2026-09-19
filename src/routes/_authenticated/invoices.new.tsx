@@ -18,6 +18,7 @@ import { ProductPickerSingle } from "@/components/ProductPickerSingle";
 import { invoiceDraft, type DraftItem } from "@/lib/invoice-draft";
 import { useActiveWorkspaceId } from "@/lib/workspace";
 import { usePriceTypes, useMyPriceTypeId, priceOf } from "@/lib/price-types";
+import { grossSum } from "@/lib/discounts";
 import { useOrganizations, useMyOrgId, pickOrg } from "@/lib/organizations";
 
 export const Route = createFileRoute("/_authenticated/invoices/new")({
@@ -121,7 +122,7 @@ function NewInvoice() {
     kind === "outgoing" ? p.kind === "customer" : p.kind === "supplier"
   );
 
-  const total = useMemo(() => items.reduce((s, i) => s + i.quantity * i.price, 0), [items]);
+  const total = useMemo(() => items.reduce((s, i) => s + grossSum(i.quantity, i.price), 0), [items]);
 
   const setItems = (next: DraftItem[]) => invoiceDraft.set({ items: next });
   const addItemAndPick = () => {
@@ -180,7 +181,7 @@ function NewInvoice() {
         name: it.name,
         quantity: it.quantity,
         price: it.price,
-        sum: it.quantity * it.price,
+        sum: grossSum(it.quantity, it.price),
         kind: it.kind ?? "product",
       }));
       const { error: itemsErr } = await db.from("invoice_items").insert(rows);
