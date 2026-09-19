@@ -15,7 +15,7 @@ import { downloadCsv, csvDate } from "@/lib/export-csv";
 import { printList } from "@/lib/print-list";
 import { usePrintBrand } from "@/hooks/use-print-brand";
 import { useTableColumns, type ColumnDef } from "@/hooks/use-table-columns";
-import { docAmount, docStatusLabel, docTitle } from "@/lib/doc-tree";
+import { docAmount, docStatusLabel, docTitle, effectiveCashKind } from "@/lib/doc-tree";
 import { useOrganizations } from "@/lib/organizations";
 
 
