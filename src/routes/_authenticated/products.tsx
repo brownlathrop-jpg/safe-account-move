@@ -319,20 +319,35 @@ function ProductsPage() {
       // Удаляем папки рекурсивно: потомки + содержимое.
       const allFolderIds = new Set<string>();
       folderIds.forEach(id => descendantsOf(id).forEach(d => allFolderIds.add(d)));
+      let keptFolders: string[] = [];
+      let kept = 0;
+      let removedProducts: string[] = [];
       if (allFolderIds.size) {
         const folderIdList = [...allFolderIds];
-        const { error: prodErr } = await db.from("products").delete().in("folder_id", folderIdList);
-        if (prodErr) throw prodErr;
-        const { error: foldErr } = await db.from("product_folders").delete().in("id", folderIdList);
-        if (foldErr) throw foldErr;
+        const { data: delProds, error: prodErr } = await db.from("products").delete().in("folder_id", folderIdList);
+        if (prodErr && !(delProds as any[])?.length) throw prodErr;
+        // Папки с оставшимися товарами (есть движения/документы) не удаляем.
+        const { data: rest } = await (db as any)
+          .from("products").select("id,folder_id").in("folder_id", folderIdList);
+        keptFolders = [...new Set(((rest ?? []) as { folder_id: string | null }[])
+          .map(r => r.folder_id).filter(Boolean) as string[])];
+        kept += (rest ?? []).length;
+        keptFolders.forEach(id => allFolderIds.delete(id));
+        const toDelete = [...allFolderIds];
+        if (toDelete.length) {
+          const { error: foldErr } = await db.from("product_folders").delete().in("id", toDelete);
+          if (foldErr) throw foldErr;
+        }
       }
       if (productIds.length) {
-        const { error } = await db.from("products").delete().in("id", productIds);
-        if (error) throw error;
+        const { data, error } = await db.from("products").delete().in("id", productIds);
+        if (error && !(data as any[])?.length) throw error;
+        removedProducts = ((data ?? []) as { id: string }[]).map(r => String(r.id));
+        kept += productIds.length - removedProducts.length;
       }
-      return { productIds, folderIds: [...allFolderIds] };
+      return { productIds: removedProducts, folderIds: [...allFolderIds], kept };
     },
-    onSuccess: ({ productIds, folderIds }) => {
+    onSuccess: ({ productIds, folderIds, kept }) => {
       const goneFolders = new Set(folderIds);
       const goneProducts = new Set(productIds);
       qc.setQueryData(["product_folders", wsId], (old?: FolderRow[]) =>
