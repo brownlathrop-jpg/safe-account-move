@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { db } from "@/integrations/db";
+import { PartnerPicker } from "@/components/PartnerPicker";
 import { useActiveWorkspaceId } from "@/lib/workspace";
 import { useMyPriceTypeId, priceOf } from "@/lib/price-types";
 import { Card } from "@/components/ui/card";
@@ -168,13 +169,8 @@ function NewShipment() {
             <Input className="h-8" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </div>
           <div className="space-y-1">
-            <Label className="text-xs">Контрагент</Label>
-            <Select value={partnerId || undefined} onValueChange={setPartnerId}>
-              <SelectTrigger className="h-8"><SelectValue placeholder="Выберите" /></SelectTrigger>
-              <SelectContent>
-                {filteredPartners.map((p: any) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <Label className="text-xs">{kind === "outgoing" ? "Покупатель" : "Поставщик"}</Label>
+            <PartnerPicker value={partnerId || null} onChange={setPartnerId} kind={kind === "outgoing" ? "customer" : "supplier"} />
           </div>
           <div className="space-y-1">
             <Label className="text-xs">Склад</Label>
