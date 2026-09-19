@@ -559,29 +559,24 @@ async function affectedWorkspaces(
 }
 
 /**
- * Товар нельзя удалить, если по нему есть движения по складу или строки
- * документов: иначе остатки, себестоимость и отчёты «теряют» историю.
+ * Товары, по которым есть движения по складу или строки документов: их нельзя
+ * удалять, иначе остатки, себестоимость и отчёты «теряют» историю.
  */
-async function assertProductsUnused(s: any, filters: Filter[], scope: string[] | null) {
+async function usedProductIds(s: any, filters: Filter[], scope: string[] | null): Promise<string[]> {
   const c = new SqlBuf();
   c.text = "select id from products";
   applyWhere(c, filters, scope, "products");
   const ids = ((await s.unsafe(c.text, c.params as any)) as any[]).map((r) => String(r.id));
-  if (!ids.length) return;
+  if (!ids.length) return [];
   const used = (await s`
-    select p.id, p.data->>'name' as name from products p
+    select p.id from products p
     where p.id = any(${ids}) and (
       exists (select 1 from stock_movements m where m.data->>'product_id' = p.id)
       or exists (select 1 from invoice_items i where i.data->>'product_id' = p.id)
       or exists (select 1 from stock_receipt_items r where r.data->>'product_id' = p.id)
     )
-  `) as unknown as { id: string; name: string | null }[];
-  if (used.length) {
-    const names = used.slice(0, 3).map((u) => u.name || u.id).join(", ");
-    throw new Error(
-      `Нельзя удалить товар, по которому есть движения или документы: ${names}${used.length > 3 ? ` и ещё ${used.length - 3}` : ""}`,
-    );
-  }
+  `) as unknown as { id: string }[];
+  return used.map((u) => String(u.id));
 }
 
 /** WHERE со сквозной нумерацией параметров. */
