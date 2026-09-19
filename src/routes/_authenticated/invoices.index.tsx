@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { db } from "@/integrations/db";
 import { useActiveWorkspaceId } from "@/lib/workspace";
 import { Card } from "@/components/ui/card";
@@ -46,6 +46,8 @@ const COLUMNS: ColumnDef[] = [
   { key: "total", label: "Сумма", width: 140 },
 ];
 
+const FILTERS_KEY = "crm.journal.filters.v1";
+
 function InvoicesPage() {
   const navigate = useNavigate();
   const wsId = useActiveWorkspaceId();
@@ -55,6 +57,23 @@ function InvoicesPage() {
   const [docType, setDocType] = useState<"all" | "order" | "shipment" | "cash_receipt">("all");
   const [kind, setKind] = useState<"all" | "incoming" | "outgoing">("all");
   const [statusName, setStatusName] = useState("all");
+
+  // Restore saved filters after mount (localStorage is browser-only)
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(FILTERS_KEY);
+      if (!raw) return;
+      const f = JSON.parse(raw);
+      if (f.docType) setDocType(f.docType);
+      if (f.kind) setKind(f.kind);
+      if (f.statusName) setStatusName(f.statusName);
+    } catch { /* ignore */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    try { localStorage.setItem(FILTERS_KEY, JSON.stringify({ docType, kind, statusName })); } catch { /* ignore */ }
+  }, [docType, kind, statusName]);
   const { data: invoices = [] } = useQuery({
     queryKey: ["invoices", "journal", wsId],
     enabled: !!wsId,
