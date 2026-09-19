@@ -462,7 +462,7 @@ function InvoiceView() {
         doc_type: "cash_receipt",
         parent_id: id,
         cash_received: amount,
-        cash_basis: `Оплата по ${docTitleAccusative(inv!.doc_type, inv!.kind)} № ${cleanNum} от ${dfmt.format(new Date(inv!.issue_date))}`,
+        cash_basis: `Оплата по ${docTitleAccusative(inv!.doc_type, inv!.kind, inv!.number)} № ${cleanNum} от ${dfmt.format(new Date(inv!.issue_date))}`,
         organization_id: inv!.organization_id ?? null,
         source_payment_id: pay.id,
       }).select().single();
