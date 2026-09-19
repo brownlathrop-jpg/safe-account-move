@@ -636,9 +636,9 @@ function InvoiceView() {
       </div>
 
       {/* Header label */}
-      <div className="-mt-4 border-x bg-card px-5 pb-4 pt-5 print:hidden">
-        <div className="flex items-center gap-2 flex-wrap">
-          <h1 className="font-display text-xl font-semibold">
+      <div className="-mt-4 border-x bg-card px-5 pb-3 pt-4 print:hidden">
+        <div className="flex items-center gap-2">
+          <h1 className="font-display text-lg font-semibold leading-tight">
             {docTitle} № {cleanNumber}
           </h1>
           {isShipment && (
@@ -707,6 +707,8 @@ function InvoiceView() {
               <Label className="text-xs">Дата</Label>
               <Input className="h-8" type="date" value={date} onChange={e => setDate(e.target.value)} disabled={!editable} />
             </div>
+          </div>
+          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <div className="space-y-1">
               <Label className="text-xs">{kind === "outgoing" ? "Покупатель" : "Поставщик"}</Label>
               <Select value={partnerId} onValueChange={setPartnerId} disabled={!editable}>
@@ -734,22 +736,19 @@ function InvoiceView() {
                 </Select>
               </div>
             )}
+            {isShipment && (
+              <div className="space-y-1">
+                <Label className="text-xs">Склад {inv.status === "posted" ? "" : "*"}</Label>
+                <Select value={warehouseId || undefined} onValueChange={setWarehouseId} disabled={!editable || inv.status === "posted"}>
+                  <SelectTrigger className="h-8" title={kind === "outgoing" ? "При проведении товар спишется с этого склада" : "При проведении товар придёт на этот склад"}><SelectValue placeholder="Выберите склад" /></SelectTrigger>
+                  <SelectContent>
+                    {warehouses.length === 0 && <div className="px-2 py-1.5 text-sm text-muted-foreground">Нет складов — добавьте в Настройках</div>}
+                    {warehouses.map(w => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
-          {isShipment && (
-            <div className="mt-3 max-w-md space-y-1">
-              <Label className="text-xs">Склад {inv.status === "posted" ? "" : "*"}</Label>
-              <Select value={warehouseId || undefined} onValueChange={setWarehouseId} disabled={!editable || inv.status === "posted"}>
-                <SelectTrigger className="h-8"><SelectValue placeholder="Выберите склад" /></SelectTrigger>
-                <SelectContent>
-                  {warehouses.length === 0 && <div className="px-2 py-1.5 text-sm text-muted-foreground">Нет складов — добавьте в Настройках</div>}
-                  {warehouses.map(w => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                При проведении накладной {kind === "outgoing" ? "товар спишется с этого склада" : "товар придёт на этот склад"}.
-              </p>
-            </div>
-          )}
         </div>
 
         {isPKO ? (
