@@ -21,6 +21,7 @@ import { KktSettingsPanel } from "@/components/kkt-settings-panel";
 import { prepareLogo } from "@/lib/logo-image";
 import { PrintHeader } from "@/components/print/PrintHeader";
 import { SNO_LABELS, VAT_LABELS, PAYMENT_METHOD_LABELS, PAYMENT_OBJECT_LABELS } from "@/lib/kkt-atol";
+import { useMyOrgId, setMyOrgPref } from "@/lib/organizations";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({
@@ -102,6 +103,19 @@ function SettingsPage() {
   // Какая организация открыта в форме (по умолчанию — основная/первая)
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const org = orgs.find((o) => o.id === selectedId) ?? orgs[0] ?? null;
+  // Моё юрлицо по умолчанию (под каким юрлицом работает мой логин)
+  const { data: myOrgId } = useMyOrgId(wsId);
+  const myOrgMut = useMutation({
+    mutationFn: async (v: string) => {
+      if (!wsId) throw new Error("Не выбрана база данных");
+      await setMyOrgPref(wsId, v === "none" ? null : v);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["my-org"] });
+      toast.success("Теперь ваши документы будут выписываться от этого юрлица");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   const [form, setForm] = useState<Org>(empty);
   useEffect(() => { setForm(org ? ({ ...empty, ...(org as Org) }) : empty); }, [org?.id, orgs]);
@@ -221,6 +235,18 @@ function SettingsPage() {
               onClick={() => { setSelectedId(null); setForm({ ...empty, is_primary: orgs.length === 0 }); }}>
               <Plus className="h-3.5 w-3.5 mr-1" /> Добавить организацию
             </Button>
+            {orgs.length > 1 && (
+              <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                Мой логин работает от:
+                <Select value={myOrgId ?? "none"} onValueChange={(v) => myOrgMut.mutate(v)}>
+                  <SelectTrigger className="h-8 w-56"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Основного юрлица</SelectItem>
+                    {orgs.map((o) => <SelectItem key={o.id} value={o.id!}>{o.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </span>
+            )}
             {org?.id && (
               <>
                 <label className="flex items-center gap-1.5 text-xs cursor-pointer select-none">
