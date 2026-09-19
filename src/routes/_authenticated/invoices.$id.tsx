@@ -1180,7 +1180,7 @@ function InvoiceView() {
       })()}
 
       {printMode === "pko" && (
-      <div className="invoice-print invoice-print-landscape hidden print:block bg-white text-black mx-auto" style={{ maxWidth: 1000 }}>
+      <div className="invoice-print hidden print:block bg-white text-black mx-auto" style={{ maxWidth: 720 }}>
         <PrintHeader org={myOrg as any} />
         <Pko
           org={myOrg as any}
