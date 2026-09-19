@@ -208,7 +208,7 @@ function PartnersPage() {
                   <Link to="/partner/$id" params={{ id: p.id }} className="text-primary hover:underline">{p.name}</Link>
                 </TableCell>
                 {kindFilter === "all" && (
-                  <TableCell className="py-1"><Badge variant={p.kind === "customer" ? "default" : p.kind === "employee" ? "outline" : p.kind === "other" ? "ghost" : "secondary"}>{KIND_LABELS[p.kind]}</Badge></TableCell>
+                  <TableCell className="py-1"><Badge variant={p.kind === "customer" ? "default" : p.kind === "employee" ? "outline" : p.kind === "other" ? "destructive" : "secondary"}>{KIND_LABELS[p.kind]}</Badge></TableCell>
                 )}
                 <TableCell className="py-1">{p.inn || "—"}</TableCell>
                 <TableCell className="py-1">{p.phone || "—"}</TableCell>
