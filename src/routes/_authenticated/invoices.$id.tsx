@@ -555,9 +555,10 @@ function InvoiceView() {
   const supplierLine: any = kind === "outgoing" ? orgAsParty : partnerObj;
   const buyerLine: any = kind === "outgoing" ? partnerObj : orgAsParty;
   const cleanNumber = String(inv.number).replace(/^№\s*/, "");
-  const docTitle = docTitleOf(docType, kind, inv.is_return);
+  const docTitle = docTitleOf(docType, kind, inv.is_return, inv.number);
+  const cashKind = effectiveCashKind(docType, kind, inv.number) ?? kind;
   const title = printMode === "pko"
-    ? `${kind === "outgoing" ? "Расходный" : "Приходный"} кассовый ордер № ${cleanNumber}`
+    ? `${cashKind === "outgoing" ? "Расходный" : "Приходный"} кассовый ордер № ${cleanNumber}`
     : printMode === "invoice"
     ? `Счёт на оплату № ${cleanNumber} от ${dfmt.format(new Date(inv.issue_date))}`
     : isShipment
