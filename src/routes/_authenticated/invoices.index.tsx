@@ -158,8 +158,8 @@ function InvoicesPage() {
       switch (c.key) {
         case "number": return i.number;
         case "issue_date": return csvDate(i.issue_date);
-        case "doc": return docTitle(i.doc_type, i.kind, i.is_return);
-        case "kind": return i.kind === "incoming" ? "Приход" : "Расход";
+        case "doc": return docTitle(i.doc_type, i.kind, i.is_return, i.number);
+        case "kind": return (effectiveCashKind(i.doc_type, i.kind, i.number) ?? i.kind) === "incoming" ? "Приход" : "Расход";
         case "partner": return i.partner?.name ?? "";
         case "org": return orgName(i.organization_id);
         case "status": return i.status_ref?.name ?? docStatusLabel(i);
