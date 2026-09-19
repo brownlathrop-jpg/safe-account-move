@@ -477,7 +477,8 @@ function KudirPage() {
         </Table>
       </Card>
 
-      {/* Раздел IV — уплаченные страховые взносы и иные платежи по п. 3.1 ст. 346.21 НК РФ */}
+      {/* Раздел IV — уплаченные страховые взносы и иные платежи по п. 3.1 ст. 346.21 НК РФ (только УСН) */}
+      {!isPsn && (
       <Card className="p-4 space-y-4 border-t-2 border-t-sky-500/60">
         <div className="flex flex-wrap items-end gap-3">
           <div>
