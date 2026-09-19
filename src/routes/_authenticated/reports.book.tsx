@@ -18,7 +18,7 @@ import {
   type CashBookDoc, type CashBookMode,
 } from "@/lib/cash-book";
 
-export const Route = createFileRoute("/_authenticated/cash/book")({
+export const Route = createFileRoute("/_authenticated/reports/book")({
   head: () => ({
     meta: [
       { title: "Кассовая книга КО-4 — КабинетCRM" },
