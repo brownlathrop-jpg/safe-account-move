@@ -102,7 +102,7 @@ function CashBookPage() {
       // Продажи попадают в кассовую книгу, только если оплата наличными:
       // безналичная оплата проходит по расчётному счёту.
       for (const i of (sales ?? []) as any[]) {
-        if (i.status === "cancelled") continue;
+        if (i.status !== "posted") continue;
         const f = i.fiscal;
         const isCash = !!f && (f.paymentType ?? "cash") === "cash";
         if (!isCash) continue;

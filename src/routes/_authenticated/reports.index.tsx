@@ -56,7 +56,7 @@ function ReportsPage() {
     queryKey: ["invoices", wsId, "reports"],
     enabled: !!wsId,
     queryFn: async () => (await (db as any).from("invoices")
-      .select("id,partner_id,doc_type,kind,issue_date,total,status,is_return,number,organization_id")
+      .select("id,partner_id,doc_type,kind,issue_date,total,cost_total,status,is_return,number,organization_id")
       .eq("workspace_id", wsId)).data ?? [],
   });
 
@@ -92,11 +92,15 @@ function ReportsPage() {
     [payments, docOrg, effOrgId],
   );
 
+  // Оплачено по документу отдельно по направлению денег (приход / выдача).
   const paidByInvoice = useMemo(() => {
-    const m = new Map<string, number>();
+    const m = new Map<string, { in: number; out: number }>();
     for (const p of paymentsF) {
       const k = String(p.invoice_id ?? "");
-      m.set(k, (m.get(k) ?? 0) + Number(p.amount || 0));
+      const cur = m.get(k) ?? { in: 0, out: 0 };
+      if ((p.direction ?? "in") === "in") cur.in += Number(p.amount || 0);
+      else cur.out += Number(p.amount || 0);
+      m.set(k, cur);
     }
     return m;
   }, [paymentsF]);
@@ -109,7 +113,11 @@ function ReportsPage() {
       const p = (partners as any[]).find(x => x.id === d.partner_id);
       const cur = rows.get(d.partner_id) ?? { id: d.partner_id, name: p?.name ?? "Без контрагента", owedToUs: 0, weOwe: 0 };
       const sign = d.is_return ? -1 : 1;
-      const left = sign * (Number(d.total || 0) - (paidByInvoice.get(d.id) ?? 0));
+      // По продаже деньги должны прийти (in), по закупке — уйти (out);
+      // обратное движение денег — это возврат оплаты, он снова создаёт долг.
+      const pay = paidByInvoice.get(d.id) ?? { in: 0, out: 0 };
+      const paid = d.kind === "outgoing" ? pay.in - pay.out : pay.out - pay.in;
+      const left = sign * (Number(d.total || 0) - paid);
       if (d.kind === "outgoing") cur.owedToUs += left; else cur.weOwe += left;
       rows.set(d.partner_id, cur);
     }
@@ -179,15 +187,37 @@ function ReportsPage() {
 
   /** Проведённые продажи за период: документ → знак (возврат уменьшает). */
   const salesDocs = useMemo(() => {
-    const m = new Map<string, { sign: number; date: string }>();
+    const m = new Map<string, { sign: number; date: string; costTotal: number }>();
     for (const d of docsF) {
       if (d.doc_type !== "shipment" || d.status !== "posted" || d.kind !== "outgoing") continue;
       const day = String(d.issue_date ?? "").slice(0, 10);
       if ((from && day < from) || (to && day > to)) continue;
-      m.set(d.id, { sign: d.is_return ? -1 : 1, date: day });
+      m.set(d.id, { sign: d.is_return ? -1 : 1, date: day, costTotal: Number(d.cost_total ?? 0) });
     }
     return m;
   }, [docsF, from, to]);
+
+  /**
+   * Себестоимость берём из документа (cost_total) — она зафиксирована по партиям
+   * на момент продажи. Внутри документа распределяем её по строкам
+   * пропорционально текущей себестоимости товара, чтобы итог по документу
+   * совпадал с зафиксированным.
+   */
+  const docCostRatio = useMemo(() => {
+    const base = new Map<string, number>();
+    for (const it of items as any[]) {
+      const id = String(it.invoice_id);
+      if (!salesDocs.has(id)) continue;
+      const c = Number(it.quantity || 0) * Number(productById.get(String(it.product_id))?.cost ?? 0);
+      base.set(id, (base.get(id) ?? 0) + c);
+    }
+    const m = new Map<string, number>();
+    for (const [id, doc] of salesDocs) {
+      const b = base.get(id) ?? 0;
+      m.set(id, doc.costTotal > 0 && b > 0.005 ? doc.costTotal / b : 1);
+    }
+    return m;
+  }, [items, salesDocs, productById]);
 
   const soldItems = useMemo(
     () => (items as any[]).flatMap((it) => {
@@ -195,10 +225,11 @@ function ReportsPage() {
       if (!doc) return [];
       const qty = doc.sign * Number(it.quantity || 0);
       const revenue = doc.sign * Number(it.sum ?? Number(it.quantity || 0) * Number(it.price || 0));
-      const cost = qty * Number(productById.get(String(it.product_id))?.cost ?? 0);
+      const unit = Number(productById.get(String(it.product_id))?.cost ?? 0);
+      const cost = qty * unit * (docCostRatio.get(String(it.invoice_id)) ?? 1);
       return [{ ...it, day: doc.date, qty, revenue, cost }];
     }),
-    [items, salesDocs, productById],
+    [items, salesDocs, productById, docCostRatio],
   );
 
   const salesByDay = useMemo(() => {

@@ -82,9 +82,25 @@ export async function computeCosts(wsId: string): Promise<{
   `) as unknown as { id: string; cost: number }[];
   for (const r of fb) fallback.set(r.id, Number(r.cost ?? 0));
 
+  // Возвраты: их приход на склад считается по себестоимости, а не по цене строки.
+  const returnDocs = new Set<string>();
+  const rd = (await s`
+    select id from invoices
+    where workspace_id = ${wsId} and coalesce((data->>'is_return')::boolean, false)
+  `) as unknown as { id: string }[];
+  for (const r of rd) returnDocs.add(r.id);
+
   const batches = new Map<string, Batch[]>();
   const lastIn = new Map<string, number>();
   const docCost = new Map<string, number>();
+
+  /** Средняя цена непогашенных партий товара (для возвратов). */
+  const avgOpen = (pid: string): number => {
+    const list = (batches.get(pid) ?? []).filter((b) => b.qty > 1e-9);
+    const q = list.reduce((a, b) => a + b.qty, 0);
+    if (q > 1e-9) return list.reduce((a, b) => a + b.qty * b.unit, 0) / q;
+    return lastIn.get(pid) ?? fallback.get(pid) ?? 0;
+  };
 
   const unitCostOf = (m: Move): number => {
     const key = `${m.doc_id}|${m.pid}`;
@@ -93,6 +109,8 @@ export async function computeCosts(wsId: string): Promise<{
       if (v !== undefined && v > 0) return v;
     }
     if (m.doc_type === "shipment") {
+      // Возврат от покупателя приходит по себестоимости, а не по цене продажи.
+      if (m.doc_id && returnDocs.has(m.doc_id)) return avgOpen(m.pid);
       const v = invoicePrice.get(key);
       if (v !== undefined && v > 0) return v;
     }
@@ -109,7 +127,8 @@ export async function computeCosts(wsId: string): Promise<{
       const list = batches.get(m.pid) ?? [];
       list.push({ qty, unit, date: m.at, doc_type: m.doc_type, doc_id: m.doc_id ?? null });
       batches.set(m.pid, list);
-      lastIn.set(m.pid, unit);
+      // Возврат не задаёт новую «последнюю цену прихода».
+      if (!(m.doc_id && returnDocs.has(m.doc_id))) lastIn.set(m.pid, unit);
       continue;
     }
 

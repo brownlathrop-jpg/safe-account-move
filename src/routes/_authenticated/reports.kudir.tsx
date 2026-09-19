@@ -20,6 +20,7 @@ import {
   type KudirContrib, type KudirContribKind, type KudirMode, type KudirRow,
 } from "@/lib/kudir";
 import { useOrganizations, useMyOrgId, pickOrg } from "@/lib/organizations";
+import { isAccounted } from "@/lib/accounting";
 
 
 export const Route = createFileRoute("/_authenticated/reports/kudir")({
@@ -171,7 +172,7 @@ function KudirPage() {
         const amount = Number(p.amount || 0);
         if (!amount) continue;
         const inv = p.invoice_id ? byId.get(String(p.invoice_id)) : null;
-        if (inv?.status === "cancelled") continue;
+        if (inv && !isAccounted(inv)) continue;
         const f = inv?.fiscal;
         const receipt = !!(f?.receiptNumber || f?.fiscalDocNumber);
         const isIncome = (p.direction ?? "in") === "in";
@@ -195,7 +196,7 @@ function KudirPage() {
 
       // 2. Кассовые ордера ПКО/РКО без привязки к оплате накладной.
       for (const i of (invs ?? []) as any[]) {
-        if (i.doc_type !== "cash_receipt" || i.status === "cancelled") continue;
+        if (i.doc_type !== "cash_receipt" || !isAccounted(i)) continue;
         const amount = Number(i.cash_received ?? i.total ?? 0);
         if (!amount) continue;
         const isIncome = i.kind === "incoming";
@@ -216,7 +217,7 @@ function KudirPage() {
       // 3. Продажи с пробитым чеком, по которым оплата отдельно не записана.
       const paidInvoices = new Set((pays ?? []).map((p: any) => String(p.invoice_id ?? "")));
       for (const i of (invs ?? []) as any[]) {
-        if (i.doc_type !== "shipment" || i.kind !== "outgoing" || i.status === "cancelled") continue;
+        if (i.doc_type !== "shipment" || i.kind !== "outgoing" || !isAccounted(i)) continue;
         const f = i.fiscal;
         if (!(f?.receiptNumber || f?.fiscalDocNumber)) continue;
         if (paidInvoices.has(String(i.id))) continue;
