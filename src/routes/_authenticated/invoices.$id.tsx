@@ -522,9 +522,9 @@ function InvoiceView() {
           : `Приходная заявка № ${cleanNumber} от ${dfmt.format(new Date(inv.issue_date))}`);
 
   return (
-    <div className="space-y-5">
+    <div className="mx-auto max-w-6xl space-y-4">
       {/* Toolbar */}
-      <div className="flex items-center justify-between print:hidden gap-2 flex-wrap">
+      <div className="flex items-center justify-between gap-3 rounded-t-lg border bg-muted/30 px-4 py-2.5 print:hidden flex-wrap">
         <Link to="/invoices" className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1">
           <ArrowLeft className="h-4 w-4" /> К списку заявок
         </Link>
@@ -571,7 +571,7 @@ function InvoiceView() {
           )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline"><Printer className="h-4 w-4 mr-1" /> Печать <ChevronDown className="h-4 w-4 ml-1" /></Button>
+              <Button variant="ghost" title="Печать"><Printer className="h-4 w-4 mr-1" /> Печать <ChevronDown className="h-4 w-4 ml-1" /></Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               {isPKO ? (
@@ -594,7 +594,7 @@ function InvoiceView() {
           </DropdownMenu>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline">Ещё <ChevronDown className="h-4 w-4 ml-1" /></Button>
+              <Button variant="ghost">Ещё <ChevronDown className="h-4 w-4 ml-1" /></Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               {isShipment && inv.status === "posted" && (
@@ -627,9 +627,9 @@ function InvoiceView() {
       </div>
 
       {/* Header label */}
-      <div className="print:hidden">
+      <div className="-mt-4 border-x bg-card px-5 pb-4 pt-5 print:hidden">
         <div className="flex items-center gap-2 flex-wrap">
-          <h1 className="text-2xl font-semibold">
+          <h1 className="font-display text-xl font-semibold">
             {docTitle} № {cleanNumber}
           </h1>
           {isShipment && (
@@ -667,9 +667,9 @@ function InvoiceView() {
 
 
       {/* Edit form */}
-      <div className="print:hidden space-y-5">
-        <Card className="p-3">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="-mt-4 overflow-hidden rounded-b-lg border bg-card print:hidden">
+        <div className="border-t p-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div className="space-y-1">
               <Label className="text-xs">Тип</Label>
               <Select value={kind} onValueChange={(v) => setKind(v as any)} disabled={!editable}>
@@ -727,7 +727,7 @@ function InvoiceView() {
             )}
           </div>
           {isShipment && (
-            <div className="mt-3 max-w-xs space-y-1">
+            <div className="mt-3 max-w-md space-y-1">
               <Label className="text-xs">Склад {inv.status === "posted" ? "" : "*"}</Label>
               <Select value={warehouseId || undefined} onValueChange={setWarehouseId} disabled={!editable || inv.status === "posted"}>
                 <SelectTrigger className="h-8"><SelectValue placeholder="Выберите склад" /></SelectTrigger>
@@ -741,10 +741,10 @@ function InvoiceView() {
               </p>
             </div>
           )}
-        </Card>
+        </div>
 
         {isPKO ? (
-          <Card className="p-5">
+          <div className="border-t p-5">
             <h3 className="font-medium mb-4">Реквизиты квитанции</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -757,11 +757,11 @@ function InvoiceView() {
                 <Textarea rows={2} value={cashBasis} onChange={e => setCashBasis(e.target.value)} disabled={!editable} />
               </div>
             </div>
-          </Card>
+          </div>
         ) : (
-          <Card className="p-0 overflow-hidden">
-            <div className="px-3 py-2 border-b flex items-center justify-between">
-              <h3 className="font-medium text-sm">Позиции</h3>
+          <div className="overflow-hidden border-t">
+            <div className="flex items-center justify-between bg-muted/30 px-4 py-2.5">
+              <h3 className="font-display text-sm font-semibold">Позиции</h3>
               <div className="flex flex-wrap items-center gap-2">
                 {editable && items.length > 0 && (
                   <Popover>
@@ -925,13 +925,13 @@ function InvoiceView() {
               <span className="text-xs text-muted-foreground">Итого:</span>
               <span className="text-base font-semibold">{fmt.format(total)}</span>
             </div>
-          </Card>
+          </div>
         )}
 
-        <Card className="p-3">
+        <div className="border-t p-4">
           <Label className="text-xs">Комментарий</Label>
-          <Textarea className="mt-1 text-sm" rows={2} value={note} onChange={e => setNote(e.target.value)} disabled={!editable} />
-        </Card>
+          <Textarea className="mt-1 min-h-16 resize-y text-sm" rows={2} value={note} onChange={e => setNote(e.target.value)} disabled={!editable} />
+        </div>
 
         <ProductPickerSingle
           open={pickRow !== null}
@@ -942,7 +942,7 @@ function InvoiceView() {
       </div>
 
       {/* Служебные блоки: связи, оплаты, история — ниже основной формы */}
-      <div className="print:hidden space-y-5">
+      <div className="print:hidden space-y-3">
         <DocTreeCard
           docId={id}
           hint={
@@ -977,6 +977,7 @@ function InvoiceView() {
             workspaceId={wsId}
             total={Number(inv.total ?? 0)}
             direction={kind === "outgoing" ? "in" : "out"}
+            invoiceNumber={cleanNumber}
           />
         )}
 

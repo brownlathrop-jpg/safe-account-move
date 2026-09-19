@@ -37,6 +37,7 @@ export function PaymentsCard({
   workspaceId,
   total,
   direction,
+  invoiceNumber,
 }: {
   invoiceId: string;
   partnerId: string | null;
@@ -44,6 +45,7 @@ export function PaymentsCard({
   total: number;
   /** in — деньги получаем (продажа), out — платим поставщику. */
   direction: "in" | "out";
+  invoiceNumber?: string;
 }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -124,7 +126,7 @@ export function PaymentsCard({
           number: `ПКО-${payment.date.replaceAll("-", "")}-${payment.id.slice(0, 6).toUpperCase()}`,
           date: payment.date,
           amount: payment.amount,
-          basis: payment.note || "Оплата по накладной",
+          basis: payment.note || `Оплата по накладной${invoiceNumber ? ` № ${invoiceNumber}` : ""}`,
         });
         setTimeout(() => window.print(), 120);
       }
@@ -147,7 +149,18 @@ export function PaymentsCard({
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const openPaymentPrint = (payment: Payment) => {
+    setPko({
+      number: `ПКО-${payment.date.replaceAll("-", "")}-${payment.id.slice(0, 6).toUpperCase()}`,
+      date: payment.date,
+      amount: Number(payment.amount),
+      basis: payment.note || `Оплата по накладной${invoiceNumber ? ` № ${invoiceNumber}` : ""}`,
+    });
+    setTimeout(() => window.print(), 120);
+  };
+
   return (
+    <>
     <Card className="p-4 print:hidden">
       <div className="flex items-center justify-between mb-3">
         <h3 className="font-medium flex items-center gap-2">
@@ -185,7 +198,7 @@ export function PaymentsCard({
               <TableHead>Статья</TableHead>
               <TableHead>Примечание</TableHead>
               <TableHead className="text-right">Сумма</TableHead>
-              <TableHead className="w-10"></TableHead>
+              <TableHead className="w-20"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -199,6 +212,11 @@ export function PaymentsCard({
                 <TableCell className="text-sm text-muted-foreground">{p.note || "—"}</TableCell>
                 <TableCell className="text-right font-medium">{fmt.format(Number(p.amount || 0))}</TableCell>
                 <TableCell className="text-right">
+                  {direction === "in" && p.method === "cash" && (
+                    <Button size="icon" variant="ghost" onClick={() => openPaymentPrint(p)} title="Распечатать ПКО" aria-label="Распечатать ПКО">
+                      <Printer className="h-4 w-4" />
+                    </Button>
+                  )}
                   <Button
                     size="icon"
                     variant="ghost"
@@ -263,18 +281,19 @@ export function PaymentsCard({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      {pko && (
-        <div className="payment-pko-print hidden print:block bg-white text-black mx-auto" style={{ maxWidth: 900 }}>
-          <Pko org={printDetails?.org} number={pko.number} date={pko.date} partnerName={printDetails?.partnerName} amount={pko.amount} basis={pko.basis} />
-        </div>
-      )}
-      <style>{`
+    </Card>
+    {pko && (
+      <div className="payment-pko-print hidden print:block bg-white text-black mx-auto" style={{ maxWidth: 900 }}>
+        <Pko org={printDetails?.org} number={pko.number} date={pko.date} partnerName={printDetails?.partnerName} amount={pko.amount} basis={pko.basis} />
+      </div>
+    )}
+    <style>{`
         @media print {
           body * { visibility: hidden !important; }
           .payment-pko-print, .payment-pko-print * { visibility: visible !important; }
           .payment-pko-print { display: block !important; position: absolute; left: 0; top: 0; width: 100%; }
         }
       `}</style>
-    </Card>
+    </>
   );
 }
