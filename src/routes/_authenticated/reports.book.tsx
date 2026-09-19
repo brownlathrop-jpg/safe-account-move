@@ -54,13 +54,12 @@ function CashBookPage() {
   const [mode, setMode] = useState<CashBookMode>("all");
   const [cashier, setCashier] = useState("");
 
-  const { data: org } = useQuery({
-    queryKey: ["org-cashbook", wsId],
-    enabled: !!wsId,
-    queryFn: async () =>
-      (await (db as any).from("organizations").select("*").eq("workspace_id", wsId)
-        .order("is_primary", { ascending: false }).limit(1).maybeSingle()).data,
-  });
+  // Кассовая книга формируется по выбранному юрлицу
+  const { data: orgs = [] } = useOrganizations(wsId);
+  const { data: myOrgId } = useMyOrgId(wsId);
+  const [orgSel, setOrgSel] = useState<string>("");
+  const org = pickOrg(orgs, orgSel || myOrgId || null) as any;
+  const effOrgId: string | null = org?.id ?? null;
 
   // Кассовые ордера (ПКО/РКО) и продажи, оплаченные наличными по чеку.
   const { data: docs = [], isLoading } = useQuery<CashBookDoc[]>({
