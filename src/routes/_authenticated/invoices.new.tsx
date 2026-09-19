@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 import { db } from "@/integrations/db";
+import { invoiceCreateTx } from "@/lib/invoice-save.functions";
 import { PartnerPicker } from "@/components/PartnerPicker";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";

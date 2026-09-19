@@ -26,6 +26,17 @@ CREATE TABLE IF NOT EXISTS app_sessions (
 );
 CREATE INDEX IF NOT EXISTS app_sessions_user_idx ON app_sessions (user_id);
 
+-- попытки входа: защита от подбора пароля
+CREATE TABLE IF NOT EXISTS auth_attempts (
+  id         bigserial PRIMARY KEY,
+  email      text NOT NULL,
+  ip         text NOT NULL DEFAULT '',
+  ok         boolean NOT NULL DEFAULT false,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS auth_attempts_email_idx ON auth_attempts (lower(email), created_at DESC);
+CREATE INDEX IF NOT EXISTS auth_attempts_ip_idx ON auth_attempts (ip, created_at DESC);
+
 CREATE TABLE IF NOT EXISTS password_resets (
   token      text PRIMARY KEY,
   user_id    uuid NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
