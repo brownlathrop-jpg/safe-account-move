@@ -238,7 +238,11 @@ function KudirPage() {
     },
   });
 
-  const selected = useMemo(() => filterKudirByMode(rows, mode), [rows, mode]);
+  // На патенте в книге учитываются только доходы — расходные операции не включаются.
+  const selected = useMemo(() => {
+    const byMode = filterKudirByMode(rows, mode);
+    return isPsn ? byMode.filter((r) => r.income > 0).map((r) => ({ ...r, expense: 0 })) : byMode;
+  }, [rows, mode, isPsn]);
   const book = useMemo(() => buildKudir(selected, year), [selected, year]);
   const contribBook = useMemo(() => buildContribBook(contribs, year), [contribs, year]);
 
