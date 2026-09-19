@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
 import { db } from "@/integrations/db";
@@ -118,6 +119,25 @@ function PartnersPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const toggleOne = (id: string, on: boolean) =>
+    setSelected((s) => { const n = new Set(s); if (on) n.add(id); else n.delete(id); return n; });
+
+  const bulkRemove = useMutation({
+    mutationFn: async (ids: string[]) => { const { error } = await db.from("partners").delete().in("id", ids); if (error) throw error; },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["partners-list"] }); setSelected(new Set()); toast.success("Удалено"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const bulkMove = useMutation({
+    mutationFn: async ({ ids, kind }: { ids: string[]; kind: PartnerKind }) => {
+      const { error } = await (db as any).from("partners").update({ kind }).in("id", ids);
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["partners-list"] }); qc.invalidateQueries({ queryKey: ["partners"] }); setSelected(new Set()); toast.success("Перенесено"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return partners.filter(p => {
@@ -188,10 +208,42 @@ function PartnersPage() {
         <span className="text-sm text-muted-foreground">Найдено: {filtered.length}</span>
       </div>
 
+      {selected.size > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/40 px-3 py-2">
+          <span className="text-sm">Выбрано: {selected.size}</span>
+          <Select onValueChange={(v) => bulkMove.mutate({ ids: [...selected], kind: v as PartnerKind })}>
+            <SelectTrigger className="h-8 w-[220px]"><SelectValue placeholder="Перенести во вкладку…" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="customer">Покупатели</SelectItem>
+              <SelectItem value="supplier">Поставщики</SelectItem>
+              <SelectItem value="employee">Сотрудники</SelectItem>
+              <SelectItem value="other">Прочее</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button
+            size="sm"
+            variant="destructive"
+            disabled={bulkRemove.isPending}
+            onClick={() => { if (confirm(`Удалить выбранные (${selected.size})? Это действие нельзя отменить.`)) bulkRemove.mutate([...selected]); }}
+          >
+            <Trash2 className="h-4 w-4 mr-1" /> Удалить
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>Снять выделение</Button>
+        </div>
+      )}
+
       <Card className="p-0 overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="h-8 w-8 py-1">
+                <Checkbox
+                  checked={filtered.length > 0 && filtered.every((p) => selected.has(p.id))}
+                  onCheckedChange={(on) =>
+                    setSelected(on ? new Set(filtered.map((p) => p.id)) : new Set())
+                  }
+                />
+              </TableHead>
               <TableHead className="h-8 py-1">Название</TableHead>
               {kindFilter === "all" && <TableHead className="h-8 py-1">Тип</TableHead>}
               <TableHead className="h-8 py-1">ИНН</TableHead>
@@ -201,9 +253,12 @@ function PartnersPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.length === 0 && <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Ничего не найдено</TableCell></TableRow>}
+            {filtered.length === 0 && <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Ничего не найдено</TableCell></TableRow>}
             {filtered.map(p => (
               <TableRow key={p.id} className="h-9">
+                <TableCell className="py-1">
+                  <Checkbox checked={selected.has(p.id)} onCheckedChange={(on) => toggleOne(p.id, !!on)} />
+                </TableCell>
                 <TableCell className="py-1 font-medium">
                   <Link to="/partner/$id" params={{ id: p.id }} className="text-primary hover:underline">{p.name}</Link>
                 </TableCell>
