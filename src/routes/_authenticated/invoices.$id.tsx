@@ -758,17 +758,17 @@ function InvoiceView() {
         </div>
 
         {isPKO ? (
-          <div className="border-t p-5">
-            <h3 className="font-medium mb-4">Реквизиты квитанции</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Сумма, ₽</Label>
-                <Input type="number" step="0.01" value={cashReceived}
+          <div className="border-t p-4">
+            <h3 className="font-medium mb-3 text-sm">Реквизиты квитанции</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+              <div className="space-y-1">
+                <Label className="text-xs">Сумма, ₽</Label>
+                <Input className="h-8" type="number" step="0.01" value={cashReceived}
                   onChange={e => setCashReceived(Number(e.target.value))} disabled={!editable} />
               </div>
-              <div className="space-y-2 md:col-span-2">
-                <Label>Основание</Label>
-                <Textarea rows={2} value={cashBasis} onChange={e => setCashBasis(e.target.value)} disabled={!editable} />
+              <div className="space-y-1 md:col-span-2">
+                <Label className="text-xs">Основание</Label>
+                <Input className="h-8" value={cashBasis} onChange={e => setCashBasis(e.target.value)} disabled={!editable} />
               </div>
             </div>
           </div>
