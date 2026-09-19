@@ -47,6 +47,8 @@ function KudirPage() {
   const [year, setYear] = useState(new Date().getFullYear());
   const [mode, setMode] = useState<KudirMode>("all");
   const [object, setObject] = useState<"income" | "income_minus">("income");
+  /** Режим книги: УСН — доходы и расходы, ПСН — только доходы. */
+  const [regime, setRegime] = useState<"usn" | "psn" | null>(null);
 
   const { data: org } = useQuery({
     queryKey: ["org-kudir", wsId],
@@ -55,6 +57,14 @@ function KudirPage() {
       (await (db as any).from("organizations").select("*").eq("workspace_id", wsId)
         .order("is_primary", { ascending: false }).limit(1).maybeSingle()).data,
   });
+
+  // По умолчанию режим берём из системы налогообложения организации.
+  const orgRegime: "usn" | "psn" = (org as any)?.taxation_system === "psn" ? "psn" : "usn";
+  const activeRegime = regime ?? orgRegime;
+  const isPsn = activeRegime === "psn";
+
+  // Данные патента для шапки книги (номер, срок, счета) — храним в базе данных.
+  const [patent, setPatent] = useState<{ number: string; from: string; to: string; accounts: string } | null>(null);
 
   // Раздел IV: уплаченные взносы. Храним в настройках базы данных.
   const qc = useQueryClient();
@@ -77,6 +87,38 @@ function KudirPage() {
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["kudir-contribs", wsId] }),
     onError: (e: any) => toast.error(e?.message ?? "Не удалось сохранить взносы"),
+  });
+
+  // Реквизиты патента для шапки книги учёта доходов на ПСН.
+  const { data: savedPatent } = useQuery({
+    queryKey: ["kudir-patent", wsId],
+    enabled: !!wsId,
+    queryFn: async () => {
+      const { data } = await (db as any).from("workspaces").select("*").eq("id", wsId).maybeSingle();
+      const p = (data as any)?.kudir_patent;
+      return (p && typeof p === "object" ? p : {}) as { number?: string; from?: string; to?: string; accounts?: string };
+    },
+  });
+
+  const patentValue = patent ?? {
+    number: savedPatent?.number ?? "",
+    from: savedPatent?.from ?? "",
+    to: savedPatent?.to ?? "",
+    accounts: savedPatent?.accounts ?? "",
+  };
+
+  const savePatent = useMutation({
+    mutationFn: async (p: typeof patentValue) => {
+      if (!wsId) throw new Error("Не выбрана база данных");
+      const { error } = await (db as any).from("workspaces").update({ kudir_patent: p }).eq("id", wsId);
+      if (error) throw error;
+      return p;
+    },
+    onSuccess: () => {
+      toast.success("Данные патента сохранены");
+      qc.invalidateQueries({ queryKey: ["kudir-patent", wsId] });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Не удалось сохранить данные патента"),
   });
 
   const [form, setForm] = useState<{ date: string; doc: string; period: string; kind: KudirContribKind; amount: string }>({
@@ -196,7 +238,11 @@ function KudirPage() {
     },
   });
 
-  const selected = useMemo(() => filterKudirByMode(rows, mode), [rows, mode]);
+  // На патенте в книге учитываются только доходы — расходные операции не включаются.
+  const selected = useMemo(() => {
+    const byMode = filterKudirByMode(rows, mode);
+    return isPsn ? byMode.filter((r) => r.income > 0).map((r) => ({ ...r, expense: 0 })) : byMode;
+  }, [rows, mode, isPsn]);
   const book = useMemo(() => buildKudir(selected, year), [selected, year]);
   const contribBook = useMemo(() => buildContribBook(contribs, year), [contribs, year]);
 
@@ -219,15 +265,19 @@ function KudirPage() {
   );
 
   const exportExcel = () =>
-    downloadCsv(`кудир-${year}`, flat, [
-      { header: "Квартал", value: (r) => r.quarter },
-      { header: "№ п/п", value: (r) => r.no },
-      { header: "Дата и номер первичного документа", value: (r) => r.doc },
-      { header: "Содержание операции", value: (r) => r.content },
-      { header: "Доходы", value: (r) => r.income },
-      { header: "Расходы", value: (r) => r.expense },
-      { header: "Чек", value: (r) => r.receipt },
-    ]);
+    downloadCsv(
+      isPsn ? `книга-доходов-псн-${year}` : `кудир-${year}`,
+      flat,
+      [
+        { header: "Квартал", value: (r) => r.quarter },
+        { header: "№ п/п", value: (r) => r.no },
+        { header: "Дата и номер первичного документа", value: (r) => r.doc },
+        { header: "Содержание операции", value: (r) => r.content },
+        { header: "Доходы", value: (r) => r.income },
+        ...(isPsn ? [] : [{ header: "Расходы", value: (r: (typeof flat)[number]) => r.expense }]),
+        { header: "Чек", value: (r) => r.receipt },
+      ],
+    );
 
   return (
     <div className="space-y-5">
@@ -236,16 +286,18 @@ function KudirPage() {
           <BookText className="h-5 w-5" />
         </div>
         <div>
-          <h1 className="text-2xl font-semibold">КУДиР</h1>
+          <h1 className="text-2xl font-semibold">{isPsn ? "Книга учёта доходов (патент)" : "КУДиР"}</h1>
           <p className="text-sm text-muted-foreground">
-            Книга учёта доходов и расходов при УСН (приказ ФНС № ЕА-7-3/816@): операции по дате денег, итоги по кварталам.
+            {isPsn
+              ? "Книга учёта доходов ИП на патенте (приложение № 3 к приказу ФНС № ЕА-7-3/816@): только доходы по дате денег, итоги по кварталам."
+              : "Книга учёта доходов и расходов при УСН (приказ ФНС № ЕА-7-3/816@): операции по дате денег, итоги по кварталам."}
           </p>
         </div>
         <Button variant="outline" className="ml-auto" onClick={exportExcel} disabled={!flat.length}>
           <Download className="h-4 w-4 mr-1" /> Excel
         </Button>
         <Button
-          disabled={!flat.length && !contribBook.total}
+          disabled={!flat.length && !(isPsn ? 0 : contribBook.total)}
           onClick={() =>
             printKudir(
               book,
@@ -256,23 +308,42 @@ function KudirPage() {
                 legal_address: org?.legal_address ?? "",
                 director_name: org?.director_name ?? "",
               },
-              { mode, objectIncomeOnly: object === "income", contribs: contribBook },
+              {
+                mode,
+                objectIncomeOnly: isPsn || object === "income",
+                contribs: isPsn ? undefined : contribBook,
+                regime: isPsn ? "psn" : "usn",
+                patentNumber: patentValue.number,
+                patentFrom: patentValue.from,
+                patentTo: patentValue.to,
+                bankAccounts: patentValue.accounts,
+              },
             )
           }
         >
 
-          <Printer className="h-4 w-4 mr-1" /> Печать КУДиР
+          <Printer className="h-4 w-4 mr-1" /> {isPsn ? "Печать книги доходов" : "Печать КУДиР"}
         </Button>
       </div>
 
       <Card className="p-4">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div className="space-y-1">
             <Label className="text-xs">Год</Label>
             <Select value={String(year)} onValueChange={(v) => setYear(Number(v))}>
               <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {years.map((y) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Система налогообложения</Label>
+            <Select value={activeRegime} onValueChange={(v) => setRegime(v as "usn" | "psn")}>
+              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="usn">УСН — книга доходов и расходов</SelectItem>
+                <SelectItem value="psn">Патент — книга учёта доходов</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -286,26 +357,65 @@ function KudirPage() {
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-1">
-            <Label className="text-xs">Объект налогообложения</Label>
-            <Select value={object} onValueChange={(v) => setObject(v as "income" | "income_minus")}>
-              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="income">Доходы</SelectItem>
-                <SelectItem value="income_minus">Доходы минус расходы</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          {!isPsn && (
+            <div className="space-y-1">
+              <Label className="text-xs">Объект налогообложения</Label>
+              <Select value={object} onValueChange={(v) => setObject(v as "income" | "income_minus")}>
+                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="income">Доходы</SelectItem>
+                  <SelectItem value="income_minus">Доходы минус расходы</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </div>
         <p className="mt-3 text-xs text-muted-foreground">
-          Доходы и расходы попадают в книгу по дате денег: оплаты по накладным, приходные и расходные кассовые ордера,
-          а также продажи с пробитым чеком, по которым оплата отдельно не записана.
+          {isPsn
+            ? "На патенте учитываются только доходы по дате денег: оплаты от покупателей, приходные кассовые ордера и продажи с пробитым чеком. Расходы и страховые взносы в книгу не включаются."
+            : "Доходы и расходы попадают в книгу по дате денег: оплаты по накладным, приходные и расходные кассовые ордера, а также продажи с пробитым чеком, по которым оплата отдельно не записана."}
         </p>
       </Card>
 
+      {isPsn && (
+        <Card className="p-4 space-y-3 border-t-2 border-t-amber-500/60">
+          <div>
+            <h2 className="text-lg font-semibold">Данные патента</h2>
+            <p className="text-sm text-muted-foreground">Печатаются в шапке книги учёта доходов.</p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="space-y-1">
+              <Label className="text-xs">Номер патента</Label>
+              <Input className="h-9" value={patentValue.number}
+                onChange={(e) => setPatent({ ...patentValue, number: e.target.value })} />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Патент действует с</Label>
+              <Input type="date" className="h-9" value={patentValue.from}
+                onChange={(e) => setPatent({ ...patentValue, from: e.target.value })} />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">по</Label>
+              <Input type="date" className="h-9" value={patentValue.to}
+                onChange={(e) => setPatent({ ...patentValue, to: e.target.value })} />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Счета в банках</Label>
+              <div className="flex gap-2">
+                <Input className="h-9" placeholder="40802… , Сбербанк" value={patentValue.accounts}
+                  onChange={(e) => setPatent({ ...patentValue, accounts: e.target.value })} />
+                <Button className="h-9" variant="outline" onClick={() => savePatent.mutate(patentValue)} disabled={savePatent.isPending}>
+                  Сохранить
+                </Button>
+              </div>
+            </div>
+          </div>
+        </Card>
+      )}
+
       <div className="flex flex-wrap gap-4 text-sm">
         <span className="text-emerald-600 dark:text-emerald-400">Доходы за год: <b>{fmt.format(book.income)} ₽</b></span>
-        {object === "income_minus" && (
+        {!isPsn && object === "income_minus" && (
           <>
             <span className="text-destructive">Расходы за год: <b>{fmt.format(book.expense)} ₽</b></span>
             <span>Налоговая база: <b>{fmt.format(Math.max(0, book.base))} ₽</b></span>
@@ -322,13 +432,13 @@ function KudirPage() {
               <TableHead>Содержание операции</TableHead>
               <TableHead>Чек</TableHead>
               <TableHead className="text-right">Доходы</TableHead>
-              <TableHead className="text-right">Расходы</TableHead>
+              {!isPsn && <TableHead className="text-right">Расходы</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
             {!flat.length && (
               <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground py-10">
+                <TableCell colSpan={isPsn ? 5 : 6} className="text-center text-muted-foreground py-10">
                   {isLoading ? "Загрузка…" : "За выбранный год операций нет"}
                 </TableCell>
               </TableRow>
@@ -336,7 +446,7 @@ function KudirPage() {
             {book.quarters.filter((q) => q.rows.length).map((q) => (
               <Fragment key={q.quarter}>
                 <TableRow className="bg-muted/50">
-                  <TableCell colSpan={6} className="font-medium">{ROMAN[q.quarter - 1]} квартал {year} года</TableCell>
+                  <TableCell colSpan={isPsn ? 5 : 6} className="font-medium">{ROMAN[q.quarter - 1]} квартал {year} года</TableCell>
                 </TableRow>
                 {q.rows.map((r) => (
                   <TableRow key={r.id}>
@@ -353,13 +463,13 @@ function KudirPage() {
                       )}
                     </TableCell>
                     <TableCell className="text-right">{r.income ? fmt.format(r.income) : ""}</TableCell>
-                    <TableCell className="text-right">{r.expense ? fmt.format(r.expense) : ""}</TableCell>
+                    {!isPsn && <TableCell className="text-right">{r.expense ? fmt.format(r.expense) : ""}</TableCell>}
                   </TableRow>
                 ))}
                 <TableRow className="font-medium">
                   <TableCell colSpan={4}>Итого за {ROMAN[q.quarter - 1]} квартал · {q.ytdLabel} {fmt.format(q.incomeYtd)} ₽</TableCell>
                   <TableCell className="text-right">{fmt.format(q.income)}</TableCell>
-                  <TableCell className="text-right">{fmt.format(q.expense)}</TableCell>
+                  {!isPsn && <TableCell className="text-right">{fmt.format(q.expense)}</TableCell>}
                 </TableRow>
               </Fragment>
             ))}
@@ -367,7 +477,8 @@ function KudirPage() {
         </Table>
       </Card>
 
-      {/* Раздел IV — уплаченные страховые взносы и иные платежи по п. 3.1 ст. 346.21 НК РФ */}
+      {/* Раздел IV — уплаченные страховые взносы и иные платежи по п. 3.1 ст. 346.21 НК РФ (только УСН) */}
+      {!isPsn && (
       <Card className="p-4 space-y-4 border-t-2 border-t-sky-500/60">
         <div className="flex flex-wrap items-end gap-3">
           <div>
@@ -500,6 +611,7 @@ function KudirPage() {
           </Button>
         )}
       </Card>
+      )}
     </div>
 
   );

@@ -114,12 +114,29 @@ function esc(v: unknown): string {
 
 const ROMAN = ["I", "II", "III", "IV"];
 
-/** Печать КУДиР: раздел I по кварталам и справка к разделу I. */
+/** Режим книги: УСН (доходы и расходы) или ПСН (только доходы). */
+export type KudirRegime = "usn" | "psn";
+
+/** Печать книги: раздел I по кварталам и справка к разделу I. */
 export function printKudir(
   book: Kudir,
   org: KudirOrg,
-  opts: { mode: KudirMode; objectIncomeOnly: boolean; contribs?: KudirContribBook },
+  opts: {
+    mode: KudirMode;
+    objectIncomeOnly: boolean;
+    contribs?: KudirContribBook;
+    /** По умолчанию УСН. При «psn» печатается книга учёта доходов ИП на патенте. */
+    regime?: KudirRegime;
+    /** ПСН: номер патента. */
+    patentNumber?: string;
+    /** ПСН: срок действия патента — даты начала и окончания. */
+    patentFrom?: string;
+    patentTo?: string;
+    /** ПСН: номера расчётных и иных счетов в банках. */
+    bankAccounts?: string;
+  },
 ) {
+  const psn = opts.regime === "psn";
 
   const blocks = book.quarters
     .filter((q) => q.rows.length)
@@ -133,7 +150,7 @@ export function printKudir(
           r.hasReceipt ? ` (чек${r.receiptNumber ? ` № ${esc(r.receiptNumber)}` : ""})` : ""
         }</td>
         <td class="r">${r.income ? money(r.income) : ""}</td>
-        <td class="r">${r.expense ? money(r.expense) : ""}</td>
+        ${psn ? "" : `<td class="r">${r.expense ? money(r.expense) : ""}</td>`}
       </tr>`,
         )
         .join("");
@@ -144,23 +161,51 @@ export function printKudir(
           <th style="width:6%">№ п/п</th>
           <th style="width:20%">Дата и номер первичного документа</th>
           <th>Содержание операции</th>
-          <th style="width:16%">Доходы, учитываемые при исчислении налоговой базы</th>
-          <th style="width:16%">Расходы, учитываемые при исчислении налоговой базы</th>
+          <th style="width:16%">${psn ? "Доходы, учитываемые при определении налоговой базы" : "Доходы, учитываемые при исчислении налоговой базы"}</th>
+          ${psn ? "" : `<th style="width:16%">Расходы, учитываемые при исчислении налоговой базы</th>`}
         </tr>
-        <tr class="nums"><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th></tr>
+        <tr class="nums"><th>1</th><th>2</th><th>3</th><th>4</th>${psn ? "" : "<th>5</th>"}</tr>
       </thead>
       <tbody>
         ${rows}
-        <tr class="sum"><td colspan="3">Итого за ${ROMAN[q.quarter - 1]} квартал</td><td class="r">${money(q.income)}</td><td class="r">${money(q.expense)}</td></tr>
-        <tr class="sum"><td colspan="3">Итого ${esc(q.ytdLabel)}</td><td class="r">${money(q.incomeYtd)}</td><td class="r">${money(q.expenseYtd)}</td></tr>
+        <tr class="sum"><td colspan="3">Итого за ${ROMAN[q.quarter - 1]} квартал</td><td class="r">${money(q.income)}</td>${psn ? "" : `<td class="r">${money(q.expense)}</td>`}</tr>
+        <tr class="sum"><td colspan="3">Итого ${esc(q.ytdLabel)}</td><td class="r">${money(q.incomeYtd)}</td>${psn ? "" : `<td class="r">${money(q.expenseYtd)}</td>`}</tr>
       </tbody>
     </table>`;
     })
     .join("");
 
-  const spravka = objectIncomeOnlyBlock(book, opts.objectIncomeOnly);
+  const spravka = psn
+    ? `<h2>Итого за ${book.year} год</h2>
+    <table><tbody>
+      <tr><td>Сумма доходов, полученных от деятельности на патентной системе налогообложения</td><td class="r" style="width:22%">${money(book.income)}</td></tr>
+    </tbody></table>`
+    : objectIncomeOnlyBlock(book, opts.objectIncomeOnly);
 
-  const html = `<!doctype html><html><head><meta charset="utf-8"><title>КУДиР ${book.year}</title>
+  const title = psn ? "КНИГА УЧЁТА ДОХОДОВ" : "КНИГА УЧЁТА ДОХОДОВ И РАСХОДОВ";
+  const subtitle = psn
+    ? `индивидуальных предпринимателей, применяющих патентную систему налогообложения, на ${book.year} год`
+    : `организаций и индивидуальных предпринимателей, применяющих упрощённую систему налогообложения, на ${book.year} год`;
+  const formLine = psn
+    ? "Приложение № 3 к приказу ФНС России от 07.11.2023 № ЕА-7-3/816@"
+    : "Форма по КНД 1152017 · приказ ФНС России от 07.11.2023 № ЕА-7-3/816@";
+
+  const orgBlock = psn
+    ? `
+    Налогоплательщик (ФИО индивидуального предпринимателя): <b>${esc(org.name || "—")}</b><br>
+    ИНН: ${esc(org.inn || "—")}<br>
+    Номер патента на право применения патентной системы налогообложения: ${esc(opts.patentNumber || "—")}<br>
+    Срок, на который выдан патент: ${esc(opts.patentFrom ? ruDate(opts.patentFrom) : "—")} — ${esc(opts.patentTo ? ruDate(opts.patentTo) : "—")}<br>
+    Номера расчётных и иных счетов, открытых в банках: ${esc(opts.bankAccounts || "—")}
+    ${opts.mode === "receipts" ? "<br>Включены только документы с пробитым чеком" : ""}`
+    : `
+    Налогоплательщик: <b>${esc(org.name || "—")}</b><br>
+    ИНН${org.kpp ? "/КПП" : ""}: ${esc(org.inn || "—")}${org.kpp ? ` / ${esc(org.kpp)}` : ""}<br>
+    Адрес: ${esc(org.legal_address || "—")}<br>
+    Объект налогообложения: ${opts.objectIncomeOnly ? "доходы" : "доходы, уменьшенные на величину расходов"}
+    ${opts.mode === "receipts" ? "<br>Включены только документы с пробитым чеком" : ""}`;
+
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>${psn ? "Книга учёта доходов (ПСН)" : "КУДиР"} ${book.year}</title>
 <style>
   body { font-family: Arial, sans-serif; font-size: 11px; color: #000; margin: 12mm; }
   .top { text-align: right; font-size: 10px; }
@@ -178,23 +223,18 @@ export function printKudir(
   .signs { margin-top: 14px; line-height: 2; }
   @media print { body { margin: 10mm; } }
 </style></head><body>
-  <div class="top">Форма по КНД 1152017 · приказ ФНС России от 07.11.2023 № ЕА-7-3/816@</div>
-  <h1>КНИГА УЧЁТА ДОХОДОВ И РАСХОДОВ</h1>
-  <div class="meta">организаций и индивидуальных предпринимателей, применяющих упрощённую систему налогообложения, на ${book.year} год</div>
-  <div class="org">
-    Налогоплательщик: <b>${esc(org.name || "—")}</b><br>
-    ИНН${org.kpp ? "/КПП" : ""}: ${esc(org.inn || "—")}${org.kpp ? ` / ${esc(org.kpp)}` : ""}<br>
-    Адрес: ${esc(org.legal_address || "—")}<br>
-    Объект налогообложения: ${opts.objectIncomeOnly ? "доходы" : "доходы, уменьшенные на величину расходов"}
-    ${opts.mode === "receipts" ? "<br>Включены только документы с пробитым чеком" : ""}
+  <div class="top">${formLine}</div>
+  <h1>${title}</h1>
+  <div class="meta">${subtitle}</div>
+  <div class="org">${orgBlock}
   </div>
-  <h2>Раздел I. Доходы и расходы</h2>
+  <h2>${psn ? 'Раздел "Доходы"' : "Раздел I. Доходы и расходы"}</h2>
   ${blocks || "<p>За выбранный год операций нет.</p>"}
   ${spravka}
-  ${opts.contribs ? contribSectionHtml(opts.contribs) : ""}
+  ${!psn && opts.contribs ? contribSectionHtml(opts.contribs) : ""}
 
   <div class="signs">
-    <div>Руководитель (индивидуальный предприниматель) ______________________ ${esc(org.director_name ?? "")}</div>
+    <div>${psn ? "Индивидуальный предприниматель" : "Руководитель (индивидуальный предприниматель)"} ______________________ ${esc(org.director_name ?? "")}</div>
     <div>Дата: ${ruDate(new Date().toISOString())}</div>
   </div>
 <script>window.onload = () => { window.print(); };</script>

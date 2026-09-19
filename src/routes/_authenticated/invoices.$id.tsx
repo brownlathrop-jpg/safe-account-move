@@ -21,6 +21,7 @@ import { ArrowLeft, Printer, CheckCircle2, XCircle, Trash2, Plus, Save, FileEdit
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { amountInWords } from "@/lib/amount-in-words";
+import { Pko } from "@/components/print/Pko";
 import { ProductPicker, type PickedItem } from "@/components/ProductPicker";
 import { ProductPickerSingle } from "@/components/ProductPickerSingle";
 import { useActiveWorkspaceId } from "@/lib/workspace";
@@ -1179,113 +1180,21 @@ function InvoiceView() {
       })()}
 
       {printMode === "pko" && (
-      <div className="invoice-print hidden print:block bg-white text-black mx-auto" style={{ maxWidth: 900, fontSize: 12 }}>
+      <div className="invoice-print invoice-print-landscape hidden print:block bg-white text-black mx-auto" style={{ maxWidth: 1000 }}>
         <PrintHeader org={myOrg as any} />
-        <div className="text-right text-xs mb-1">Унифицированная форма № КО-1<br/>Утверждена постановлением Госкомстата России от 18.08.98 № 88</div>
-        <table className="w-full border-collapse text-xs mb-2">
-          <tbody>
-            <tr>
-              <td className="border border-black px-2 py-1 align-top w-1/2">
-                <div>Организация</div>
-                <div className="font-semibold">{orgAsParty?.name || "—"}</div>
-              </td>
-              <td className="border border-black px-2 py-1 align-top w-32 text-center">
-                <div>Код по ОКПО</div>
-                <div className="font-semibold">{myOrg?.okpo || ""}</div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-        <h1 className="text-center text-lg font-bold mt-4">ПРИХОДНЫЙ КАССОВЫЙ ОРДЕР</h1>
-        <table className="w-full border-collapse text-xs mt-2 mb-4">
-          <thead>
-            <tr>
-              <th className="border border-black px-2 py-1 w-24">Номер документа</th>
-              <th className="border border-black px-2 py-1 w-32">Дата составления</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td className="border border-black px-2 py-1 text-center">{cleanNumber}</td>
-              <td className="border border-black px-2 py-1 text-center">{dfmt.format(new Date(inv.issue_date))}</td>
-            </tr>
-          </tbody>
-        </table>
-
-        <table className="w-full border-collapse text-xs mb-4">
-          <thead>
-            <tr>
-              <th className="border border-black px-2 py-1" colSpan={2}>Дебет</th>
-              <th className="border border-black px-2 py-1" rowSpan={2}>Кредит</th>
-              <th className="border border-black px-2 py-1" rowSpan={2}>Сумма,<br/>руб. коп.</th>
-              <th className="border border-black px-2 py-1" rowSpan={2}>Код целевого<br/>назначения</th>
-            </tr>
-            <tr>
-              <th className="border border-black px-2 py-1">Корреспондирующий<br/>счёт, субсчёт</th>
-              <th className="border border-black px-2 py-1">Код аналитического<br/>учёта</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td className="border border-black px-2 py-1 text-center">50</td>
-              <td className="border border-black px-2 py-1"></td>
-              <td className="border border-black px-2 py-1 text-center">62</td>
-              <td className="border border-black px-2 py-1 text-right font-semibold">{nfmt.format(cashReceived)}</td>
-              <td className="border border-black px-2 py-1"></td>
-            </tr>
-          </tbody>
-        </table>
-
-        <div className="text-sm mb-2"><span className="font-bold">Принято от:</span> {partnerObj?.name || "—"}</div>
-        <div className="text-sm mb-2"><span className="font-bold">Основание:</span> {cashBasis || "—"}</div>
-        <div className="text-sm mb-2"><span className="font-bold">Сумма:</span> {amountInWords(cashReceived)}</div>
-        <div className="text-sm mb-2"><span className="font-bold">В том числе:</span> без налога (НДС)</div>
-        <div className="text-sm mb-4"><span className="font-bold">Приложение:</span> _____________________________________</div>
-
-        <div className="grid grid-cols-2 gap-6 text-sm mt-6">
-          <div>
-            <div>Главный бухгалтер</div>
-            <div className="border-b border-black mt-4" />
-            <div className="text-xs text-center mt-1">подпись, расшифровка</div>
-          </div>
-          <div>
-            <div>Получил кассир</div>
-            <div className="border-b border-black mt-4" />
-            <div className="text-xs text-center mt-1">подпись, расшифровка</div>
-          </div>
-        </div>
-
-        <div className="border-t-2 border-dashed border-black my-6" />
-
-        {/* Отрывная квитанция */}
-        <div>
-          <h2 className="text-center text-base font-bold">КВИТАНЦИЯ</h2>
-          <p className="text-sm mt-1">к приходному кассовому ордеру № {cleanNumber} от {dfmt.format(new Date(inv.issue_date))}</p>
-          <div className="text-sm mt-2"><span className="font-bold">Принято от:</span> {partnerObj?.name || "—"}</div>
-          <div className="text-sm mt-1"><span className="font-bold">Основание:</span> {cashBasis || "—"}</div>
-          <div className="text-sm mt-1"><span className="font-bold">Сумма:</span> {amountInWords(cashReceived)}</div>
-          <div className="text-sm mt-1"><span className="font-bold">В том числе:</span> без налога (НДС)</div>
-          <div className="grid grid-cols-3 gap-4 text-sm mt-6">
-            <div>«___» __________ {new Date(inv.issue_date).getFullYear()} г.</div>
-            <div className="text-center">М.П. (штампа)</div>
-            <div></div>
-          </div>
-          <div className="grid grid-cols-2 gap-6 text-sm mt-6">
-            <div>
-              <div>Главный бухгалтер</div>
-              <div className="border-b border-black mt-4" />
-            </div>
-            <div>
-              <div>Кассир</div>
-              <div className="border-b border-black mt-4" />
-            </div>
-          </div>
-        </div>
+        <Pko
+          org={myOrg as any}
+          number={cleanNumber}
+          date={inv.issue_date}
+          partnerName={partnerObj?.name || ""}
+          amount={cashReceived}
+          basis={cashBasis || ""}
+        />
       </div>
       )}
 
       <style>{`
-        @page { size: ${printMode === "torg12" || printMode === "upd" ? "A4 landscape" : "A4"}; margin: ${printMode === "torg12" || printMode === "upd" ? "8mm" : "15mm"}; }
+        @page { size: ${printMode === "torg12" || printMode === "upd" || printMode === "pko" ? "A4 landscape" : "A4"}; margin: ${printMode === "torg12" || printMode === "upd" ? "8mm" : "10mm"}; }
         @media print {
           .invoice-print-landscape { max-width: none !important; }
           body { background: white !important; }
