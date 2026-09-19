@@ -508,16 +508,34 @@ export async function runQuery(
 
     // delete
     await assertWrite(await affectedWorkspaces(s, table, spec.filters ?? [], scope));
-    if (table === "products") await assertProductsUnused(s, spec.filters ?? [], scope);
+    // Товары с движениями/документами пропускаем, остальные удаляем.
+    let skipIds: string[] = [];
+    if (table === "products") skipIds = await usedProductIds(s, spec.filters ?? [], scope);
     const buf = new SqlBuf();
     buf.text = `delete from ${table}`;
     applyWhere(buf, spec.filters ?? [], scope, table);
+    if (skipIds.length) {
+      buf.params.push(skipIds);
+      const cond = `products.id <> all($${buf.params.length})`;
+      buf.text += buf.text.includes(" where ") ? ` and ${cond}` : ` where ${cond}`;
+    }
     buf.text += " returning *";
     const res = await s.unsafe(buf.text, buf.params as any);
     const deleted = (res as any[]).map(toRow);
     log("delete", deleted);
     await syncInvoiceTotals(table, deleted);
-    return { data: deleted, error: null };
+    if (table === "products" && skipIds.length && !deleted.length) {
+      return {
+        data: null,
+        error: {
+          message:
+            skipIds.length === 1
+              ? "Нельзя удалить товар, по которому есть движения или документы"
+              : `Нельзя удалить ${skipIds.length} товаров: по ним есть движения или документы`,
+        },
+      };
+    }
+    return { data: deleted, error: null, skipped: skipIds.length } as any;
   } catch (e: any) {
     return { data: null, error: { message: e?.message ?? String(e) } };
   }
