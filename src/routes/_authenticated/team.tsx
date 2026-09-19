@@ -26,6 +26,7 @@ import {
   teamWorkspaceHistory,
 } from "@/lib/team.functions";
 import { useOrganizations } from "@/lib/organizations";
+import { useViewLog } from "@/hooks/use-view-log";
 
 export const Route = createFileRoute("/_authenticated/team")({
   component: TeamPage,
