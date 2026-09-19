@@ -34,7 +34,7 @@ import { PrintHeader } from "@/components/print/PrintHeader";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useDiscounts, grossSum, discountSum, netSum, discountLabel, type DiscountKind } from "@/lib/discounts";
 import { DocTreeCard, loadChain } from "@/components/DocTreeCard";
-import { docTitle as docTitleOf, docTitleAccusative } from "@/lib/doc-tree";
+import { docTitle as docTitleOf, docTitleAccusative, effectiveCashKind } from "@/lib/doc-tree";
 
 export const Route = createFileRoute("/_authenticated/invoices/$id")({
   head: () => ({
