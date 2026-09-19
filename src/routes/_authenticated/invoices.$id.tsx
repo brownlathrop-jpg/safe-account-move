@@ -434,6 +434,22 @@ function InvoiceView() {
       const { data: { user } } = await db.auth.getUser();
       if (!user) throw new Error("Нет сессии");
       const cleanNum = String(inv!.number).replace(/^№\s*/, "");
+      const amount = Number(inv!.total) || total || 0;
+      const payDate = new Date().toISOString().slice(0, 10);
+      // Деньги по ордеру одновременно записываем как оплату документа,
+      // иначе долг по накладной остаётся «неоплаченным».
+      const { data: pay, error: payErr } = await (db as any).from("invoice_payments").insert({
+        invoice_id: id,
+        partner_id: inv!.partner_id,
+        direction: inv!.kind === "outgoing" ? "in" : "out",
+        amount,
+        date: payDate,
+        method: "cash",
+        note: "Кассовый ордер",
+        workspace_id: inv!.workspace_id ?? wsId,
+        user_id: user.id,
+      }).select("id").single();
+      if (payErr) throw payErr;
       const { data: pko, error } = await (db as any).from("invoices").insert({
         user_id: user.id,
         workspace_id: inv!.workspace_id ?? wsId,
@@ -441,15 +457,19 @@ function InvoiceView() {
         number: `${inv!.kind === "outgoing" ? "ПКО" : "РКО"}-${cleanNum}`,
         kind: inv!.kind === "outgoing" ? "incoming" : "outgoing",
         partner_id: inv!.partner_id,
-        issue_date: new Date().toISOString().slice(0, 10),
+        issue_date: payDate,
         status: "draft",
         doc_type: "cash_receipt",
         parent_id: id,
-        cash_received: Number(inv!.total) || total || 0,
+        cash_received: amount,
         cash_basis: `Оплата по ${docTitleAccusative(inv!.doc_type, inv!.kind)} № ${cleanNum} от ${dfmt.format(new Date(inv!.issue_date))}`,
         organization_id: inv!.organization_id ?? null,
+        source_payment_id: pay.id,
       }).select().single();
-      if (error) throw error;
+      if (error) {
+        await (db as any).from("invoice_payments").delete().eq("id", pay.id);
+        throw error;
+      }
       return pko.id as string;
     },
     onSuccess: (newId) => {
@@ -494,7 +514,11 @@ function InvoiceView() {
       if (error) throw error;
       const rows = items.map(it => ({
         invoice_id: doc.id, product_id: it.product_id, name: it.name,
-        quantity: it.quantity, price: it.price, sum: it.quantity * it.price,
+        quantity: it.quantity, price: it.price,
+        sum: netSum(it.quantity, it.price, it.discount_kind, it.discount_value),
+        discount_kind: it.discount_kind ?? "percent",
+        discount_value: Number(it.discount_value) || 0,
+        discount_name: it.discount_name ?? null,
         kind: it.kind ?? "product",
       }));
       if (rows.length) {

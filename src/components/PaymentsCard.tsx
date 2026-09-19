@@ -108,7 +108,7 @@ export function PaymentsCard({
     },
   });
 
-  const paid = useMemo(() => payments.reduce((s, p) => s + Number(p.amount || 0), 0), [payments]);
+  const paid = useMemo(() => payments.reduce((s, p) => s + signedPayment(p as any), 0), [payments]);
   const left = Math.max(0, Number(total || 0) - paid);
 
   const triggerPkoPrint = () => {
