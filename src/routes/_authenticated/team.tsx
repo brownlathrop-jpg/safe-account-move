@@ -70,11 +70,31 @@ const TABLE_LABEL: Record<string, string> = {
   stock_receipts: "Поступление",
 };
 
+const SECTION_LABEL: Record<string, string> = {
+  reports: "Отчёты",
+  kudir: "КУДиР",
+  cashbook: "Кассовая книга",
+  cash: "Касса и оплаты",
+  admin: "Админка",
+  team: "Сотрудники и роли",
+  export: "Выгрузка данных",
+  settings: "Настройки базы",
+};
+
 const OP_LABEL: Record<string, string> = {
   insert: "создано",
   update: "изменено",
   delete: "удалено",
 };
+
+/** Строка журнала человеческим языком. */
+function logText(h: { doc_table: string; op: string }) {
+  if (h.op === "view" || h.doc_table.startsWith("section:")) {
+    const key = h.doc_table.replace("section:", "");
+    return `открыл раздел «${SECTION_LABEL[key] ?? key}»`;
+  }
+  return `${TABLE_LABEL[h.doc_table] ?? h.doc_table} ${OP_LABEL[h.op] ?? h.op}`;
+}
 
 function TeamPage() {
   const wsId = useActiveWorkspaceId();
