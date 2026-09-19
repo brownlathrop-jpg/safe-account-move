@@ -85,6 +85,7 @@ const empty: Org = {
 };
 
 function SettingsPage() {
+  useViewLog("settings");
   const qc = useQueryClient();
   const wsId = useActiveWorkspaceId();
   const { tab } = Route.useSearch();
