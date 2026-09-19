@@ -34,7 +34,7 @@ import { PrintHeader } from "@/components/print/PrintHeader";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useDiscounts, grossSum, discountSum, netSum, discountLabel, type DiscountKind } from "@/lib/discounts";
 import { DocTreeCard, loadChain } from "@/components/DocTreeCard";
-import { docTitle as docTitleOf, docTitleAccusative } from "@/lib/doc-tree";
+import { docTitle as docTitleOf, docTitleAccusative, effectiveCashKind } from "@/lib/doc-tree";
 
 export const Route = createFileRoute("/_authenticated/invoices/$id")({
   head: () => ({
@@ -300,8 +300,13 @@ function InvoiceView() {
         if (error) throw error;
       }
 
+      // Для кассовых ордеров вид документа должен соответствовать префиксу номера,
+      // иначе ПКО может отображаться как РКО (или наоборот).
+      const normalizedKind = isPKO
+        ? ((effectiveCashKind("cash_receipt", kind, number) ?? kind) as "incoming" | "outgoing")
+        : kind;
       const { error: upErr } = await (db as any).from("invoices").update({
-        kind, number, issue_date: date, partner_id: partnerId || null, note: note || null,
+        kind: normalizedKind, number, issue_date: date, partner_id: partnerId || null, note: note || null,
         warehouse_id: isShipment ? (warehouseId || null) : null,
         cash_received: isPKO ? cashReceived : null,
         cash_basis: isPKO ? (cashBasis || null) : null,
@@ -462,7 +467,7 @@ function InvoiceView() {
         doc_type: "cash_receipt",
         parent_id: id,
         cash_received: amount,
-        cash_basis: `Оплата по ${docTitleAccusative(inv!.doc_type, inv!.kind)} № ${cleanNum} от ${dfmt.format(new Date(inv!.issue_date))}`,
+        cash_basis: `Оплата по ${docTitleAccusative(inv!.doc_type, inv!.kind, inv!.number)} № ${cleanNum} от ${dfmt.format(new Date(inv!.issue_date))}`,
         organization_id: inv!.organization_id ?? null,
         source_payment_id: pay.id,
       }).select().single();
@@ -555,9 +560,10 @@ function InvoiceView() {
   const supplierLine: any = kind === "outgoing" ? orgAsParty : partnerObj;
   const buyerLine: any = kind === "outgoing" ? partnerObj : orgAsParty;
   const cleanNumber = String(inv.number).replace(/^№\s*/, "");
-  const docTitle = docTitleOf(docType, kind, inv.is_return);
+  const docTitle = docTitleOf(docType, kind, inv.is_return, inv.number);
+  const cashKind = effectiveCashKind(docType, kind, inv.number) ?? kind;
   const title = printMode === "pko"
-    ? `${kind === "outgoing" ? "Расходный" : "Приходный"} кассовый ордер № ${cleanNumber}`
+    ? `${cashKind === "outgoing" ? "Расходный" : "Приходный"} кассовый ордер № ${cleanNumber}`
     : printMode === "invoice"
     ? `Счёт на оплату № ${cleanNumber} от ${dfmt.format(new Date(inv.issue_date))}`
     : isShipment
@@ -641,7 +647,7 @@ function InvoiceView() {
                 <DropdownMenuItem
                   className="text-destructive"
                   onClick={() => {
-                    if (!confirm(`Отменить ${docTitleAccusative(docType, kind)}?`)) return;
+                    if (!confirm(`Отменить ${docTitleAccusative(docType, kind, inv.number)}?`)) return;
                     setStatus.mutate("cancelled", { onSuccess: () => navigate({ to: "/invoices" }) });
                   }}
                 >
@@ -706,7 +712,7 @@ function InvoiceView() {
         {inv.parent_id && (
           <p className="text-sm text-muted-foreground mt-1">
             На основании{" "}
-            {docTitleOf(parent?.doc_type, parent?.kind).toLowerCase()}
+            {docTitleOf(parent?.doc_type, parent?.kind, parent?.is_return, parent?.number).toLowerCase()}
             {" — "}
             <Link to="/invoices/$id" params={{ id: inv.parent_id }} className="text-primary hover:underline">
               {parent?.number ? `№ ${parent.number}` : "открыть"}
@@ -721,16 +727,28 @@ function InvoiceView() {
       <div className="-mt-4 overflow-hidden rounded-b-lg border bg-card print:hidden">
         <div className="border-t p-4">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="space-y-1">
-              <Label className="text-xs">Тип</Label>
-              <Select value={kind} onValueChange={(v) => setKind(v as any)} disabled={!editable}>
-                <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="outgoing">Расход (продажа)</SelectItem>
-                  <SelectItem value="incoming">Приход (поступление)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            {isPKO ? (
+              <div className="space-y-1">
+                <Label className="text-xs">Вид кассового ордера</Label>
+                <div className="h-8 flex items-center px-3 rounded-md border bg-muted/50 text-sm">
+                  {docTitleOf("cash_receipt", kind, false, number)}
+                  <span className="text-muted-foreground ml-2">
+                    {effectiveCashKind("cash_receipt", kind, number) === "incoming" ? "(приход денег)" : "(расход денег)"}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                <Label className="text-xs">Тип</Label>
+                <Select value={kind} onValueChange={(v) => setKind(v as any)} disabled={!editable}>
+                  <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="outgoing">Расход (продажа)</SelectItem>
+                    <SelectItem value="incoming">Приход (поступление)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="space-y-1">
               <Label className="text-xs">Тип цены</Label>
               <Select value={priceTypeId ?? "__none"} onValueChange={applyPriceType} disabled={!editable || kind !== "outgoing"}>

@@ -19,13 +19,29 @@ export type DocNode = {
   parent_id?: string | null;
 };
 
+/** Для кассовых ордеров вид документа определяется по префиксу номера,
+ *  чтобы не было рассогласования «номер ПКО, а в интерфейсе РКО». */
+export function effectiveCashKind(
+  docType: string | null | undefined,
+  kind: string | null | undefined,
+  number: string | null | undefined,
+): "incoming" | "outgoing" | null {
+  if (docType !== "cash_receipt") return null;
+  const n = (number ?? "").toUpperCase();
+  if (n.startsWith("ПКО")) return "incoming";
+  if (n.startsWith("РКО")) return "outgoing";
+  if (kind === "incoming" || kind === "outgoing") return kind;
+  return null;
+}
+
 /** Человеческое название документа с учётом вида (приход/расход) и возврата. */
 export function docTitle(
   docType: string | null | undefined,
   kind: string | null | undefined,
   isReturn?: boolean | null,
+  number?: string | null | undefined,
 ): string {
-  const incoming = kind === "incoming";
+  const incoming = (effectiveCashKind(docType, kind, number) ?? kind) === "incoming";
   if (docType === "cash_receipt") return incoming ? "ПКО" : "РКО";
   if (docType === "shipment") {
     if (isReturn) return incoming ? "Возврат от покупателя" : "Возврат поставщику";
@@ -39,9 +55,11 @@ export function docTitle(
 export function docTitleAccusative(
   docType: string | null | undefined,
   kind: string | null | undefined,
+  number?: string | null | undefined,
 ): string {
-  if (docType === "cash_receipt") return kind === "incoming" ? "ПКО" : "РКО";
-  if (docType === "shipment") return kind === "incoming" ? "поступление" : "накладную";
+  const incoming = (effectiveCashKind(docType, kind, number) ?? kind) === "incoming";
+  if (docType === "cash_receipt") return incoming ? "ПКО" : "РКО";
+  if (docType === "shipment") return incoming ? "поступление" : "накладную";
   if (docType === "order") return "заявку";
   return "документ";
 }

@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useOrganizations, useMyOrgId, pickOrg } from "@/lib/organizations";
+import { effectiveCashKind } from "@/lib/doc-tree";
 
 export const Route = createFileRoute("/_authenticated/cash/new")({
   head: () => ({ meta: [{ title: "Новый кассовый документ — КабинетCRM" }] }),
@@ -72,11 +73,13 @@ function NewCashDoc() {
       const { data: { user } } = await db.auth.getUser();
       if (!user) throw new Error("Нет сессии");
 
+      // Вид кассового ордера всегда берём из префикса номера, чтобы ПКО/РКО не рассинхронизовались.
+      const normalizedKind = (effectiveCashKind("cash_receipt", kind, effectiveNumber) ?? kind) as "incoming" | "outgoing";
       const payload: Record<string, unknown> = {
         user_id: user.id,
         workspace_id: wsId,
         number: effectiveNumber,
-        kind,
+        kind: normalizedKind,
         partner_id: partnerId || null,
         issue_date: date,
         status: "draft",

@@ -15,7 +15,7 @@ import { downloadCsv, csvDate } from "@/lib/export-csv";
 import { printList } from "@/lib/print-list";
 import { usePrintBrand } from "@/hooks/use-print-brand";
 import { useTableColumns, type ColumnDef } from "@/hooks/use-table-columns";
-import { docAmount, docStatusLabel, docTitle } from "@/lib/doc-tree";
+import { docAmount, docStatusLabel, docTitle, effectiveCashKind } from "@/lib/doc-tree";
 import { useOrganizations } from "@/lib/organizations";
 
 
@@ -123,13 +123,15 @@ function InvoicesPage() {
       case "issue_date":
         return dfmt.format(new Date(i.issue_date));
       case "doc":
-        return <span className="font-medium">{docTitle(i.doc_type, i.kind, i.is_return)}</span>;
-      case "kind":
-        return i.kind === "incoming" ? (
+        return <span className="font-medium">{docTitle(i.doc_type, i.kind, i.is_return, i.number)}</span>;
+      case "kind": {
+        const k = effectiveCashKind(i.doc_type, i.kind, i.number) ?? i.kind;
+        return k === "incoming" ? (
           <span className="inline-flex items-center gap-1 text-success"><ArrowDownToLine className="h-3.5 w-3.5" /> Приход</span>
         ) : (
           <span className="inline-flex items-center gap-1 text-primary"><ArrowUpFromLine className="h-3.5 w-3.5" /> Расход</span>
         );
+      }
       case "partner":
         return i.partner?.name ?? "—";
       case "org":
@@ -156,8 +158,8 @@ function InvoicesPage() {
       switch (c.key) {
         case "number": return i.number;
         case "issue_date": return csvDate(i.issue_date);
-        case "doc": return docTitle(i.doc_type, i.kind, i.is_return);
-        case "kind": return i.kind === "incoming" ? "Приход" : "Расход";
+        case "doc": return docTitle(i.doc_type, i.kind, i.is_return, i.number);
+        case "kind": return (effectiveCashKind(i.doc_type, i.kind, i.number) ?? i.kind) === "incoming" ? "Приход" : "Расход";
         case "partner": return i.partner?.name ?? "";
         case "org": return orgName(i.organization_id);
         case "status": return i.status_ref?.name ?? docStatusLabel(i);
@@ -280,7 +282,7 @@ function InvoicesPage() {
                 <TableRow
                   key={i.id}
                   className="cursor-pointer hover:bg-muted/40"
-                  title={`Открыть: ${docTitle(i.doc_type, i.kind, i.is_return)}`}
+                  title={`Открыть: ${docTitle(i.doc_type, i.kind, i.is_return, i.number)}`}
                   onClick={() => navigate({ to: "/invoices/$id", params: { id: i.id } })}
                 >
                   {cols.visible.map(c => (

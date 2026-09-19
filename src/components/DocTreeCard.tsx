@@ -92,7 +92,7 @@ export function DocTreeCard({
                   <FileText className={`h-4 w-4 shrink-0 ${isCurrent ? "text-primary" : "text-muted-foreground group-hover:text-primary"}`} />
                   <span className="min-w-0">
                     <span className="block truncate font-medium text-foreground">
-                      {docTitle(doc.doc_type, doc.kind, doc.is_return)} № {doc.number}
+                      {docTitle(doc.doc_type, doc.kind, doc.is_return, doc.number)} № {doc.number}
                     </span>
                     <span className="mt-0.5 flex items-center gap-2 whitespace-nowrap text-[11px] text-muted-foreground">
                       <span>{doc.issue_date ? dfmt.format(new Date(doc.issue_date)) : "—"}</span>
