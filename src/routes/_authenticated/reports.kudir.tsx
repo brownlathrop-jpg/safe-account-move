@@ -50,13 +50,12 @@ function KudirPage() {
   /** Режим книги: УСН — доходы и расходы, ПСН — только доходы. */
   const [regime, setRegime] = useState<"usn" | "psn" | null>(null);
 
-  const { data: org } = useQuery({
-    queryKey: ["org-kudir", wsId],
-    enabled: !!wsId,
-    queryFn: async () =>
-      (await (db as any).from("organizations").select("*").eq("workspace_id", wsId)
-        .order("is_primary", { ascending: false }).limit(1).maybeSingle()).data,
-  });
+  // Книга формируется по выбранному юрлицу (по умолчанию — юрлицо текущего входа)
+  const { data: orgs = [] } = useOrganizations(wsId);
+  const { data: myOrgId } = useMyOrgId(wsId);
+  const [orgSel, setOrgSel] = useState<string>("");
+  const org = pickOrg(orgs, orgSel || myOrgId || null) as any;
+  const effOrgId: string | null = org?.id ?? null;
 
   // По умолчанию режим берём из системы налогообложения организации.
   const orgRegime: "usn" | "psn" = (org as any)?.taxation_system === "psn" ? "psn" : "usn";
@@ -158,7 +157,7 @@ function KudirPage() {
           .select("id,invoice_id,partner_id,amount,date,direction,method,note")
           .eq("workspace_id", wsId),
         (db as any).from("invoices")
-          .select("id,number,kind,doc_type,total,cash_received,issue_date,note,fiscal,status,is_return,partner:partners(name)")
+          .select("id,number,kind,doc_type,total,cash_received,issue_date,note,fiscal,status,is_return,organization_id,partner:partners(name)")
           .eq("workspace_id", wsId),
       ]);
 
@@ -189,6 +188,7 @@ function KudirPage() {
           expense: isIncome ? 0 : amount,
           hasReceipt: receipt,
           receiptNumber: f?.receiptNumber ?? f?.fiscalDocNumber ?? null,
+          orgId: inv?.organization_id ?? null,
         });
       }
 
@@ -208,6 +208,7 @@ function KudirPage() {
           expense: isIncome ? 0 : amount,
           hasReceipt: !!(f?.receiptNumber || f?.fiscalDocNumber),
           receiptNumber: f?.receiptNumber ?? f?.fiscalDocNumber ?? null,
+          orgId: i.organization_id ?? null,
         });
       }
 
@@ -231,6 +232,7 @@ function KudirPage() {
           expense: i.is_return ? amount : 0,
           hasReceipt: true,
           receiptNumber: f.receiptNumber ?? f.fiscalDocNumber ?? null,
+          orgId: i.organization_id ?? null,
         });
       }
 
@@ -240,9 +242,10 @@ function KudirPage() {
 
   // На патенте в книге учитываются только доходы — расходные операции не включаются.
   const selected = useMemo(() => {
-    const byMode = filterKudirByMode(rows, mode);
+    const byOrg = effOrgId ? rows.filter((r) => (r.orgId ?? null) === effOrgId) : rows;
+    const byMode = filterKudirByMode(byOrg, mode);
     return isPsn ? byMode.filter((r) => r.income > 0).map((r) => ({ ...r, expense: 0 })) : byMode;
-  }, [rows, mode, isPsn]);
+  }, [rows, mode, isPsn, effOrgId]);
   const book = useMemo(() => buildKudir(selected, year), [selected, year]);
   const contribBook = useMemo(() => buildContribBook(contribs, year), [contribs, year]);
 
@@ -328,6 +331,17 @@ function KudirPage() {
 
       <Card className="p-4">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {orgs.length > 1 && (
+            <div className="space-y-1">
+              <Label className="text-xs">Юрлицо</Label>
+              <Select value={effOrgId ?? ""} onValueChange={setOrgSel}>
+                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {orgs.map((o) => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <div className="space-y-1">
             <Label className="text-xs">Год</Label>
             <Select value={String(year)} onValueChange={(v) => setYear(Number(v))}>

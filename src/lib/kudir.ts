@@ -24,6 +24,8 @@ export type KudirRow = {
   /** Пробит ли фискальный чек по операции. */
   hasReceipt: boolean;
   receiptNumber?: string | number | null;
+  /** Юрлицо операции (для учёта по нескольким организациям). */
+  orgId?: string | null;
 };
 
 export type KudirQuarter = {
