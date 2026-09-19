@@ -56,7 +56,7 @@ function ReportsPage() {
     queryKey: ["invoices", wsId, "reports"],
     enabled: !!wsId,
     queryFn: async () => (await (db as any).from("invoices")
-      .select("id,partner_id,doc_type,kind,issue_date,total,status,is_return,number,organization_id")
+      .select("id,partner_id,doc_type,kind,issue_date,total,cost_total,status,is_return,number,organization_id")
       .eq("workspace_id", wsId)).data ?? [],
   });
 
@@ -92,11 +92,12 @@ function ReportsPage() {
     [payments, docOrg, effOrgId],
   );
 
+  // Оплачено по документу: приход денег плюсом, возврат денег минусом.
   const paidByInvoice = useMemo(() => {
     const m = new Map<string, number>();
     for (const p of paymentsF) {
       const k = String(p.invoice_id ?? "");
-      m.set(k, (m.get(k) ?? 0) + Number(p.amount || 0));
+      m.set(k, (m.get(k) ?? 0) + signedPayment(p));
     }
     return m;
   }, [paymentsF]);
