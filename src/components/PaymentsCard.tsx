@@ -339,10 +339,11 @@ export function PaymentsCard({
     )}
     <style>{`
         @media print {
+          @page { size: A4 landscape; margin: 8mm; }
           body * { visibility: hidden !important; }
           body.payment-pko-mode .invoice-print { display: none !important; visibility: hidden !important; }
           .payment-pko-print, .payment-pko-print * { visibility: visible !important; }
-          .payment-pko-print { display: block !important; position: absolute; left: 0; top: 0; width: 100%; }
+          .payment-pko-print { display: block !important; position: absolute; left: 0; top: 0; width: 100%; max-width: none !important; }
         }
       `}</style>
     </>
