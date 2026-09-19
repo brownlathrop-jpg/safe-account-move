@@ -584,15 +584,27 @@ function ProductsPage() {
       // Вид позиции подстраивается под раздел: папка услуг — услуга, папка товаров — товар.
       const kind = kindForFolder(folderId);
       const patch: Record<string, unknown> = { folder_id: folderId };
-      if (kind) patch.kind = kind;
+      if (kind) {
+        patch.kind = kind;
+        patch.is_service = kind === "service";
+      }
       // Один массовый запрос вместо поштучного перебора.
-      const { error } = await db.from("products").update(patch as never).in("id", ids);
+      const { data, error } = await db.from("products").update(patch as never).in("id", ids);
       if (error) throw error;
-      return ids.length;
+      const changed = ((data ?? []) as { id: string }[]).map(row => String(row.id));
+      if (changed.length !== ids.length) {
+        throw new Error(`Перенесено ${changed.length} из ${ids.length}. Обновите страницу и повторите для оставшихся позиций`);
+      }
+      return { ids: changed, folderId, kind };
     },
-    onSuccess: (count) => {
+    onSuccess: ({ ids, folderId, kind }) => {
+      const moved = new Set(ids);
+      qc.setQueryData(["products", wsId], (old?: Product[]) =>
+        old?.map(product => moved.has(product.id)
+          ? { ...product, folder_id: folderId, ...(kind ? { kind, is_service: kind === "service" } : {}) }
+          : product));
       qc.invalidateQueries({ queryKey: ["products"] });
-      toast.success(`Перенесено: ${count}`);
+      toast.success(`Перенесено: ${ids.length}`);
       setSelectedIds([]);
       setMoveOpen(false);
     },
@@ -610,7 +622,13 @@ function ProductsPage() {
         const inner = [...new Set(ids.flatMap(id => descendantsOf(id)))];
         const innerProducts = products.filter(p => p.folder_id && inner.includes(p.folder_id) && p.kind !== kind).map(p => p.id);
         if (innerProducts.length) {
-          await db.from("products").update({ kind } as never).in("id", innerProducts);
+          const { data, error: productError } = await db.from("products")
+            .update({ kind, is_service: kind === "service" } as never)
+            .in("id", innerProducts);
+          if (productError) throw productError;
+          if (((data ?? []) as { id: string }[]).length !== innerProducts.length) {
+            throw new Error("Папка перенесена, но вид части позиций не обновился. Повторите перенос");
+          }
         }
       }
       return { ids, parentId };
@@ -764,15 +782,17 @@ function ProductsPage() {
     });
   };
 
-  const renderKindRoot = (id: typeof KIND_PRODUCT | typeof KIND_SERVICE, label: string, count: number, list: FolderRow[]) => {
+  const renderKindRoot = (id: typeof KIND_PRODUCT | typeof KIND_SERVICE, label: string, count: number, list: FolderRow[], realRootId: string | null) => {
     const active = selectedFolder === id;
     const isOpen = expanded[id] ?? true;
     const hasChildren = list.length > 0;
+    const dropKey = `kind-${id}`;
     return (
       <div>
         <div
-          className={`flex items-center gap-1 px-2 py-1.5 text-sm rounded-md cursor-pointer hover:bg-muted/60 ${active ? "bg-muted font-medium" : ""}`}
+          className={`flex items-center gap-1 px-2 py-1.5 text-sm rounded-md cursor-pointer hover:bg-muted/60 ${active ? "bg-muted font-medium" : ""} ${dropFolder === dropKey ? "ring-2 ring-primary bg-primary/10" : ""}`}
           onClick={() => selectFolder(id)}
+          {...dropProps(realRootId, dropKey)}
         >
           <button
             type="button"
@@ -820,8 +840,8 @@ function ProductsPage() {
           <div className="space-y-0.5 min-w-0">
             <div className={`px-2 py-1.5 text-sm rounded-md cursor-pointer hover:bg-muted/60 ${selectedFolder === ALL ? "bg-muted font-medium" : ""}`}
               onClick={() => selectFolder(ALL)}>Все</div>
-            {renderKindRoot(KIND_PRODUCT, PRODUCT_ROOT_NAME, products.filter(p => p.kind === "product").length, productCategoryFolders)}
-            {renderKindRoot(KIND_SERVICE, SERVICE_ROOT_NAME, products.filter(p => p.kind === "service").length, serviceCategoryFolders)}
+            {renderKindRoot(KIND_PRODUCT, PRODUCT_ROOT_NAME, products.filter(p => p.kind === "product").length, productCategoryFolders, productRootFolder?.id ?? null)}
+            {renderKindRoot(KIND_SERVICE, SERVICE_ROOT_NAME, products.filter(p => p.kind === "service").length, serviceCategoryFolders, serviceRootFolder?.id ?? null)}
           </div>
         </Card>
 
