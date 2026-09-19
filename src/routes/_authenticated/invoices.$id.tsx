@@ -8,6 +8,7 @@ import { PartnerPicker } from "@/components/PartnerPicker";
 import { PaymentsCard } from "@/components/PaymentsCard";
 import { DocHistoryCard } from "@/components/DocHistoryCard";
 import { KktReceiptButton } from "@/components/kkt-receipt-button";
+import { invoiceSaveTx } from "@/lib/invoice-save.functions";
 import { applyShipmentStock } from "@/lib/posting";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
