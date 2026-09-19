@@ -224,7 +224,7 @@ function AdminPage() {
             <CardHeader><CardTitle className="text-base">Состояние базы</CardTitle></CardHeader>
             <CardContent className="space-y-3 text-sm">
               <div>Размер базы: <b>{stats.data?.size ?? "—"}</b></div>
-              <div>Активных сессий: <b>{stats.data?.sessions ?? 0}</b></div>
+              <div>Неудачных входов за сутки: <b>{stats.data?.sessions ?? 0}</b></div>
               <div className="font-medium pt-1">Итого по всем базам</div>
               <div className="grid gap-1 sm:grid-cols-2 md:grid-cols-3">
                 {(stats.data?.counts ?? []).map((c: any) => (
