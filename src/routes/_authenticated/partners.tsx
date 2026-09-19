@@ -159,19 +159,19 @@ function PartnersPage() {
         </div>
       </div>
 
+      <Tabs value={kindFilter} onValueChange={(v) => setKindFilter(v as any)}>
+        <TabsList>
+          <TabsTrigger value="customer">Покупатели ({counts.customer})</TabsTrigger>
+          <TabsTrigger value="supplier">Поставщики ({counts.supplier})</TabsTrigger>
+          <TabsTrigger value="all">Все ({counts.all})</TabsTrigger>
+        </TabsList>
+      </Tabs>
+
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative flex-1 min-w-[220px]">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input className="pl-8" placeholder="Поиск: название, ИНН, телефон, адрес" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        <Select value={kindFilter} onValueChange={(v) => setKindFilter(v as any)}>
-          <SelectTrigger className="w-[170px]"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Все</SelectItem>
-            <SelectItem value="customer">Клиенты</SelectItem>
-            <SelectItem value="supplier">Поставщики</SelectItem>
-          </SelectContent>
-        </Select>
         <span className="text-sm text-muted-foreground">Найдено: {filtered.length}</span>
       </div>
 
@@ -179,28 +179,32 @@ function PartnersPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Название</TableHead>
-              <TableHead>Тип</TableHead>
-              <TableHead>ИНН</TableHead>
-              <TableHead>Телефон</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead className="w-20"></TableHead>
+              <TableHead className="h-8 py-1">Название</TableHead>
+              {kindFilter === "all" && <TableHead className="h-8 py-1">Тип</TableHead>}
+              <TableHead className="h-8 py-1">ИНН</TableHead>
+              <TableHead className="h-8 py-1">Телефон</TableHead>
+              <TableHead className="h-8 py-1">Email</TableHead>
+              <TableHead className="h-8 w-[76px] py-1"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.length === 0 && <TableRow><TableCell colSpan={6} className="text-center py-10 text-muted-foreground">Ничего не найдено</TableCell></TableRow>}
+            {filtered.length === 0 && <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Ничего не найдено</TableCell></TableRow>}
             {filtered.map(p => (
-              <TableRow key={p.id}>
-                <TableCell className="font-medium">
+              <TableRow key={p.id} className="h-9">
+                <TableCell className="py-1 font-medium">
                   <Link to="/partner/$id" params={{ id: p.id }} className="text-primary hover:underline">{p.name}</Link>
                 </TableCell>
-                <TableCell><Badge variant={p.kind === "customer" ? "default" : "secondary"}>{p.kind === "customer" ? "Клиент" : "Поставщик"}</Badge></TableCell>
-                <TableCell>{p.inn || "—"}</TableCell>
-                <TableCell>{p.phone || "—"}</TableCell>
-                <TableCell>{p.email || "—"}</TableCell>
-                <TableCell className="text-right">
-                  <Button size="icon" variant="ghost" onClick={() => { setEditing(p); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>
-                  <Button size="icon" variant="ghost" onClick={() => { if (confirm(`Удалить "${p.name}"?`)) remove.mutate(p.id); }}><Trash2 className="h-4 w-4" /></Button>
+                {kindFilter === "all" && (
+                  <TableCell className="py-1"><Badge variant={p.kind === "customer" ? "default" : "secondary"}>{p.kind === "customer" ? "Покупатель" : "Поставщик"}</Badge></TableCell>
+                )}
+                <TableCell className="py-1">{p.inn || "—"}</TableCell>
+                <TableCell className="py-1">{p.phone || "—"}</TableCell>
+                <TableCell className="py-1">{p.email || "—"}</TableCell>
+                <TableCell className="py-1">
+                  <div className="flex flex-nowrap items-center justify-end gap-0.5">
+                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setEditing(p); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>
+                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { if (confirm(`Удалить "${p.name}"?`)) remove.mutate(p.id); }}><Trash2 className="h-4 w-4" /></Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
