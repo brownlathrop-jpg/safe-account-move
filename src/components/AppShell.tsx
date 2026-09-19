@@ -13,8 +13,7 @@ const nav = [
   { to: "/products", label: "Товары и услуги", icon: Package },
   { to: "/stock", label: "Склад", icon: Warehouse },
   { to: "/invoices", label: "Документы", icon: FileText },
-  { to: "/shipments", label: "Накладные", icon: Truck },
-  { to: "/cash", label: "Касса и банк", icon: Wallet },
+
   { to: "/partners", label: "Контрагенты", icon: Users },
   { to: "/reports", label: "Отчёты", icon: BarChart3 },
   { to: "/team", label: "Сотрудники", icon: UserCog },
