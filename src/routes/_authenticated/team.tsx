@@ -214,7 +214,7 @@ function TeamPage() {
       <Tabs defaultValue="people">
         <TabsList>
           <TabsTrigger value="people">Доступ к базе</TabsTrigger>
-          <TabsTrigger value="history">История изменений</TabsTrigger>
+          <TabsTrigger value="history">Журнал действий</TabsTrigger>
         </TabsList>
 
         <TabsContent value="people" className="mt-3 space-y-4">
