@@ -5,14 +5,18 @@ import { db } from "@/integrations/db";
 import { useActiveWorkspaceId } from "@/lib/workspace";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowDownToLine, ArrowUpFromLine, Search, Download, Printer } from "lucide-react";
+import { ArrowDownToLine, ArrowUpFromLine, Search, Download, Printer, Settings2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
 import { downloadCsv, csvDate } from "@/lib/export-csv";
 import { printList } from "@/lib/print-list";
 import { usePrintBrand } from "@/hooks/use-print-brand";
+import { useTableColumns, type ColumnDef } from "@/hooks/use-table-columns";
 import { docAmount, docStatusLabel, docTitle } from "@/lib/doc-tree";
+
 
 export const Route = createFileRoute("/_authenticated/invoices/")({
   head: () => ({
