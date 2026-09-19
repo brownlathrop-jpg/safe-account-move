@@ -125,6 +125,12 @@ function PartnersPage() {
     });
   }, [partners, search, kindFilter]);
 
+  const counts = useMemo(() => ({
+    all: partners.length,
+    customer: partners.filter(p => p.kind === "customer").length,
+    supplier: partners.filter(p => p.kind === "supplier").length,
+  }), [partners]);
+
   const listColumns: CsvColumn<Partner>[] = [
     { header: "Название", value: p => p.name },
     { header: "Полное наименование", value: p => p.full_name },
