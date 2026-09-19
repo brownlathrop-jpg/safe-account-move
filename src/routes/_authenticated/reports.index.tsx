@@ -15,7 +15,6 @@ import { downloadCsv } from "@/lib/export-csv";
 import { fetchBalances } from "@/lib/stock";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useOrganizations } from "@/lib/organizations";
-import { signedPayment } from "@/lib/accounting";
 
 export const Route = createFileRoute("/_authenticated/reports/")({
   head: () => ({

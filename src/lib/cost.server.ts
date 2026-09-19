@@ -82,6 +82,14 @@ export async function computeCosts(wsId: string): Promise<{
   `) as unknown as { id: string; cost: number }[];
   for (const r of fb) fallback.set(r.id, Number(r.cost ?? 0));
 
+  // Возвраты: их приход на склад считается по себестоимости, а не по цене строки.
+  const returnDocs = new Set<string>();
+  const rd = (await s`
+    select id from invoices
+    where workspace_id = ${wsId} and coalesce((data->>'is_return')::boolean, false)
+  `) as unknown as { id: string }[];
+  for (const r of rd) returnDocs.add(r.id);
+
   const batches = new Map<string, Batch[]>();
   const lastIn = new Map<string, number>();
   const docCost = new Map<string, number>();
