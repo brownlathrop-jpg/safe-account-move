@@ -579,10 +579,10 @@ function ProductsPage() {
   };
 
   const moveProducts = useMutation({
-    mutationFn: async ({ ids, folderId }: { ids: string[]; folderId: string | null }) => {
+    mutationFn: async ({ ids, folderId, forcedKind }: { ids: string[]; folderId: string | null; forcedKind?: FolderKind }) => {
       if (!ids.length) throw new Error("Не выбраны товары");
       // Вид позиции подстраивается под раздел: папка услуг — услуга, папка товаров — товар.
-      const kind = kindForFolder(folderId);
+      const kind = forcedKind ?? kindForFolder(folderId);
       const patch: Record<string, unknown> = { folder_id: folderId };
       if (kind) {
         patch.kind = kind;
@@ -607,17 +607,23 @@ function ProductsPage() {
       toast.success(`Перенесено: ${ids.length}`);
       setSelectedIds([]);
       setMoveOpen(false);
+      const destination = kind === "service" && folderId === serviceRootFolder?.id
+        ? KIND_SERVICE
+        : kind === "product" && (!folderId || folderId === productRootFolder?.id)
+          ? KIND_PRODUCT
+          : folderId;
+      if (destination) selectFolder(destination);
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
   const moveFolders = useMutation({
-    mutationFn: async ({ ids, parentId }: { ids: string[]; parentId: string | null }) => {
+    mutationFn: async ({ ids, parentId, forcedKind }: { ids: string[]; parentId: string | null; forcedKind?: FolderKind }) => {
       if (!ids.length) throw new Error("Не выбраны папки");
       const { error } = await db.from("product_folders").update({ parent_id: parentId } as never).in("id", ids);
       if (error) throw error;
       // Папка переехала в другой раздел — позиции внутри меняют вид (товар/услуга).
-      const kind = kindForFolder(parentId);
+      const kind = forcedKind ?? kindForFolder(parentId);
       if (kind) {
         const inner = [...new Set(ids.flatMap(id => descendantsOf(id)))];
         const innerProducts = products.filter(p => p.folder_id && inner.includes(p.folder_id) && p.kind !== kind).map(p => p.id);
@@ -653,7 +659,7 @@ function ProductsPage() {
     return set;
   };
 
-  const dropOnFolder = (folderId: string | null) => {
+  const dropOnFolder = (folderId: string | null, forcedKind?: FolderKind) => {
     const draggedFolders = dragFolderIdsRef.current;
     dragFolderIdsRef.current = [];
     setDropFolder(null);
@@ -668,17 +674,17 @@ function ProductsPage() {
         return cur && (cur.parent_id ?? null) !== folderId;
       });
       if (!ids.length) return;
-      moveFolders.mutate({ ids, parentId: folderId });
+      moveFolders.mutate({ ids, parentId: folderId, forcedKind });
       return;
     }
     const ids = dragIdsRef.current.length ? dragIdsRef.current : selectedIds;
     dragIdsRef.current = [];
     if (!ids.length) return;
-    moveProducts.mutate({ ids, folderId });
+    moveProducts.mutate({ ids, folderId, forcedKind });
   };
 
   // Свойства для папки-приёмника при перетаскивании товаров или папок.
-  const dropProps = (folderId: string | null, key: string) => ({
+  const dropProps = (folderId: string | null, key: string, forcedKind?: FolderKind) => ({
     onDragOver: (e: DragEvent) => {
       e.preventDefault();
       const dragged = dragFolderIdsRef.current;
@@ -687,7 +693,7 @@ function ProductsPage() {
       setDropFolder(forbidden ? null : key);
     },
     onDragLeave: () => setDropFolder(cur => (cur === key ? null : cur)),
-    onDrop: (e: DragEvent) => { e.preventDefault(); e.stopPropagation(); dropOnFolder(folderId); },
+    onDrop: (e: DragEvent) => { e.preventDefault(); e.stopPropagation(); dropOnFolder(folderId, forcedKind); },
   });
 
   // Свойства для перетаскиваемой папки: если папка отмечена, тянутся все отмеченные.
@@ -792,7 +798,7 @@ function ProductsPage() {
         <div
           className={`flex items-center gap-1 px-2 py-1.5 text-sm rounded-md cursor-pointer hover:bg-muted/60 ${active ? "bg-muted font-medium" : ""} ${dropFolder === dropKey ? "ring-2 ring-primary bg-primary/10" : ""}`}
           onClick={() => selectFolder(id)}
-          {...dropProps(realRootId, dropKey)}
+          {...dropProps(realRootId, dropKey, id === KIND_SERVICE ? "service" : "product")}
         >
           <button
             type="button"
@@ -1004,11 +1010,13 @@ function ProductsPage() {
           <DialogHeader><DialogTitle>Перенести в папку ({selectedFolderIds.length + selectedIds.length})</DialogTitle></DialogHeader>
           <div className="space-y-2">
             <Label>Папка</Label>
-            <Select value={moveTarget} onValueChange={setMoveTarget}>
+              <Select value={moveTarget} onValueChange={setMoveTarget}>
               <SelectTrigger><SelectValue placeholder="Выберите папку" /></SelectTrigger>
               <SelectContent className="max-h-72">
                 <SelectItem value={ROOT}>Без папки</SelectItem>
-                {folderOptions.map(o => <SelectItem key={o.id} value={o.id}>{o.label}</SelectItem>)}
+                  <SelectItem value={KIND_PRODUCT}>Товары</SelectItem>
+                  <SelectItem value={KIND_SERVICE}>Услуги</SelectItem>
+                  {folderOptions.filter(o => !virtualRootIds.has(o.id)).map(o => <SelectItem key={o.id} value={o.id}>{o.label}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
@@ -1016,16 +1024,25 @@ function ProductsPage() {
             <Button variant="outline" onClick={() => setMoveOpen(false)}>Отмена</Button>
             <Button
               onClick={() => {
-                const target = moveTarget === ROOT ? null : moveTarget;
+                const forcedKind: FolderKind | undefined = moveTarget === KIND_SERVICE
+                  ? "service"
+                  : moveTarget === KIND_PRODUCT ? "product" : undefined;
+                const target = moveTarget === ROOT
+                  ? null
+                  : moveTarget === KIND_SERVICE
+                    ? serviceRootFolder?.id ?? null
+                    : moveTarget === KIND_PRODUCT
+                      ? productRootFolder?.id ?? null
+                      : moveTarget;
                 if (selectedFolderIds.length) {
                   const forbidden = forbiddenTargets(selectedFolderIds);
                   if (target && forbidden.has(target)) {
                     toast.error("Нельзя перенести папку внутрь самой себя");
                     return;
                   }
-                  moveFolders.mutate({ ids: selectedFolderIds, parentId: target });
+                  moveFolders.mutate({ ids: selectedFolderIds, parentId: target, forcedKind });
                 }
-                if (selectedIds.length) moveProducts.mutate({ ids: selectedIds, folderId: target });
+                if (selectedIds.length) moveProducts.mutate({ ids: selectedIds, folderId: target, forcedKind });
                 setMoveOpen(false);
               }}
               disabled={moveProducts.isPending || moveFolders.isPending}
