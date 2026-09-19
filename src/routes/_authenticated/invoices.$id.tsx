@@ -34,7 +34,16 @@ import { DocTreeCard } from "@/components/DocTreeCard";
 import { docTitle as docTitleOf, docTitleAccusative } from "@/lib/doc-tree";
 
 export const Route = createFileRoute("/_authenticated/invoices/$id")({
-  head: () => ({ meta: [{ title: "Накладная — КабинетCRM" }] }),
+  head: () => ({
+    meta: [
+      { title: "Документ — КабинетCRM" },
+      { name: "description", content: "Просмотр, редактирование и печать заявки, накладной или кассового документа." },
+      { property: "og:title", content: "Документ — КабинетCRM" },
+      { property: "og:description", content: "Просмотр, редактирование и печать заявки, накладной или кассового документа." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+    ],
+  }),
   component: InvoiceView,
 });
 
