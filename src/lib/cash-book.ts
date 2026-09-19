@@ -25,6 +25,8 @@ export type CashBookDoc = {
   /** Пробит ли фискальный чек по документу. */
   hasReceipt: boolean;
   receiptNumber?: string | number | null;
+  /** Юрлицо документа (для учёта по нескольким организациям). */
+  orgId?: string | null;
 };
 
 export type CashBookRow = CashBookDoc;
