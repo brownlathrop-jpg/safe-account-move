@@ -230,18 +230,29 @@ function ProductsPage() {
     return { parent_id: null };
   };
 
-  // Папка внутри раздела «Услуги» (на любой глубине) — новая позиция там по умолчанию услуга.
-  const isInServiceTree = (folderId: string | null): boolean => {
-    if (!folderId || !serviceRootFolder) return false;
+  // Папка внутри указанного корня (на любой глубине).
+  const isInTree = (folderId: string | null, rootId: string | null | undefined): boolean => {
+    if (!folderId || !rootId) return false;
     const byId = new Map(folders.map(f => [f.id, f] as const));
     let cur = byId.get(folderId);
     let guard = 0;
     while (cur && guard++ < 50) {
-      if (cur.id === serviceRootFolder.id) return true;
+      if (cur.id === rootId) return true;
       cur = cur.parent_id ? byId.get(cur.parent_id) : undefined;
     }
     return false;
   };
+  // Папка внутри раздела «Услуги» (на любой глубине) — новая позиция там по умолчанию услуга.
+  const isInServiceTree = (folderId: string | null): boolean => isInTree(folderId, serviceRootFolder?.id);
+  // Вид позиции по папке: в разделе «Услуги» — услуга, в «Товары» — товар, иначе не меняем.
+  const kindForFolder = (folderId: string | null): "product" | "service" | null => {
+    if (isInServiceTree(folderId)) return "service";
+    if (folderId && serviceRootFolder && folderId === serviceRootFolder.id) return "service";
+    if (isInTree(folderId, productRootFolder?.id)) return "product";
+    if (folderId && productRootFolder && folderId === productRootFolder.id) return "product";
+    return null;
+  };
+
 
   const descendantsOf = (id: string): string[] => {
     const result: string[] = [];
