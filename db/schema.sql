@@ -68,6 +68,13 @@ CREATE INDEX IF NOT EXISTS invoices_partner_idx ON invoices ((data->>'partner_id
 CREATE INDEX IF NOT EXISTS invoices_parent_idx ON invoices ((data->>'parent_id'));
 CREATE INDEX IF NOT EXISTS products_folder_idx ON products ((data->>'folder_id'));
 CREATE INDEX IF NOT EXISTS products_ext_idx ON products ((data->>'ext_1c_id'));
+-- один код 1С — одна карточка в базе (защита от дублей при повторном импорте)
+CREATE UNIQUE INDEX IF NOT EXISTS products_ext_1c_uniq
+  ON products (workspace_id, (data->>'ext_1c_id'))
+  WHERE coalesce(data->>'ext_1c_id','') <> '';
+CREATE UNIQUE INDEX IF NOT EXISTS partners_ext_1c_uniq
+  ON partners (workspace_id, (data->>'ext_1c_id'))
+  WHERE coalesce(data->>'ext_1c_id','') <> '';
 CREATE INDEX IF NOT EXISTS product_folders_parent_idx ON product_folders ((data->>'parent_id'));
 CREATE INDEX IF NOT EXISTS stock_movements_product_idx ON stock_movements ((data->>'product_id'));
 CREATE INDEX IF NOT EXISTS stock_movements_doc_idx ON stock_movements ((data->>'doc_id'));
