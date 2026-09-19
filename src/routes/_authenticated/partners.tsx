@@ -256,6 +256,9 @@ function PartnersPage() {
             {filtered.length === 0 && <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Ничего не найдено</TableCell></TableRow>}
             {filtered.map(p => (
               <TableRow key={p.id} className="h-9">
+                <TableCell className="py-1">
+                  <Checkbox checked={selected.has(p.id)} onCheckedChange={(on) => toggleOne(p.id, !!on)} />
+                </TableCell>
                 <TableCell className="py-1 font-medium">
                   <Link to="/partner/$id" params={{ id: p.id }} className="text-primary hover:underline">{p.name}</Link>
                 </TableCell>
