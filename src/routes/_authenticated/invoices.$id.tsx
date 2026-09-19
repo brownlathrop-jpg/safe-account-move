@@ -538,29 +538,8 @@ function InvoiceView() {
           <ArrowLeft className="h-4 w-4" /> К списку заявок
         </Link>
         <div className="flex gap-2 items-center flex-wrap">
-          {statuses.length > 0 && (
-            <Select value={inv.status_id ?? undefined} onValueChange={(v) => setStatusId.mutate(v)}>
-              <SelectTrigger className="w-[160px] h-9">
-                <div className="flex items-center gap-2">
-                  <span
-                    className="inline-block h-2.5 w-2.5 rounded-full"
-                    style={{ background: statuses.find(s => s.id === inv.status_id)?.color ?? "#cbd5e1" }}
-                  />
-                  <SelectValue placeholder="Статус" />
-                </div>
-              </SelectTrigger>
-              <SelectContent>
-                {statuses.map(s => (
-                  <SelectItem key={s.id} value={s.id}>
-                    <span className="inline-flex items-center gap-2">
-                      <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: s.color }} />
-                      {s.name}
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
+          {null}
+
           {editable && <Button onClick={() => save.mutate()} disabled={save.isPending}><Save className="h-4 w-4 mr-1" /> Сохранить</Button>}
           {isShipment && inv.status === "draft" && <Button variant="outline" onClick={() => setStatus.mutate("posted")}><CheckCircle2 className="h-4 w-4 mr-1" /> Провести</Button>}
           {isShipment && kind === "outgoing" && inv.status !== "cancelled" && (
