@@ -57,7 +57,7 @@ export const adminStats = createServerFn({ method: "POST" }).handler(async () =>
              (select count(*) from stock_receipts sr where sr.workspace_id = w.id) as stock_receipts
       from workspaces w
       left join app_users u on u.id::text = w.user_id
-      order by w.name`;
+      order by w.data->>'name'`;
     return {
       data: {
         counts: counts as any[],
