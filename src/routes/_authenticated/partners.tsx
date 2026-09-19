@@ -26,9 +26,11 @@ export const Route = createFileRoute("/_authenticated/partners")({
   component: PartnersPage,
 });
 
+type PartnerKind = "customer" | "supplier" | "employee";
+const KIND_LABELS: Record<PartnerKind, string> = { customer: "Покупатель", supplier: "Поставщик", employee: "Сотрудник" };
 type Partner = {
   id: string;
-  kind: "customer" | "supplier";
+  kind: PartnerKind;
   name: string;
   full_name: string | null;
   inn: string | null;
@@ -48,7 +50,7 @@ function PartnersPage() {
   const [editing, setEditing] = useState<Partial<Partner> | null>(null);
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const [kindFilter, setKindFilter] = useState<"all" | "customer" | "supplier">("customer");
+  const [kindFilter, setKindFilter] = useState<"all" | PartnerKind>("customer");
   const lookupOrg = useServerFn(lookupOrgByInn);
   const innLookup = useMutation({
     mutationFn: (inn: string) => lookupOrg({ data: { inn } }),
@@ -130,12 +132,13 @@ function PartnersPage() {
     all: partners.length,
     customer: partners.filter(p => p.kind === "customer").length,
     supplier: partners.filter(p => p.kind === "supplier").length,
+    employee: partners.filter(p => p.kind === "employee").length,
   }), [partners]);
 
   const listColumns: CsvColumn<Partner>[] = [
     { header: "Название", value: p => p.name },
     { header: "Полное наименование", value: p => p.full_name },
-    { header: "Тип", value: p => (p.kind === "customer" ? "Покупатель" : "Поставщик") },
+    { header: "Тип", value: p => KIND_LABELS[p.kind] },
     { header: "ИНН", value: p => p.inn },
     { header: "КПП", value: p => p.kpp },
     { header: "Телефон", value: p => p.phone },
@@ -160,7 +163,7 @@ function PartnersPage() {
           <Button variant="outline" onClick={printPartners} disabled={!filtered.length} title="Печать списка / сохранить в PDF">
             <Printer className="h-4 w-4 mr-1" /> Печать
           </Button>
-          <Button onClick={() => { setEditing({ kind: kindFilter === "supplier" ? "supplier" : "customer", name: "" }); setOpen(true); }}>
+          <Button onClick={() => { setEditing({ kind: kindFilter === "all" ? "customer" : kindFilter, name: "" }); setOpen(true); }}>
             <Plus className="h-4 w-4 mr-1" /> Добавить
           </Button>
         </div>
@@ -170,6 +173,7 @@ function PartnersPage() {
         <TabsList>
           <TabsTrigger value="customer">Покупатели ({counts.customer})</TabsTrigger>
           <TabsTrigger value="supplier">Поставщики ({counts.supplier})</TabsTrigger>
+          <TabsTrigger value="employee">Сотрудники ({counts.employee})</TabsTrigger>
           <TabsTrigger value="all">Все ({counts.all})</TabsTrigger>
         </TabsList>
       </Tabs>
@@ -202,7 +206,7 @@ function PartnersPage() {
                   <Link to="/partner/$id" params={{ id: p.id }} className="text-primary hover:underline">{p.name}</Link>
                 </TableCell>
                 {kindFilter === "all" && (
-                  <TableCell className="py-1"><Badge variant={p.kind === "customer" ? "default" : "secondary"}>{p.kind === "customer" ? "Покупатель" : "Поставщик"}</Badge></TableCell>
+                  <TableCell className="py-1"><Badge variant={p.kind === "customer" ? "default" : p.kind === "employee" ? "outline" : "secondary"}>{KIND_LABELS[p.kind]}</Badge></TableCell>
                 )}
                 <TableCell className="py-1">{p.inn || "—"}</TableCell>
                 <TableCell className="py-1">{p.phone || "—"}</TableCell>
@@ -232,6 +236,7 @@ function PartnersPage() {
                     <SelectContent>
                       <SelectItem value="customer">Покупатель</SelectItem>
                       <SelectItem value="supplier">Поставщик</SelectItem>
+                      <SelectItem value="employee">Сотрудник</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
