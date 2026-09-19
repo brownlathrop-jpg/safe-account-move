@@ -339,7 +339,7 @@ export function PaymentsCard({
     )}
     <style>{`
         @media print {
-          @page { size: A4 landscape; margin: 8mm; }
+          @page { size: A4 portrait; margin: 10mm; }
           body * { visibility: hidden !important; }
           body.payment-pko-mode .invoice-print { display: none !important; visibility: hidden !important; }
           .payment-pko-print, .payment-pko-print * { visibility: visible !important; }
