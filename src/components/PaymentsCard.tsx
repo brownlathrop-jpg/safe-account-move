@@ -68,7 +68,7 @@ export function PaymentsCard({
   }, [invoiceId, chainIds]);
 
   const { data: payments = [] } = useQuery({
-    queryKey: ["invoice_payments", ...ids.slice().sort()],
+    queryKey: ["invoice_payments", invoiceId, ids.slice().sort().join(",")],
     queryFn: async () => {
       const { data, error } = await db
         .from("invoice_payments")
