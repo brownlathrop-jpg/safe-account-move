@@ -123,13 +123,15 @@ function InvoicesPage() {
       case "issue_date":
         return dfmt.format(new Date(i.issue_date));
       case "doc":
-        return <span className="font-medium">{docTitle(i.doc_type, i.kind, i.is_return)}</span>;
-      case "kind":
-        return i.kind === "incoming" ? (
+        return <span className="font-medium">{docTitle(i.doc_type, i.kind, i.is_return, i.number)}</span>;
+      case "kind": {
+        const k = effectiveCashKind(i.doc_type, i.kind, i.number) ?? i.kind;
+        return k === "incoming" ? (
           <span className="inline-flex items-center gap-1 text-success"><ArrowDownToLine className="h-3.5 w-3.5" /> Приход</span>
         ) : (
           <span className="inline-flex items-center gap-1 text-primary"><ArrowUpFromLine className="h-3.5 w-3.5" /> Расход</span>
         );
+      }
       case "partner":
         return i.partner?.name ?? "—";
       case "org":
