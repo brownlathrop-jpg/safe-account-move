@@ -10,7 +10,7 @@ const dfmt = new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit"
 const SELECT = "id,number,doc_type,kind,issue_date,total,status,cash_received,is_return,parent_id";
 
 /** Загружает всю цепочку документов: вверх до самого первого и вниз по всем подчинённым. */
-async function loadChain(docId: string): Promise<{ docs: DocNode[]; rootId: string }> {
+export async function loadChain(docId: string): Promise<{ docs: DocNode[]; rootId: string }> {
   const all = new Map<string, DocNode>();
 
   const fetchByIds = async (ids: string[]) => {
