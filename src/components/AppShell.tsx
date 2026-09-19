@@ -1,5 +1,5 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import { LayoutDashboard, Package, FileText, Users, LogOut, Plus, Settings, Warehouse, PanelLeftClose, PanelLeftOpen, Truck, Wallet, Shield, BarChart3, UserCog, Menu } from "lucide-react";
+import { LayoutDashboard, Package, FileText, Users, LogOut, Plus, Settings, Warehouse, PanelLeftClose, PanelLeftOpen, Shield, BarChart3, UserCog, Menu } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { db } from "@/integrations/db";
 import { Button } from "@/components/ui/button";
@@ -107,9 +107,9 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className={`border-t ${narrow ? "p-1 space-y-1" : "p-2 space-y-1.5"}`}>
           {!narrow && <WorkspaceSwitcher />}
           <Link to="/invoices/new" className="block" onClick={() => { flushInvoiceDraft(); setMobileOpen(false); }}>
-            <Button className={`w-full ${narrow ? "px-0" : ""}`} size="sm" title="Новая заявка">
+            <Button className={`w-full ${narrow ? "px-0" : ""}`} size="sm" title="Новый документ">
               <Plus className="h-4 w-4" />
-              {!narrow && <span className="ml-1">Новая заявка</span>}
+              {!narrow && <span className="ml-1">Новый документ</span>}
             </Button>
           </Link>
           <Button
