@@ -1,9 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { Card } from "@/components/ui/card";
 import { db } from "@/integrations/db";
 import { buildDocTree, docAmount, docStatusLabel, docTitle, type DocNode } from "@/lib/doc-tree";
-import { CornerDownRight } from "lucide-react";
+import { ChevronRight, FileText } from "lucide-react";
 
 const fmt = new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB" });
 const dfmt = new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" });
@@ -69,49 +68,47 @@ export function DocTreeCard({
   const single = rows.length <= 1;
 
   return (
-    <Card className="p-4 print:hidden">
-      <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-        <h3 className="font-medium">Цепочка документов</h3>
+    <section className="overflow-hidden rounded-lg border bg-card print:hidden">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/30 px-4 py-2.5">
+        <h3 className="font-display text-sm font-semibold">Документы</h3>
         {actions}
       </div>
       {single ? (
-        <p className="text-sm text-muted-foreground">
+        <p className="px-4 py-3 text-sm text-muted-foreground">
           {hint ?? "Связанных документов пока нет."}
         </p>
       ) : (
-        <div className="divide-y">
-          {rows.map(({ doc, depth }) => {
+        <div className="overflow-x-auto px-4 py-3">
+          <div className="flex min-w-max items-stretch">
+          {rows.map(({ doc }, index) => {
             const isCurrent = doc.id === docId;
             return (
-              <div
-                key={doc.id}
-                className={`flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-sm ${isCurrent ? "bg-muted/60 rounded-md px-2" : ""}`}
-              >
-                <div className="flex min-w-0 flex-1 items-center gap-1" style={{ paddingLeft: depth * 18 }}>
-                  {depth > 0 && <CornerDownRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
-                  <span className="shrink-0 text-muted-foreground">{docTitle(doc.doc_type, doc.kind, doc.is_return)}</span>
-                  {isCurrent ? (
-                    <span className="truncate font-medium">№ {doc.number}</span>
-                  ) : (
-                    <Link
-                      to="/invoices/$id"
-                      params={{ id: doc.id }}
-                      className="truncate text-primary hover:underline"
-                    >
-                      № {doc.number}
-                    </Link>
-                  )}
-                </div>
-                <span className="shrink-0 text-muted-foreground">
-                  {doc.issue_date ? dfmt.format(new Date(doc.issue_date)) : "—"}
-                </span>
-                <span className="w-24 shrink-0 text-muted-foreground">{docStatusLabel(doc)}</span>
-                <span className="shrink-0 tabular-nums">{fmt.format(docAmount(doc))}</span>
+              <div key={doc.id} className="flex items-center">
+                {index > 0 && <ChevronRight className="mx-2 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />}
+                <Link
+                  to="/invoices/$id"
+                  params={{ id: doc.id }}
+                  aria-current={isCurrent ? "page" : undefined}
+                  className={`group flex min-w-52 items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors hover:border-primary/40 hover:bg-accent ${isCurrent ? "border-primary/40 bg-accent" : "bg-background"}`}
+                >
+                  <FileText className={`h-4 w-4 shrink-0 ${isCurrent ? "text-primary" : "text-muted-foreground group-hover:text-primary"}`} />
+                  <span className="min-w-0">
+                    <span className="block truncate font-medium text-foreground">
+                      {docTitle(doc.doc_type, doc.kind, doc.is_return)} № {doc.number}
+                    </span>
+                    <span className="mt-0.5 flex items-center gap-2 whitespace-nowrap text-[11px] text-muted-foreground">
+                      <span>{doc.issue_date ? dfmt.format(new Date(doc.issue_date)) : "—"}</span>
+                      {docStatusLabel(doc) !== "—" && <span>{docStatusLabel(doc)}</span>}
+                      <span className="tabular-nums">{fmt.format(docAmount(doc))}</span>
+                    </span>
+                  </span>
+                </Link>
               </div>
             );
           })}
+          </div>
         </div>
       )}
-    </Card>
+    </section>
   );
 }
