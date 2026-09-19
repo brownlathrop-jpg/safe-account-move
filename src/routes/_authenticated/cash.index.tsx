@@ -12,6 +12,7 @@ import { downloadCsv, csvDate } from "@/lib/export-csv";
 import { printList } from "@/lib/print-list";
 import { cn } from "@/lib/utils";
 import { usePrintBrand } from "@/hooks/use-print-brand";
+import { useViewLog } from "@/hooks/use-view-log";
 
 export const Route = createFileRoute("/_authenticated/cash/")({
   head: () => ({ meta: [{ title: "Касса и банк — КабинетCRM" }] }),
@@ -24,6 +25,7 @@ const dfmt = new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit"
 type Tab = "all" | "incoming" | "outgoing";
 
 function CashPage() {
+  useViewLog("cash");
   const wsId = useActiveWorkspaceId();
   const brand = usePrintBrand();
   const [tab, setTab] = useState<Tab>("all");

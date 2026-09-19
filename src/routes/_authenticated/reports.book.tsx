@@ -15,6 +15,7 @@ import { BookOpen, Download, Printer, Receipt } from "lucide-react";
 import { downloadCsv } from "@/lib/export-csv";
 import { useOrganizations, useMyOrgId, pickOrg } from "@/lib/organizations";
 import {
+import { useViewLog } from "@/hooks/use-view-log";
   buildCashBook, filterByMode, openingBalance, printCashBook,
   type CashBookDoc, type CashBookMode,
 } from "@/lib/cash-book";
@@ -49,6 +50,7 @@ function today() {
 }
 
 function CashBookPage() {
+  useViewLog("cashbook");
   const wsId = useActiveWorkspaceId();
   const [from, setFrom] = useState(monthStart());
   const [to, setTo] = useState(today());

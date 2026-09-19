@@ -21,6 +21,7 @@ import {
 } from "@/lib/kudir";
 import { useOrganizations, useMyOrgId, pickOrg } from "@/lib/organizations";
 import { isAccounted } from "@/lib/accounting";
+import { useViewLog } from "@/hooks/use-view-log";
 
 
 export const Route = createFileRoute("/_authenticated/reports/kudir")({
@@ -45,6 +46,7 @@ const ruDate = (iso: string) => {
 const ROMAN = ["I", "II", "III", "IV"];
 
 function KudirPage() {
+  useViewLog("kudir");
   const wsId = useActiveWorkspaceId();
   const [year, setYear] = useState(new Date().getFullYear());
   const [mode, setMode] = useState<KudirMode>("all");

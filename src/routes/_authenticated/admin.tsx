@@ -13,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import {
+import { useViewLog } from "@/hooks/use-view-log";
   adminListUsers,
   adminStats,
   adminCreateUser,
@@ -63,6 +64,7 @@ const TABLE_LABELS: Record<string, string> = {
 
 
 function AdminPage() {
+  useViewLog("admin");
   const qc = useQueryClient();
   const [allowed, setAllowed] = useState<boolean | null>(null);
 

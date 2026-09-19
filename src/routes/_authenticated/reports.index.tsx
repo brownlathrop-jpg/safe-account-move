@@ -16,6 +16,7 @@ import { fetchBalances } from "@/lib/stock";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useOrganizations } from "@/lib/organizations";
 import { teamDocAuthors } from "@/lib/team.functions";
+import { useViewLog } from "@/hooks/use-view-log";
 
 export const Route = createFileRoute("/_authenticated/reports/")({
   head: () => ({
@@ -39,6 +40,7 @@ function monthStart() {
 }
 
 function ReportsPage() {
+  useViewLog("reports");
   const wsId = useActiveWorkspaceId();
   const [from, setFrom] = useState(monthStart());
   const [to, setTo] = useState(new Date().toISOString().slice(0, 10));
