@@ -13,8 +13,8 @@ export const adminListUsers = createServerFn({ method: "POST" }).handler(async (
     const s = sql();
     const rows = await s`
       select u.id, u.email, u.name, u.is_admin, u.created_at,
-             (select count(*) from workspaces w where w.user_id = u.id) as workspaces,
-             (select count(*) from products p where p.user_id = u.id) as products
+             (select count(*) from workspaces w where w.user_id = u.id::text) as workspaces,
+             (select count(*) from products p where p.user_id = u.id::text) as products
       from app_users u
       order by u.created_at`;
     return { data: rows as any[], error: null };
@@ -47,7 +47,7 @@ export const adminStats = createServerFn({ method: "POST" }).handler(async () =>
       where not ok and created_at > now() - interval '24 hours'`;
     // Разбивка по базам (workspaces)
     const byWorkspace = await s`
-      select w.id, coalesce(w.name, 'Без названия') as name, u.email as owner,
+      select w.id, coalesce(w.data->>'name', 'Без названия') as name, u.email as owner,
              (select count(*) from products p where p.workspace_id = w.id) as products,
              (select count(*) from product_folders f where f.workspace_id = w.id) as folders,
              (select count(*) from partners pt where pt.workspace_id = w.id) as partners,
