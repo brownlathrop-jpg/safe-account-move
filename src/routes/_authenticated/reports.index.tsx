@@ -15,6 +15,7 @@ import { downloadCsv } from "@/lib/export-csv";
 import { fetchBalances } from "@/lib/stock";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useOrganizations } from "@/lib/organizations";
+import { teamDocAuthors } from "@/lib/team.functions";
 
 export const Route = createFileRoute("/_authenticated/reports/")({
   head: () => ({
@@ -285,6 +286,73 @@ function ReportsPage() {
   }, [balances, productById]);
 
   const stockTotal = useMemo(() => stockRows.reduce((s, r) => s + r.qty * r.cost, 0), [stockRows]);
+
+  // ------------------------------------------------------- оборотная ведомость по складу
+  const { data: movements = [] } = useQuery({
+    queryKey: ["stock-movements-report", wsId],
+    enabled: !!wsId,
+    queryFn: async () => (await (db as any).from("stock_movements")
+      .select("product_id,qty,moved_at").eq("workspace_id", wsId)).data ?? [],
+  });
+
+  /** Начальный остаток, приход, расход и конечный остаток за период. */
+  const turnover = useMemo(() => {
+    const m = new Map<string, { id: string; name: string; unit: string; cost: number; open: number; inQty: number; outQty: number }>();
+    const row = (pid: string) => {
+      const p = productById.get(pid);
+      const cur = m.get(pid) ?? {
+        id: pid, name: p?.name ?? "Товар удалён", unit: p?.unit ?? "", cost: Number(p?.cost ?? 0),
+        open: 0, inQty: 0, outQty: 0,
+      };
+      m.set(pid, cur);
+      return cur;
+    };
+    for (const mv of movements as any[]) {
+      const pid = String(mv.product_id ?? "");
+      if (!pid) continue;
+      const day = String(mv.moved_at ?? "").slice(0, 10);
+      const qty = Number(mv.qty ?? 0);
+      if (from && day < from) { row(pid).open += qty; continue; }
+      if (to && day > to) continue;
+      const r = row(pid);
+      if (qty >= 0) r.inQty += qty; else r.outQty += -qty;
+    }
+    return [...m.values()]
+      .map(r => ({ ...r, close: r.open + r.inQty - r.outQty }))
+      .filter(r => Math.abs(r.open) > 0.0001 || r.inQty > 0.0001 || r.outQty > 0.0001 || Math.abs(r.close) > 0.0001)
+      .sort((a, b) => (b.inQty + b.outQty) - (a.inQty + a.outQty));
+  }, [movements, productById, from, to]);
+
+  // ------------------------------------------------------- продажи по менеджерам
+  const { data: authors = [] } = useQuery({
+    queryKey: ["doc-authors", wsId],
+    enabled: !!wsId,
+    queryFn: async () => {
+      const res = await teamDocAuthors({ data: { workspaceId: wsId! } });
+      if (res.error) return [];
+      return (res.data ?? []) as { doc_id: string; user_email: string | null }[];
+    },
+  });
+
+  const authorByDoc = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const a of authors) m.set(String(a.doc_id), a.user_email || "—");
+    return m;
+  }, [authors]);
+
+  const byManager = useMemo(() => {
+    const m = new Map<string, { name: string; docs: Set<string>; revenue: number; cost: number }>();
+    for (const r of soldItems) {
+      const name = authorByDoc.get(String(r.invoice_id)) ?? "Автор неизвестен";
+      const cur = m.get(name) ?? { name, docs: new Set<string>(), revenue: 0, cost: 0 };
+      cur.revenue += r.revenue;
+      cur.cost += r.cost;
+      cur.docs.add(String(r.invoice_id));
+      m.set(name, cur);
+    }
+    return [...m.values()].sort((a, b) => b.revenue - a.revenue);
+  }, [soldItems, authorByDoc]);
+
 
   const periodFilter = (
     <Card className="p-4 flex flex-wrap gap-4 items-end">
