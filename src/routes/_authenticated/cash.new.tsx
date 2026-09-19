@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useOrganizations, useMyOrgId, pickOrg } from "@/lib/organizations";
 
 export const Route = createFileRoute("/_authenticated/cash/new")({
   head: () => ({ meta: [{ title: "Новый кассовый документ — КабинетCRM" }] }),
@@ -30,6 +31,11 @@ function NewCashDoc() {
   const [amount, setAmount] = useState<number>(0);
   const [basis, setBasis] = useState("");
   const [note, setNote] = useState("");
+  // Ордер выписывается от юрлица текущего входа (можно сменить, если юрлиц несколько)
+  const { data: orgs = [] } = useOrganizations(wsId);
+  const { data: myOrgId } = useMyOrgId(wsId);
+  const [orgId, setOrgId] = useState<string>("");
+  const effOrgId = pickOrg(orgs, orgId || myOrgId || null)?.id ?? null;
 
   const { data: partners = [] } = useQuery({
     queryKey: ["partners", wsId],
@@ -78,6 +84,7 @@ function NewCashDoc() {
         cash_received: amount,
         cash_basis: basis || null,
         note: note || null,
+        organization_id: effOrgId,
       };
       if (itemId) payload.cashflow_item_id = itemId;
 
