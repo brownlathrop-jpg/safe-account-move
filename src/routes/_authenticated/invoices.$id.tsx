@@ -727,16 +727,28 @@ function InvoiceView() {
       <div className="-mt-4 overflow-hidden rounded-b-lg border bg-card print:hidden">
         <div className="border-t p-4">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="space-y-1">
-              <Label className="text-xs">Тип</Label>
-              <Select value={kind} onValueChange={(v) => setKind(v as any)} disabled={!editable}>
-                <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="outgoing">Расход (продажа)</SelectItem>
-                  <SelectItem value="incoming">Приход (поступление)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            {isPKO ? (
+              <div className="space-y-1">
+                <Label className="text-xs">Вид кассового ордера</Label>
+                <div className="h-8 flex items-center px-3 rounded-md border bg-muted/50 text-sm">
+                  {docTitleOf("cash_receipt", kind, false, number)}
+                  <span className="text-muted-foreground ml-2">
+                    {effectiveCashKind("cash_receipt", kind, number) === "incoming" ? "(приход денег)" : "(расход денег)"}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                <Label className="text-xs">Тип</Label>
+                <Select value={kind} onValueChange={(v) => setKind(v as any)} disabled={!editable}>
+                  <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="outgoing">Расход (продажа)</SelectItem>
+                    <SelectItem value="incoming">Приход (поступление)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="space-y-1">
               <Label className="text-xs">Тип цены</Label>
               <Select value={priceTypeId ?? "__none"} onValueChange={applyPriceType} disabled={!editable || kind !== "outgoing"}>
