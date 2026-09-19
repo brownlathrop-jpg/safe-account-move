@@ -282,7 +282,7 @@ function InvoicesPage() {
                 <TableRow
                   key={i.id}
                   className="cursor-pointer hover:bg-muted/40"
-                  title={`Открыть: ${docTitle(i.doc_type, i.kind, i.is_return)}`}
+                  title={`Открыть: ${docTitle(i.doc_type, i.kind, i.is_return, i.number)}`}
                   onClick={() => navigate({ to: "/invoices/$id", params: { id: i.id } })}
                 >
                   {cols.visible.map(c => (
