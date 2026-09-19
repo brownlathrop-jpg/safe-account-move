@@ -540,7 +540,7 @@ function InvoiceView() {
           : `Приходная заявка № ${cleanNumber} от ${dfmt.format(new Date(inv.issue_date))}`);
 
   return (
-    <div className="mx-auto max-w-6xl space-y-4">
+    <div className="space-y-4">
       {/* Toolbar */}
       <div className="flex items-center justify-between gap-3 rounded-t-lg border bg-muted/30 px-4 py-2.5 print:hidden flex-wrap">
         <Link to="/invoices" className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1">

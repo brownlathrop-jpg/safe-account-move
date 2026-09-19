@@ -137,7 +137,7 @@ function SettingsPage() {
   });
 
   return (
-    <div className="space-y-3 max-w-5xl text-sm">
+    <div className="space-y-3 text-sm">
       <div className="flex items-baseline gap-3">
         <h1 className="text-lg font-semibold">Настройки</h1>
         <p className="text-xs text-muted-foreground">Реквизиты организации и справочники</p>
