@@ -164,7 +164,7 @@ export function ProductPicker({
               <span className="h-4 w-4 shrink-0" />
             )}
             {active || isOpen ? <FolderOpen className="h-3.5 w-3.5 shrink-0 text-amber-500" /> : <Folder className="h-3.5 w-3.5 shrink-0 text-amber-500" />}
-            <span className="truncate">{f.name}</span>
+            <span className="truncate font-semibold">{f.name}</span>
           </div>
           {isOpen && renderTree(f.id, depth + 1)}
         </div>
@@ -183,7 +183,7 @@ export function ProductPicker({
       >
         <span className="h-4 w-4 shrink-0" />
         <FolderOpen className="h-3.5 w-3.5 shrink-0 text-amber-500" />
-        <span>Все товары</span>
+        <span className="font-semibold">Все товары</span>
       </div>
       {renderTree(null, 0)}
     </div>
