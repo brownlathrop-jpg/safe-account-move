@@ -417,13 +417,21 @@ function ProductsPage() {
     mutationFn: async (id: string) => {
       const folderIdsToDelete = descendantsOf(id);
       // Удаляем одним массовым запросом вместо поштучного перебора.
-      const { error: prodErr } = await db.from("products").delete().in("folder_id", folderIdsToDelete);
-      if (prodErr) throw prodErr;
-      const { error: foldErr } = await db.from("product_folders").delete().in("id", folderIdsToDelete);
-      if (foldErr) throw foldErr;
-      return folderIdsToDelete;
+      const { data: delProds, error: prodErr } = await db.from("products").delete().in("folder_id", folderIdsToDelete);
+      if (prodErr && !(delProds as any[])?.length) throw prodErr;
+      // Папки, в которых остались товары с движениями/документами, оставляем.
+      const { data: rest } = await (db as any)
+        .from("products").select("id,folder_id").in("folder_id", folderIdsToDelete);
+      const keptFolders = new Set(((rest ?? []) as { folder_id: string | null }[])
+        .map(r => r.folder_id).filter(Boolean) as string[]);
+      const toDelete = folderIdsToDelete.filter(f => !keptFolders.has(f));
+      if (toDelete.length) {
+        const { error: foldErr } = await db.from("product_folders").delete().in("id", toDelete);
+        if (foldErr) throw foldErr;
+      }
+      return { gone: toDelete, kept: (rest ?? []).length };
     },
-    onSuccess: (folderIdsToDelete: string[]) => {
+    onSuccess: ({ gone: folderIdsToDelete, kept }: { gone: string[]; kept: number }) => {
       const gone = new Set(folderIdsToDelete);
       // Сразу убираем удалённое из кэша, чтобы список не ждал ответа сервера.
       qc.setQueryData(["product_folders", wsId], (old?: FolderRow[]) =>
