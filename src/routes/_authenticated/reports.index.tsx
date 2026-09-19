@@ -93,12 +93,15 @@ function ReportsPage() {
     [payments, docOrg, effOrgId],
   );
 
-  // Оплачено по документу: приход денег плюсом, возврат денег минусом.
+  // Оплачено по документу отдельно по направлению денег (приход / выдача).
   const paidByInvoice = useMemo(() => {
-    const m = new Map<string, number>();
+    const m = new Map<string, { in: number; out: number }>();
     for (const p of paymentsF) {
       const k = String(p.invoice_id ?? "");
-      m.set(k, (m.get(k) ?? 0) + signedPayment(p));
+      const cur = m.get(k) ?? { in: 0, out: 0 };
+      if ((p.direction ?? "in") === "in") cur.in += Number(p.amount || 0);
+      else cur.out += Number(p.amount || 0);
+      m.set(k, cur);
     }
     return m;
   }, [paymentsF]);
@@ -111,7 +114,11 @@ function ReportsPage() {
       const p = (partners as any[]).find(x => x.id === d.partner_id);
       const cur = rows.get(d.partner_id) ?? { id: d.partner_id, name: p?.name ?? "Без контрагента", owedToUs: 0, weOwe: 0 };
       const sign = d.is_return ? -1 : 1;
-      const left = sign * (Number(d.total || 0) - (paidByInvoice.get(d.id) ?? 0));
+      // По продаже деньги должны прийти (in), по закупке — уйти (out);
+      // обратное движение денег — это возврат оплаты, он снова создаёт долг.
+      const pay = paidByInvoice.get(d.id) ?? { in: 0, out: 0 };
+      const paid = d.kind === "outgoing" ? pay.in - pay.out : pay.out - pay.in;
+      const left = sign * (Number(d.total || 0) - paid);
       if (d.kind === "outgoing") cur.owedToUs += left; else cur.weOwe += left;
       rows.set(d.partner_id, cur);
     }
