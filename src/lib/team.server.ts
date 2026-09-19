@@ -106,12 +106,52 @@ export async function docHistory(table: string, docId: string, limit = 50) {
   return rows as any[];
 }
 
-export async function workspaceHistory(workspaceId: string, limit = 200) {
+/** Разделы, просмотр которых записываем в журнал. */
+export const VIEW_SECTIONS: Record<string, string> = {
+  reports: "Отчёты",
+  kudir: "КУДиР",
+  cashbook: "Кассовая книга",
+  cash: "Касса и оплаты",
+  admin: "Админка",
+  team: "Сотрудники и роли",
+  export: "Выгрузка данных",
+  settings: "Настройки базы",
+};
+
+/** Запись факта открытия важного раздела (кто и когда смотрел). */
+export async function logView(opts: {
+  section: string;
+  workspaceId: string | null;
+  userId: string;
+  userEmail: string;
+  details?: Record<string, unknown>;
+}) {
+  if (!VIEW_SECTIONS[opts.section]) return;
+  const s = sql();
+  try {
+    await s`
+      insert into document_log (workspace_id, doc_table, doc_id, user_id, user_email, op, changes)
+      values (${opts.workspaceId}, ${"section:" + opts.section}, null, ${opts.userId}, ${opts.userEmail},
+              'view', ${s.json((opts.details ?? {}) as any)})
+    `;
+  } catch {
+    /* журнал не должен ломать открытие раздела */
+  }
+}
+
+export async function workspaceHistory(
+  workspaceId: string,
+  limit = 200,
+  kind: "all" | "changes" | "views" = "all",
+) {
   const s = sql();
   const rows = await s`
     select id, doc_table, doc_id, user_email, op, changes, created_at
     from document_log
     where workspace_id = ${workspaceId}
+      and (${kind} = 'all'
+           or (${kind} = 'views' and op = 'view')
+           or (${kind} = 'changes' and op <> 'view'))
     order by created_at desc
     limit ${limit}
   `;
