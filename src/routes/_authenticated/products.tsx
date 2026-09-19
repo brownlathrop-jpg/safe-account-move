@@ -818,7 +818,7 @@ function ProductsPage() {
           )}
           <Table>
             <TableHeader>
-              <TableRow>
+              <TableRow className="[&>th]:py-2 [&>th]:px-2">
                 <TableHead className="w-8">
                   <Checkbox
                     checked={(filtered.length > 0 || rightFolders.length > 0)
@@ -847,7 +847,7 @@ function ProductsPage() {
                 <TableRow
                   key={f.id}
                   data-state={selectedFolderIds.includes(f.id) ? "selected" : undefined}
-                  className={`cursor-pointer hover:bg-muted/40 ${dropFolder === `row-${f.id}` ? "bg-primary/10" : ""}`}
+                  className={`cursor-pointer hover:bg-muted/40 [&>td]:py-1.5 [&>td]:px-2 ${dropFolder === `row-${f.id}` ? "bg-primary/10" : ""}`}
                   onClick={() => selectFolder(f.id)}
                   {...dropProps(f.id, `row-${f.id}`)}
                   {...folderDragProps(f.id)}
@@ -867,8 +867,8 @@ function ProductsPage() {
                     {productCountIn(f.id)} товаров
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button size="icon" variant="ghost" onClick={(e) => { e.stopPropagation(); openFolderDialog(f.parent_id, f); }}><Pencil className="h-4 w-4" /></Button>
-                    <Button size="icon" variant="ghost" onClick={(e) => { e.stopPropagation(); setDeleteFolder(f); }}>
+                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); openFolderDialog(f.parent_id, f); }}><Pencil className="h-4 w-4" /></Button>
+                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); setDeleteFolder(f); }}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </TableCell>
@@ -884,7 +884,7 @@ function ProductsPage() {
                     e.dataTransfer.effectAllowed = "move";
                     e.dataTransfer.setData("text/plain", dragIdsRef.current.join(","));
                   }}
-                  className="cursor-grab active:cursor-grabbing"
+                  className="cursor-grab active:cursor-grabbing [&>td]:py-1.5 [&>td]:px-2"
                 >
                   <TableCell onClick={(e) => { e.stopPropagation(); toggleSelected(p.id, e.shiftKey); }}>
                     <Checkbox checked={selectedIds.includes(p.id)} onCheckedChange={() => {}} />
@@ -896,8 +896,8 @@ function ProductsPage() {
                   <TableCell className="text-right font-medium">{fmt.format(priceOf(p, myPriceTypeId))}</TableCell>
                   <TableCell className="text-right">{Number(p.stock)}</TableCell>
                   <TableCell className="text-right">
-                    <Button size="icon" variant="ghost" onClick={() => openEdit(p)}><Pencil className="h-4 w-4" /></Button>
-                    <Button size="icon" variant="ghost" onClick={() => { if (confirm(`Удалить "${p.name}"?`)) remove.mutate(p.id); }}>
+                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEdit(p)}><Pencil className="h-4 w-4" /></Button>
+                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { if (confirm(`Удалить "${p.name}"?`)) remove.mutate(p.id); }}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </TableCell>
