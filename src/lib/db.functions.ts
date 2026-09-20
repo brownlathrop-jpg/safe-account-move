@@ -118,20 +118,49 @@ export const authResetPassword = createServerFn({ method: "POST" })
     }
   });
 
+/** Максимальный размер картинки — 5 МБ. */
+const MAX_FILE_BYTES = 5 * 1024 * 1024;
+const ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif", "image/avif"]);
+
 export const storageUpload = createServerFn({ method: "POST" })
-  .inputValidator((input: { bucket: string; path: string; contentType: string; base64: string }) => input)
+  .inputValidator(
+    (input: {
+      bucket: string;
+      path: string;
+      contentType: string;
+      base64: string;
+      workspaceId?: string | null;
+    }) => input,
+  )
   .handler(async ({ data }) => {
     const { requireUser } = await import("./auth.server");
     const { sql } = await import("./pg.server");
+    const { roleIn, canWrite } = await import("./team.server");
     try {
-      await requireUser();
-      const s = sql();
+      const user = await requireUser();
+      if (!data.workspaceId) throw new Error("Не указана база");
+      const role = await roleIn(user.id, data.workspaceId);
+      if (!role) throw new Error("Нет доступа к этой базе");
+      if (!canWrite(role, "products")) throw new Error("Недостаточно прав для загрузки файлов");
+      if (!ALLOWED_TYPES.has(data.contentType)) throw new Error("Можно загружать только картинки");
       const bytes = Buffer.from(data.base64, "base64");
-      await s`
-        insert into files (id, bucket, path, content_type, bytes)
-        values (${crypto.randomUUID()}, ${data.bucket}, ${data.path}, ${data.contentType}, ${bytes})
-        on conflict (bucket, path) do update
-          set bytes = excluded.bytes, content_type = excluded.content_type`;
+      if (bytes.length > MAX_FILE_BYTES) throw new Error("Файл больше 5 МБ");
+      const s = sql();
+      const upd = await s`
+        update files
+           set bytes = ${bytes}, content_type = ${data.contentType}
+         where bucket = ${data.bucket} and path = ${data.path}
+           and workspace_id = ${data.workspaceId}
+        returning path`;
+      if (!upd.length) {
+        const busy = await s`
+          select 1 from files where bucket = ${data.bucket} and path = ${data.path} limit 1`;
+        if (busy.length) throw new Error("Нет доступа к этому файлу");
+        await s`
+          insert into files (id, bucket, path, content_type, bytes, workspace_id)
+          values (${crypto.randomUUID()}, ${data.bucket}, ${data.path}, ${data.contentType},
+                  ${bytes}, ${data.workspaceId})`;
+      }
       return { path: data.path, error: null };
     } catch (e: any) {
       return { path: null, error: { message: e?.message ?? String(e) } };
@@ -139,14 +168,22 @@ export const storageUpload = createServerFn({ method: "POST" })
   });
 
 export const storageRemove = createServerFn({ method: "POST" })
-  .inputValidator((input: { bucket: string; paths: string[] }) => input)
+  .inputValidator((input: { bucket: string; paths: string[]; workspaceId?: string | null }) => input)
   .handler(async ({ data }) => {
     const { requireUser } = await import("./auth.server");
     const { sql } = await import("./pg.server");
+    const { roleIn, canWrite } = await import("./team.server");
     try {
-      await requireUser();
+      const user = await requireUser();
+      if (!data.workspaceId) throw new Error("Не указана база");
+      const role = await roleIn(user.id, data.workspaceId);
+      if (!role) throw new Error("Нет доступа к этой базе");
+      if (!canWrite(role, "products")) throw new Error("Недостаточно прав для удаления файлов");
       const s = sql();
-      await s`delete from files where bucket = ${data.bucket} and path = any(${data.paths})`;
+      await s`
+        delete from files
+         where bucket = ${data.bucket} and path = any(${data.paths})
+           and workspace_id = ${data.workspaceId}`;
       return { ok: true, error: null };
     } catch (e: any) {
       return { ok: false, error: { message: e?.message ?? String(e) } };
