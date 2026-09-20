@@ -219,8 +219,9 @@ class SqlBuf {
 
 /** Выражение для поля: колонка или значение из jsonb. */
 function fieldExpr(field: string, asText = true): string {
-  if (COLUMN_FIELDS.has(field)) return field;
-  return asText ? `(data->>'${field.replace(/'/g, "")}')` : `(data->'${field.replace(/'/g, "")}')`;
+  const f = assertField(field);
+  if (COLUMN_FIELDS.has(f)) return f;
+  return asText ? `(data->>'${f}')` : `(data->'${f}')`;
 }
 
 
@@ -232,34 +233,53 @@ export async function ownedWorkspaces(userId: string): Promise<string[]> {
   return rows.map((r: any) => r.id as string);
 }
 
-async function fetchByIds(table: string, ids: string[]): Promise<Map<string, Row>> {
+/** Условие «запись принадлежит доступным базам» для дочерних выборок. */
+function scopeCond(table: string, paramIdx: number): string {
+  const col = table === "workspaces" ? "id" : "workspace_id";
+  return GLOBAL_TABLES.has(table)
+    ? ` and (${col} is null or ${col} = any($${paramIdx}::text[]))`
+    : ` and ${col} = any($${paramIdx}::text[])`;
+}
+
+async function fetchByIds(table: string, ids: string[], scope: string[]): Promise<Map<string, Row>> {
+  assertTable(table);
   const s = sql();
   const map = new Map<string, Row>();
-  if (!ids.length) return map;
-  const rows = await s`select * from ${s(table)} where id = any(${ids})`;
-  for (const r of rows) map.set(r.id as string, toRow(r));
+  if (!ids.length || !scope.length) return map;
+  const rows = await s.unsafe(
+    `select * from ${table} where id = any($1::text[])${scopeCond(table, 2)}`,
+    [ids, scope] as any,
+  );
+  for (const r of rows as any[]) map.set(r.id as string, toRow(r));
   return map;
 }
 
-async function fetchByFk(table: string, fk: string, ids: string[]): Promise<Map<string, Row[]>> {
+async function fetchByFk(
+  table: string,
+  fk: string,
+  ids: string[],
+  scope: string[],
+): Promise<Map<string, Row[]>> {
+  assertTable(table);
+  const key = assertField(fk);
   const s = sql();
   const map = new Map<string, Row[]>();
-  if (!ids.length) return map;
+  if (!ids.length || !scope.length) return map;
   const rows = await s.unsafe(
-    `select * from ${table} where (data->>'${fk}') = any($1)`,
-    [ids] as any,
+    `select * from ${table} where (data->>'${key}') = any($1::text[])${scopeCond(table, 2)}`,
+    [ids, scope] as any,
   );
   for (const r of rows as any[]) {
     const row = toRow(r);
-    const key = String(row[fk]);
-    const list = map.get(key) ?? [];
+    const k = String(row[key]);
+    const list = map.get(k) ?? [];
     list.push(row);
-    map.set(key, list);
+    map.set(k, list);
   }
   return map;
 }
 
-async function hydrate(parentTable: string, rows: Row[], nested: SelectPart[]) {
+async function hydrate(parentTable: string, rows: Row[], nested: SelectPart[], scope: string[]) {
   if (!rows.length || !nested.length) return;
   for (const part of nested) {
     const rel = resolveRel(parentTable, part, rows[0]);
@@ -268,13 +288,13 @@ async function hydrate(parentTable: string, rows: Row[], nested: SelectPart[]) {
       const ids = Array.from(
         new Set(rows.map((r) => r[rel.fk]).filter((v): v is string => typeof v === "string" && !!v)),
       );
-      const map = await fetchByIds(rel.table, ids);
+      const map = await fetchByIds(rel.table, ids, scope);
       for (const r of rows) {
         const target = r[rel.fk] ? map.get(String(r[rel.fk])) : undefined;
         r[part.alias] = target ? pick(target, part.fields) : null;
       }
     } else {
-      const map = await fetchByFk(rel.table, rel.fk, rows.map((r) => String(r.id)));
+      const map = await fetchByFk(rel.table, rel.fk, rows.map((r) => String(r.id)), scope);
       for (const r of rows) r[part.alias] = (map.get(String(r.id)) ?? []).map((c) => pick(c, part.fields));
     }
   }
