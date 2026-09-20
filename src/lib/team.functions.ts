@@ -119,8 +119,9 @@ export const teamDocHistory = createServerFn({ method: "POST" })
   .inputValidator((input: { table: string; docId: string }) => input)
   .handler(async ({ data }) => {
     try {
-      const { team } = await ctx();
-      return { data: await team.docHistory(data.table, data.docId), error: null };
+      const { user, team } = await ctx();
+      const scope = await team.accessibleWorkspaces(user.id);
+      return { data: await team.docHistory(data.table, data.docId, scope), error: null };
     } catch (e: any) {
       return { data: null, error: { message: e?.message ?? String(e) } };
     }

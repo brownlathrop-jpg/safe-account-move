@@ -1,5 +1,6 @@
 // Слушает изменения в PostgreSQL (LISTEN crm_changes) и раздаёт их подписчикам.
 import postgres from "postgres";
+import { sslOption } from "./pg.server";
 
 export type ChangeEvent = {
   table: string;
@@ -21,7 +22,7 @@ function startListening() {
   listenerSql = postgres(url, {
     max: 1,
     prepare: false,
-    ssl: { rejectUnauthorized: false },
+    ssl: sslOption(url),
     onnotice: () => {},
   });
   listening = listenerSql
