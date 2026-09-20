@@ -10,6 +10,9 @@ export const Route = createFileRoute("/api/realtime")({
         if (!user) return new Response("Требуется вход", { status: 401 });
 
         const { subscribeChanges } = await import("@/lib/realtime.server");
+        const { accessibleWorkspaces } = await import("@/lib/team.server");
+        // список своих баз: события чужих клиентов наружу не уходят
+        const scope = new Set(await accessibleWorkspaces(user.id));
         const encoder = new TextEncoder();
         let unsubscribe: (() => void) | null = null;
         let ping: ReturnType<typeof setInterval> | null = null;
@@ -25,6 +28,7 @@ export const Route = createFileRoute("/api/realtime")({
             };
             send(": подключено\n\n");
             unsubscribe = await subscribeChanges((event) => {
+              if (!event.workspace_id || !scope.has(event.workspace_id)) return;
               send(`data: ${JSON.stringify(event)}\n\n`);
             });
             ping = setInterval(() => send(": ping\n\n"), 25000);
