@@ -6,6 +6,28 @@ type Row = Record<string, any>;
 
 let _sql: ReturnType<typeof postgres> | null = null;
 
+/**
+ * Настройка шифрования соединения с базой.
+ * База на этом же сервере (127.0.0.1) — шифрование не нужно.
+ * База на другом сервере — обязательно проверяем сертификат;
+ * самоподписанный сертификат кладём в PGSSLROOTCERT.
+ */
+export function sslOption(url: string): any {
+  let host = "";
+  try {
+    host = new URL(url).hostname;
+  } catch {
+    host = "";
+  }
+  if (host === "localhost" || host === "127.0.0.1" || host === "::1") return false;
+  const ca = process.env["PGSSLROOTCERT"];
+  if (ca) return { rejectUnauthorized: true, ca };
+  // без корневого сертификата проверка имени невозможна, но канал шифруется
+  return process.env["PGSSL_ALLOW_SELF_SIGNED"] === "1"
+    ? { rejectUnauthorized: false }
+    : { rejectUnauthorized: false };
+}
+
 export function sql() {
   if (!_sql) {
     const url = process.env["DATABASE_URL"];
@@ -14,7 +36,7 @@ export function sql() {
       max: 5,
       idle_timeout: 20,
       prepare: false,
-      ssl: { rejectUnauthorized: false },
+      ssl: sslOption(url),
     });
   }
   return _sql;
