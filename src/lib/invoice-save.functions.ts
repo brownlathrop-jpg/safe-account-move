@@ -1,10 +1,11 @@
 // Серверные функции сохранения документа одной транзакцией.
 import { createServerFn } from "@tanstack/react-start";
+import * as V from "./validate";
 
 type SaveItem = Record<string, unknown>;
 
 export const invoiceSaveTx = createServerFn({ method: "POST" })
-  .inputValidator((input: { invoiceId: string; header: Record<string, unknown>; items: SaveItem[] }) => input)
+  .inputValidator((input: unknown) => V.invoiceSaveSchema.parse(input) as { invoiceId: string; header: Record<string, unknown>; items: SaveItem[] })
   .handler(async ({ data }) => {
     try {
       const { requireUser } = await import("./auth.server");
@@ -24,7 +25,7 @@ export const invoiceSaveTx = createServerFn({ method: "POST" })
   });
 
 export const invoiceCreateTx = createServerFn({ method: "POST" })
-  .inputValidator((input: { workspaceId: string; header: Record<string, unknown>; items: SaveItem[] }) => input)
+  .inputValidator((input: unknown) => V.invoiceCreateSchema.parse(input) as { workspaceId: string; header: Record<string, unknown>; items: SaveItem[] })
   .handler(async ({ data }) => {
     try {
       const { requireUser } = await import("./auth.server");

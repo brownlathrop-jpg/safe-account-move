@@ -1,8 +1,9 @@
 // Серверная функция ручной выгрузки всех данных базы.
 import { createServerFn } from "@tanstack/react-start";
+import * as V from "./validate";
 
 export const backupExport = createServerFn({ method: "POST" })
-  .inputValidator((input: { workspaceId: string }) => input)
+  .inputValidator((input: unknown) => V.workspaceOnlySchema.parse(input))
   .handler(async ({ data }) => {
     try {
       const { requireUser } = await import("./auth.server");

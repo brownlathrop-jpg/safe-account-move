@@ -1,8 +1,9 @@
 // Серверная функция общего поиска.
 import { createServerFn } from "@tanstack/react-start";
+import * as V from "./validate";
 
 export const searchAll = createServerFn({ method: "POST" })
-  .inputValidator((d: { q: string; workspaceId?: string | null }) => d)
+  .inputValidator((d: unknown) => V.searchSchema.parse(d))
   .handler(async ({ data }) => {
     const { requireUser } = await import("./auth.server");
     const { globalSearch } = await import("./search.server");

@@ -70,3 +70,32 @@ export const logViewSchema = z.object({
   section: z.string().min(1).max(64),
 });
 export const prefsSchema = z.object({ patch: z.record(z.any()) });
+
+/* --------------------------------- прочие серверные функции */
+
+export const searchSchema = z.object({
+  q: z.string().max(200),
+  workspaceId: id.nullable().optional(),
+});
+export const saveItemSchema = z.record(z.any());
+export const invoiceSaveSchema = z.object({
+  invoiceId: id,
+  header: z.record(z.any()),
+  items: z.array(saveItemSchema).max(5000),
+});
+export const invoiceCreateSchema = z.object({
+  workspaceId: id,
+  header: z.record(z.any()),
+  items: z.array(saveItemSchema).max(5000),
+});
+export const workspaceOnlySchema = z.object({ workspaceId: id });
+export const costProductSchema = z.object({ workspaceId: id, productId: id });
+export const adminCreateUserSchema = z.object({
+  email: emailSchema,
+  password: passwordSchema,
+  name: z.string().max(200).optional(),
+});
+export const adminUserPasswordSchema = z.object({ userId: id, password: passwordSchema });
+export const adminUserFlagSchema = z.object({ userId: id, isAdmin: z.boolean() });
+export const adminUserSchema = z.object({ userId: id });
+export const adminQuerySchema = z.object({ query: z.string().min(1).max(5000) });

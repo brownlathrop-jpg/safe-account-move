@@ -1,5 +1,6 @@
 // Серверные функции: себестоимость по партиям (FIFO).
 import { createServerFn } from "@tanstack/react-start";
+import * as V from "./validate";
 
 async function assertAccess(workspaceId: string) {
   const { requireUser } = await import("./auth.server");
@@ -12,7 +13,7 @@ async function assertAccess(workspaceId: string) {
 
 /** Пересчитать себестоимость товаров и расходных документов базы. */
 export const costsRecalc = createServerFn({ method: "POST" })
-  .inputValidator((input: { workspaceId: string }) => input)
+  .inputValidator((input: unknown) => V.workspaceOnlySchema.parse(input))
   .handler(async ({ data }) => {
     try {
       await assertAccess(data.workspaceId);
@@ -25,7 +26,7 @@ export const costsRecalc = createServerFn({ method: "POST" })
 
 /** Непогашенные партии одного товара. */
 export const costBatches = createServerFn({ method: "POST" })
-  .inputValidator((input: { workspaceId: string; productId: string }) => input)
+  .inputValidator((input: unknown) => V.costProductSchema.parse(input))
   .handler(async ({ data }) => {
     try {
       await assertAccess(data.workspaceId);
@@ -39,7 +40,7 @@ export const costBatches = createServerFn({ method: "POST" })
 
 /** Себестоимость и остаток по всем товарам базы (для страницы склада). */
 export const costsAll = createServerFn({ method: "POST" })
-  .inputValidator((input: { workspaceId: string }) => input)
+  .inputValidator((input: unknown) => V.workspaceOnlySchema.parse(input))
   .handler(async ({ data }) => {
     try {
       await assertAccess(data.workspaceId);
