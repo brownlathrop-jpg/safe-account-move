@@ -94,12 +94,15 @@ export async function logChange(opts: {
   }
 }
 
-export async function docHistory(table: string, docId: string, limit = 50) {
+/** История документа — только по базам, к которым есть доступ. */
+export async function docHistory(table: string, docId: string, scope: string[], limit = 50) {
+  if (!scope.length) return [];
   const s = sql();
   const rows = await s`
     select id, doc_table, doc_id, user_email, op, changes, created_at
     from document_log
     where doc_table = ${table} and doc_id = ${docId}
+      and workspace_id = any(${scope})
     order by created_at desc
     limit ${limit}
   `;
