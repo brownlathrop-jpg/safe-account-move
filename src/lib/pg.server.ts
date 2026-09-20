@@ -378,9 +378,8 @@ export async function runQuery(
   const assertWrite = async (wsIds: (string | null)[]) => {
     const ids = Array.from(new Set(wsIds.filter((x): x is string => !!x)));
     if (!ids.length) {
-      // общие записи без привязки к базе — только для владельцев баз
-      const own = await ownedWorkspaces(userId);
-      if (!own.length) throw new Error("Недостаточно прав для изменения данных");
+      // запись без базы больше не разрешена (кроме явных общих справочников)
+      if (!GLOBAL_TABLES.has(table)) throw new Error("Не указана база (workspace_id)");
       return;
     }
     for (const id of ids) {
@@ -444,7 +443,7 @@ export async function runQuery(
       const res = await s.unsafe(buf.text, buf.params as any);
       const rows = (res as any[]).map(toRow);
       const { columns, nested } = parseSelect(spec.select ?? "*");
-      await hydrate(table, rows, nested);
+      await hydrate(table, rows, nested, scope ?? []);
       const shaped =
         columns.includes("*") || columns.length === 0
           ? rows
@@ -668,17 +667,32 @@ function applyWhere(buf: SqlBuf, filters: Filter[], scope: string[] | null, tabl
     if (table === "workspaces") {
       if (scope.length) push(`id = ANY(?)`, scope);
       else parts.push("false");
-    } else if (scope.length) push(`(workspace_id IS NULL OR workspace_id = ANY(?))`, scope);
-    else parts.push("workspace_id IS NULL");
+    } else if (GLOBAL_TABLES.has(table)) {
+      if (scope.length) push(`(workspace_id IS NULL OR workspace_id = ANY(?))`, scope);
+      else parts.push("workspace_id IS NULL");
+    } else {
+      if (scope.length) push(`workspace_id = ANY(?)`, scope);
+      else parts.push("false");
+    }
   }
-  if (parts.length) buf.text += ` WHERE ${parts.join(" AND ")}`;
+  // скобки обязательны: OR внутри условий не должен перебивать AND с базой
+  if (parts.length) buf.text += ` WHERE (${parts.join(" AND ")})`;
 }
 
-export async function getRowById(table: string, id: string): Promise<Row | null> {
+export async function getRowById(
+  table: string,
+  id: string,
+  scope: string[],
+): Promise<Row | null> {
   assertTable(table);
+  if (!scope.length) return null;
   const s = sql();
-  const rows = await s`select * from ${s(table)} where id = ${id} limit 1`;
-  return rows.length ? toRow(rows[0]) : null;
+  const col = table === "workspaces" ? "id" : "workspace_id";
+  const rows = await s.unsafe(
+    `select * from ${table} where id = $1 and ${col} = any($2::text[]) limit 1`,
+    [id, scope] as any,
+  );
+  return (rows as any[]).length ? toRow((rows as any[])[0]) : null;
 }
 
 export type { QuerySpec };
