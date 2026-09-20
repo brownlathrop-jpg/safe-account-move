@@ -22,10 +22,8 @@ export function sslOption(url: string): any {
   if (host === "localhost" || host === "127.0.0.1" || host === "::1") return false;
   const ca = process.env["PGSSLROOTCERT"];
   if (ca) return { rejectUnauthorized: true, ca };
-  // без корневого сертификата проверка имени невозможна, но канал шифруется
-  return process.env["PGSSL_ALLOW_SELF_SIGNED"] === "1"
-    ? { rejectUnauthorized: false }
-    : { rejectUnauthorized: false };
+  // корневого сертификата нет: канал шифруется, но имя сервера не проверяется
+  return { rejectUnauthorized: false };
 }
 
 export function sql() {
