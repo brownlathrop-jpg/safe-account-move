@@ -279,7 +279,9 @@ const storage = {
         return { data: { publicUrl: `/api/file/${path}` }, error: null };
       },
       async remove(paths: string[]) {
-        const res: any = await storageRemove({ data: { bucket, paths } });
+        const res: any = await storageRemove({
+          data: { bucket, paths, workspaceId: activeWorkspaceId() },
+        });
         return { data: paths, error: res.error ?? null };
       },
     };
