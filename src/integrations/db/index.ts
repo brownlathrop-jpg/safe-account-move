@@ -244,6 +244,16 @@ async function blobToBase64(file: Blob): Promise<string> {
   return btoa(binary);
 }
 
+/** Активная база из localStorage (без импорта workspace.ts — иначе круг зависимостей). */
+function activeWorkspaceId(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return localStorage.getItem("active-workspace-id");
+  } catch {
+    return null;
+  }
+}
+
 const storage = {
   from(bucket: string) {
     return {
@@ -256,6 +266,7 @@ const storage = {
               path,
               contentType: opts?.contentType ?? file.type ?? "application/octet-stream",
               base64,
+              workspaceId: activeWorkspaceId(),
             },
           });
           if (res.error) return { data: null, error: res.error };
