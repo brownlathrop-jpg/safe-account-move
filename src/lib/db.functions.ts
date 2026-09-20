@@ -20,13 +20,16 @@ export const dbGetById = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { requireUser } = await import("./auth.server");
     const { getRowById } = await import("./pg.server");
+    const { accessibleWorkspaces } = await import("./team.server");
+    let user;
     try {
-      await requireUser();
+      user = await requireUser();
     } catch {
       return { data: null, error: { message: "Требуется вход" } };
     }
     try {
-      return { data: await getRowById(data.table, data.id), error: null };
+      const scope = await accessibleWorkspaces(user.id);
+      return { data: await getRowById(data.table, data.id, scope), error: null };
     } catch (e: any) {
       return { data: null, error: { message: e?.message ?? String(e) } };
     }

@@ -157,6 +157,23 @@ function pick(row: Row, fields: string[]): Row {
 
 const COLUMN_FIELDS = new Set(["id", "workspace_id", "user_id"]);
 
+/**
+ * Справочники, ОСОЗНАННО общие для всех баз.
+ * Пусто по умолчанию: пустой workspace_id больше не открывает запись всем.
+ * Добавлять сюда таблицу только если это действительно глобальный справочник.
+ */
+const GLOBAL_TABLES = new Set<string>([]);
+
+const FIELD_RE = /^[A-Za-z][A-Za-z0-9_]{0,62}$/;
+
+/** Защита от подделки имён полей (вторая линия защиты). */
+export function assertField(field: unknown): string {
+  if (typeof field !== "string" || !FIELD_RE.test(field)) {
+    throw new Error(`Недопустимое имя поля: ${String(field).slice(0, 40)}`);
+  }
+  return field;
+}
+
 function toRow(r: any): Row {
   const data = (r.data ?? {}) as Row;
   const out: Row = { ...data, id: r.id };
@@ -202,8 +219,9 @@ class SqlBuf {
 
 /** Выражение для поля: колонка или значение из jsonb. */
 function fieldExpr(field: string, asText = true): string {
-  if (COLUMN_FIELDS.has(field)) return field;
-  return asText ? `(data->>'${field.replace(/'/g, "")}')` : `(data->'${field.replace(/'/g, "")}')`;
+  const f = assertField(field);
+  if (COLUMN_FIELDS.has(f)) return f;
+  return asText ? `(data->>'${f}')` : `(data->'${f}')`;
 }
 
 
@@ -215,34 +233,53 @@ export async function ownedWorkspaces(userId: string): Promise<string[]> {
   return rows.map((r: any) => r.id as string);
 }
 
-async function fetchByIds(table: string, ids: string[]): Promise<Map<string, Row>> {
+/** Условие «запись принадлежит доступным базам» для дочерних выборок. */
+function scopeCond(table: string, paramIdx: number): string {
+  const col = table === "workspaces" ? "id" : "workspace_id";
+  return GLOBAL_TABLES.has(table)
+    ? ` and (${col} is null or ${col} = any($${paramIdx}::text[]))`
+    : ` and ${col} = any($${paramIdx}::text[])`;
+}
+
+async function fetchByIds(table: string, ids: string[], scope: string[]): Promise<Map<string, Row>> {
+  assertTable(table);
   const s = sql();
   const map = new Map<string, Row>();
-  if (!ids.length) return map;
-  const rows = await s`select * from ${s(table)} where id = any(${ids})`;
-  for (const r of rows) map.set(r.id as string, toRow(r));
+  if (!ids.length || !scope.length) return map;
+  const rows = await s.unsafe(
+    `select * from ${table} where id = any($1::text[])${scopeCond(table, 2)}`,
+    [ids, scope] as any,
+  );
+  for (const r of rows as any[]) map.set(r.id as string, toRow(r));
   return map;
 }
 
-async function fetchByFk(table: string, fk: string, ids: string[]): Promise<Map<string, Row[]>> {
+async function fetchByFk(
+  table: string,
+  fk: string,
+  ids: string[],
+  scope: string[],
+): Promise<Map<string, Row[]>> {
+  assertTable(table);
+  const key = assertField(fk);
   const s = sql();
   const map = new Map<string, Row[]>();
-  if (!ids.length) return map;
+  if (!ids.length || !scope.length) return map;
   const rows = await s.unsafe(
-    `select * from ${table} where (data->>'${fk}') = any($1)`,
-    [ids] as any,
+    `select * from ${table} where (data->>'${key}') = any($1::text[])${scopeCond(table, 2)}`,
+    [ids, scope] as any,
   );
   for (const r of rows as any[]) {
     const row = toRow(r);
-    const key = String(row[fk]);
-    const list = map.get(key) ?? [];
+    const k = String(row[key]);
+    const list = map.get(k) ?? [];
     list.push(row);
-    map.set(key, list);
+    map.set(k, list);
   }
   return map;
 }
 
-async function hydrate(parentTable: string, rows: Row[], nested: SelectPart[]) {
+async function hydrate(parentTable: string, rows: Row[], nested: SelectPart[], scope: string[]) {
   if (!rows.length || !nested.length) return;
   for (const part of nested) {
     const rel = resolveRel(parentTable, part, rows[0]);
@@ -251,13 +288,13 @@ async function hydrate(parentTable: string, rows: Row[], nested: SelectPart[]) {
       const ids = Array.from(
         new Set(rows.map((r) => r[rel.fk]).filter((v): v is string => typeof v === "string" && !!v)),
       );
-      const map = await fetchByIds(rel.table, ids);
+      const map = await fetchByIds(rel.table, ids, scope);
       for (const r of rows) {
         const target = r[rel.fk] ? map.get(String(r[rel.fk])) : undefined;
         r[part.alias] = target ? pick(target, part.fields) : null;
       }
     } else {
-      const map = await fetchByFk(rel.table, rel.fk, rows.map((r) => String(r.id)));
+      const map = await fetchByFk(rel.table, rel.fk, rows.map((r) => String(r.id)), scope);
       for (const r of rows) r[part.alias] = (map.get(String(r.id)) ?? []).map((c) => pick(c, part.fields));
     }
   }
@@ -341,9 +378,10 @@ export async function runQuery(
   const assertWrite = async (wsIds: (string | null)[]) => {
     const ids = Array.from(new Set(wsIds.filter((x): x is string => !!x)));
     if (!ids.length) {
-      // общие записи без привязки к базе — только для владельцев баз
-      const own = await ownedWorkspaces(userId);
-      if (!own.length) throw new Error("Недостаточно прав для изменения данных");
+      // создание своей базы разрешено любому вошедшему
+      if (table === "workspaces") return;
+      // запись без базы больше не разрешена (кроме явных общих справочников)
+      if (!GLOBAL_TABLES.has(table)) throw new Error("Не указана база (workspace_id)");
       return;
     }
     for (const id of ids) {
@@ -407,7 +445,7 @@ export async function runQuery(
       const res = await s.unsafe(buf.text, buf.params as any);
       const rows = (res as any[]).map(toRow);
       const { columns, nested } = parseSelect(spec.select ?? "*");
-      await hydrate(table, rows, nested);
+      await hydrate(table, rows, nested, scope ?? []);
       const shaped =
         columns.includes("*") || columns.length === 0
           ? rows
@@ -429,7 +467,10 @@ export async function runQuery(
     }
 
     if (spec.mode === "insert" || spec.mode === "upsert") {
-      const payload = spec.payload ?? [];
+      // владельцем новой базы всегда становится вошедший пользователь
+      const payload = (spec.payload ?? []).map((i) =>
+        table === "workspaces" ? { ...i, user_id: userId } : i,
+      );
       await assertWrite(payload.map((i) => (i.workspace_id ? String(i.workspace_id) : null)));
       const conflict = spec.onConflict ?? ["id"];
       const out: Row[] = [];
@@ -441,12 +482,21 @@ export async function runQuery(
           if (keys.length) {
             const c = new SqlBuf();
             c.text = `select id from ${table}`;
-            applyWhere(
-              c,
-              keys.map((k) => ({ op: "eq" as FilterOp, field: k, value: item[k] })),
-              null,
-              table,
-            );
+            const conflictFilters: Filter[] = keys.map((k) => ({
+              op: "eq" as FilterOp,
+              field: k,
+              value: item[k],
+            }));
+            // База фиксируется явно: совпадение не может найтись в чужой базе.
+            if (table !== "workspaces" && !keys.includes("workspace_id")) {
+              if (!item.workspace_id) throw new Error("Не указана база (workspace_id)");
+              conflictFilters.push({
+                op: "eq" as FilterOp,
+                field: "workspace_id",
+                value: String(item.workspace_id),
+              });
+            }
+            applyWhere(c, conflictFilters, scope, table);
             c.text += " limit 1";
             const found = await s.unsafe(c.text, c.params as any);
             existingId = (found as any[])[0]?.id ?? null;
@@ -460,24 +510,38 @@ export async function runQuery(
                workspace_id = coalesce($2, workspace_id),
                user_id = coalesce($3, user_id),
                updated_at = now()
-             where id = $4 returning *`,
+             where id = $4
+               and ($5::text[] is null or workspace_id = any($5::text[]))
+             returning *`,
             [
               s.json(patch as any),
               item.workspace_id ?? null,
               item.user_id ?? null,
               existingId,
+              table === "workspaces" ? null : scope,
             ] as any,
           );
+          if (!(res as any[]).length) throw new Error("Нет доступа к этой записи");
           out.push(toRow((res as any[])[0]));
         } else {
           const r = splitRow({ created_at: now, ...item });
+          // при совпадении id дополняем запись только если она в доступной базе
+          const guardCol = table === "workspaces" ? "id" : "workspace_id";
           const res = await s.unsafe(
             `insert into ${table} (id, workspace_id, user_id, data)
              values ($1, $2, $3, $4::jsonb)
              on conflict (id) do update set data = ${table}.data || excluded.data, updated_at = now()
+               where $5::text[] is null or ${table}.${guardCol} = any($5::text[])
              returning *`,
-            [r.id, r.workspace_id, r.user_id, s.json({ ...r.data, id: r.id } as any)] as any,
+            [
+              r.id,
+              r.workspace_id,
+              r.user_id,
+              s.json({ ...r.data, id: r.id } as any),
+              scope,
+            ] as any,
           );
+          if (!(res as any[]).length) throw new Error("Нет доступа к этой записи");
           out.push(toRow((res as any[])[0]));
         }
       }
@@ -517,7 +581,7 @@ export async function runQuery(
     if (skipIds.length) {
       buf.params.push(skipIds);
       const cond = `products.id <> all($${buf.params.length})`;
-      buf.text += buf.text.includes(" where ") ? ` and ${cond}` : ` where ${cond}`;
+      buf.text += /\swhere\s/i.test(buf.text) ? ` and ${cond}` : ` where ${cond}`;
     }
     buf.text += " returning *";
     const res = await s.unsafe(buf.text, buf.params as any);
@@ -631,17 +695,32 @@ function applyWhere(buf: SqlBuf, filters: Filter[], scope: string[] | null, tabl
     if (table === "workspaces") {
       if (scope.length) push(`id = ANY(?)`, scope);
       else parts.push("false");
-    } else if (scope.length) push(`(workspace_id IS NULL OR workspace_id = ANY(?))`, scope);
-    else parts.push("workspace_id IS NULL");
+    } else if (GLOBAL_TABLES.has(table)) {
+      if (scope.length) push(`(workspace_id IS NULL OR workspace_id = ANY(?))`, scope);
+      else parts.push("workspace_id IS NULL");
+    } else {
+      if (scope.length) push(`workspace_id = ANY(?)`, scope);
+      else parts.push("false");
+    }
   }
-  if (parts.length) buf.text += ` WHERE ${parts.join(" AND ")}`;
+  // скобки обязательны: OR внутри условий не должен перебивать AND с базой
+  if (parts.length) buf.text += ` WHERE (${parts.join(" AND ")})`;
 }
 
-export async function getRowById(table: string, id: string): Promise<Row | null> {
+export async function getRowById(
+  table: string,
+  id: string,
+  scope: string[],
+): Promise<Row | null> {
   assertTable(table);
+  if (!scope.length) return null;
   const s = sql();
-  const rows = await s`select * from ${s(table)} where id = ${id} limit 1`;
-  return rows.length ? toRow(rows[0]) : null;
+  const col = table === "workspaces" ? "id" : "workspace_id";
+  const rows = await s.unsafe(
+    `select * from ${table} where id = $1 and ${col} = any($2::text[]) limit 1`,
+    [id, scope] as any,
+  );
+  return (rows as any[]).length ? toRow((rows as any[])[0]) : null;
 }
 
 export type { QuerySpec };

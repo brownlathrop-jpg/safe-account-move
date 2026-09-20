@@ -5,7 +5,8 @@
  */
 import postgres from "postgres";
 
-const SUPABASE_URL = "https://vanefvbtetycxvotwqer.supabase.co";
+const SUPABASE_URL = process.env.SUPABASE_URL;
+if (!SUPABASE_URL) throw new Error("Не задан SUPABASE_URL");
 const KEY = process.env.USER_SUPABASE_SERVICE_ROLE_KEY;
 if (!KEY) throw new Error("Нет USER_SUPABASE_SERVICE_ROLE_KEY");
 

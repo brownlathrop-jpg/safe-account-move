@@ -30,3 +30,11 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# --- секреты: никогда не коммитить ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets.*
