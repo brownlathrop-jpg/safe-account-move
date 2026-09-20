@@ -663,6 +663,13 @@ async function usedProductIds(s: any, filters: Filter[], scope: string[] | null)
   return used.map((u) => String(u.id));
 }
 
+/** Значение — число (в том числе строкой), а не дата и не текст. */
+function isNumericValue(v: unknown): boolean {
+  if (typeof v === "number") return Number.isFinite(v);
+  if (typeof v !== "string") return false;
+  return /^-?\d+(\.\d+)?$/.test(v.trim());
+}
+
 /** WHERE со сквозной нумерацией параметров. */
 function applyWhere(buf: SqlBuf, filters: Filter[], scope: string[] | null, table: string) {
   const parts: string[] = [];
