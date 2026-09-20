@@ -378,6 +378,8 @@ export async function runQuery(
   const assertWrite = async (wsIds: (string | null)[]) => {
     const ids = Array.from(new Set(wsIds.filter((x): x is string => !!x)));
     if (!ids.length) {
+      // создание своей базы разрешено любому вошедшему
+      if (table === "workspaces") return;
       // запись без базы больше не разрешена (кроме явных общих справочников)
       if (!GLOBAL_TABLES.has(table)) throw new Error("Не указана база (workspace_id)");
       return;
@@ -465,7 +467,10 @@ export async function runQuery(
     }
 
     if (spec.mode === "insert" || spec.mode === "upsert") {
-      const payload = spec.payload ?? [];
+      // владельцем новой базы всегда становится вошедший пользователь
+      const payload = (spec.payload ?? []).map((i) =>
+        table === "workspaces" ? { ...i, user_id: userId } : i,
+      );
       await assertWrite(payload.map((i) => (i.workspace_id ? String(i.workspace_id) : null)));
       const conflict = spec.onConflict ?? ["id"];
       const out: Row[] = [];
