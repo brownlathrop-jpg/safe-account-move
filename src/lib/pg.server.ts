@@ -520,13 +520,23 @@ export async function runQuery(
           out.push(toRow((res as any[])[0]));
         } else {
           const r = splitRow({ created_at: now, ...item });
+          // при совпадении id дополняем запись только если она в доступной базе
+          const guardCol = table === "workspaces" ? "id" : "workspace_id";
           const res = await s.unsafe(
             `insert into ${table} (id, workspace_id, user_id, data)
              values ($1, $2, $3, $4::jsonb)
              on conflict (id) do update set data = ${table}.data || excluded.data, updated_at = now()
+               where $5::text[] is null or ${table}.${guardCol} = any($5::text[])
              returning *`,
-            [r.id, r.workspace_id, r.user_id, s.json({ ...r.data, id: r.id } as any)] as any,
+            [
+              r.id,
+              r.workspace_id,
+              r.user_id,
+              s.json({ ...r.data, id: r.id } as any),
+              scope,
+            ] as any,
           );
+          if (!(res as any[]).length) throw new Error("Нет доступа к этой записи");
           out.push(toRow((res as any[])[0]));
         }
       }
