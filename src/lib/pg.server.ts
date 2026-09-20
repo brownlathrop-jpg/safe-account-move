@@ -706,7 +706,8 @@ function applyWhere(buf: SqlBuf, filters: Filter[], scope: string[] | null, tabl
         // числа сравниваем как числа (иначе «9» > «10»), даты и прочее — как текст
         if (isNumericValue(f.value)) {
           push(
-            `(case when ${col} ~ '^-?[0-9]+(\\.[0-9]+)?$' then (${col})::numeric else null end) ${sign} ?`,
+            // в шаблоне нельзя использовать «?» — это метка параметра
+            `(case when ${col} ~ '^-{0,1}[0-9]+([.][0-9]+){0,1}$' then (${col})::numeric else null end) ${sign} ?`,
             Number(f.value),
           );
         } else push(`${col} ${sign} ?`, String(f.value));
