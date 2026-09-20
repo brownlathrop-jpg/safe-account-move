@@ -157,6 +157,23 @@ function pick(row: Row, fields: string[]): Row {
 
 const COLUMN_FIELDS = new Set(["id", "workspace_id", "user_id"]);
 
+/**
+ * Справочники, ОСОЗНАННО общие для всех баз.
+ * Пусто по умолчанию: пустой workspace_id больше не открывает запись всем.
+ * Добавлять сюда таблицу только если это действительно глобальный справочник.
+ */
+const GLOBAL_TABLES = new Set<string>([]);
+
+const FIELD_RE = /^[A-Za-z][A-Za-z0-9_]{0,62}$/;
+
+/** Защита от подделки имён полей (вторая линия защиты). */
+export function assertField(field: unknown): string {
+  if (typeof field !== "string" || !FIELD_RE.test(field)) {
+    throw new Error(`Недопустимое имя поля: ${String(field).slice(0, 40)}`);
+  }
+  return field;
+}
+
 function toRow(r: any): Row {
   const data = (r.data ?? {}) as Row;
   const out: Row = { ...data, id: r.id };
