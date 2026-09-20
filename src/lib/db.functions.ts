@@ -1,8 +1,9 @@
 // Серверные функции: доступ к базе и вход. Браузер вызывает только их.
 import { createServerFn } from "@tanstack/react-start";
+import * as V from "./validate";
 
 export const dbQuery = createServerFn({ method: "POST" })
-  .inputValidator((input: any) => input)
+  .inputValidator((input: unknown) => V.querySpecSchema.parse(input) as any)
   .handler(async ({ data }) => {
     const { requireUser } = await import("./auth.server");
     const { runQuery } = await import("./pg.server");
@@ -16,7 +17,7 @@ export const dbQuery = createServerFn({ method: "POST" })
   });
 
 export const dbGetById = createServerFn({ method: "POST" })
-  .inputValidator((input: { table: string; id: string }) => input)
+  .inputValidator((input: unknown) => V.getByIdSchema.parse(input))
   .handler(async ({ data }) => {
     const { requireUser } = await import("./auth.server");
     const { getRowById } = await import("./pg.server");
@@ -36,7 +37,7 @@ export const dbGetById = createServerFn({ method: "POST" })
   });
 
 export const authSignIn = createServerFn({ method: "POST" })
-  .inputValidator((input: { email: string; password: string }) => input)
+  .inputValidator((input: unknown) => V.signInSchema.parse(input))
   .handler(async ({ data }) => {
     const { signIn } = await import("./auth.server");
     try {
@@ -47,7 +48,7 @@ export const authSignIn = createServerFn({ method: "POST" })
   });
 
 export const authSignUp = createServerFn({ method: "POST" })
-  .inputValidator((input: { email: string; password: string; name?: string }) => input)
+  .inputValidator((input: unknown) => V.signUpSchema.parse(input))
   .handler(async ({ data }) => {
     const { signUp } = await import("./auth.server");
     try {
@@ -73,7 +74,7 @@ export const authMe = createServerFn({ method: "POST" }).handler(async () => {
 });
 
 export const authChangePassword = createServerFn({ method: "POST" })
-  .inputValidator((input: { password: string }) => input)
+  .inputValidator((input: unknown) => V.changePasswordSchema.parse(input))
   .handler(async ({ data }) => {
     const { changePassword } = await import("./auth.server");
     try {
@@ -85,7 +86,7 @@ export const authChangePassword = createServerFn({ method: "POST" })
   });
 
 export const authRequestReset = createServerFn({ method: "POST" })
-  .inputValidator((input: { email: string }) => input)
+  .inputValidator((input: unknown) => V.resetRequestSchema.parse(input))
   .handler(async ({ data }) => {
     const { createResetToken } = await import("./auth.server");
     const { sendMail, appUrl, resetEmailHtml } = await import("./email.server");
@@ -107,7 +108,7 @@ export const authRequestReset = createServerFn({ method: "POST" })
   });
 
 export const authResetPassword = createServerFn({ method: "POST" })
-  .inputValidator((input: { token: string; password: string }) => input)
+  .inputValidator((input: unknown) => V.resetSchema.parse(input))
   .handler(async ({ data }) => {
     const { resetPasswordWithToken } = await import("./auth.server");
     try {
@@ -123,15 +124,7 @@ const MAX_FILE_BYTES = 5 * 1024 * 1024;
 const ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif", "image/avif"]);
 
 export const storageUpload = createServerFn({ method: "POST" })
-  .inputValidator(
-    (input: {
-      bucket: string;
-      path: string;
-      contentType: string;
-      base64: string;
-      workspaceId?: string | null;
-    }) => input,
-  )
+  .inputValidator((input: unknown) => V.uploadSchema.parse(input))
   .handler(async ({ data }) => {
     const { requireUser } = await import("./auth.server");
     const { sql } = await import("./pg.server");
@@ -168,7 +161,7 @@ export const storageUpload = createServerFn({ method: "POST" })
   });
 
 export const storageRemove = createServerFn({ method: "POST" })
-  .inputValidator((input: { bucket: string; paths: string[]; workspaceId?: string | null }) => input)
+  .inputValidator((input: unknown) => V.removeFilesSchema.parse(input))
   .handler(async ({ data }) => {
     const { requireUser } = await import("./auth.server");
     const { sql } = await import("./pg.server");
@@ -200,7 +193,7 @@ export const userPrefsGet = createServerFn({ method: "POST" }).handler(async () 
 });
 
 export const userPrefsSet = createServerFn({ method: "POST" })
-  .inputValidator((input: { patch: Record<string, any> }) => input)
+  .inputValidator((input: unknown) => V.prefsSchema.parse(input))
   .handler(async ({ data }) => {
     const { setUserPrefs } = await import("./auth.server");
     try {
