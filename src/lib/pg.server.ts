@@ -692,17 +692,19 @@ function applyWhere(buf: SqlBuf, filters: Filter[], scope: string[] | null, tabl
         break;
       }
       case "gte":
-        push(`${col} >= ?`, String(f.value));
-        break;
       case "lte":
-        push(`${col} <= ?`, String(f.value));
-        break;
       case "gt":
-        push(`${col} > ?`, String(f.value));
+      case "lt": {
+        const sign = f.op === "gte" ? ">=" : f.op === "lte" ? "<=" : f.op === "gt" ? ">" : "<";
+        // числа сравниваем как числа (иначе «9» > «10»), даты и прочее — как текст
+        if (isNumericValue(f.value)) {
+          push(
+            `(case when ${col} ~ '^-?[0-9]+(\\.[0-9]+)?$' then (${col})::numeric else null end) ${sign} ?`,
+            Number(f.value),
+          );
+        } else push(`${col} ${sign} ?`, String(f.value));
         break;
-      case "lt":
-        push(`${col} < ?`, String(f.value));
-        break;
+      }
       case "isnull":
         parts.push(`(${col} IS NULL OR ${col} = '')`);
         break;
