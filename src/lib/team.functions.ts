@@ -1,5 +1,6 @@
 // Серверные функции для работы командой: участники, роли, приглашения, история.
 import { createServerFn } from "@tanstack/react-start";
+import * as V from "./validate";
 
 async function ctx() {
   const { requireUser } = await import("./auth.server");
@@ -26,7 +27,7 @@ export const teamMyWorkspaces = createServerFn({ method: "POST" }).handler(async
 });
 
 export const teamMyRole = createServerFn({ method: "POST" })
-  .inputValidator((input: { workspaceId: string }) => input)
+  .inputValidator((input: unknown) => V.workspaceIdSchema.parse(input))
   .handler(async ({ data }) => {
     try {
       const { user, team } = await ctx();
@@ -37,7 +38,7 @@ export const teamMyRole = createServerFn({ method: "POST" })
   });
 
 export const teamList = createServerFn({ method: "POST" })
-  .inputValidator((input: { workspaceId: string }) => input)
+  .inputValidator((input: unknown) => V.workspaceIdSchema.parse(input))
   .handler(async ({ data }) => {
     try {
       const { user, team } = await ctx();
@@ -50,7 +51,7 @@ export const teamList = createServerFn({ method: "POST" })
   });
 
 export const teamInvite = createServerFn({ method: "POST" })
-  .inputValidator((input: { workspaceId: string; email: string; role: string }) => input)
+  .inputValidator((input: unknown) => V.inviteSchema.parse(input))
   .handler(async ({ data }) => {
     try {
       const { user, team } = await requireOwner(data.workspaceId);
@@ -80,7 +81,7 @@ export const teamInvite = createServerFn({ method: "POST" })
   });
 
 export const teamSetRole = createServerFn({ method: "POST" })
-  .inputValidator((input: { workspaceId: string; memberId: string; role: string }) => input)
+  .inputValidator((input: unknown) => V.memberRoleSchema.parse(input))
   .handler(async ({ data }) => {
     try {
       const { team } = await requireOwner(data.workspaceId);
@@ -92,7 +93,7 @@ export const teamSetRole = createServerFn({ method: "POST" })
   });
 
 export const teamRemove = createServerFn({ method: "POST" })
-  .inputValidator((input: { workspaceId: string; memberId: string }) => input)
+  .inputValidator((input: unknown) => V.memberSchema.parse(input))
   .handler(async ({ data }) => {
     try {
       const { team } = await requireOwner(data.workspaceId);
@@ -104,7 +105,7 @@ export const teamRemove = createServerFn({ method: "POST" })
   });
 
 export const teamRevokeInvite = createServerFn({ method: "POST" })
-  .inputValidator((input: { workspaceId: string; token: string }) => input)
+  .inputValidator((input: unknown) => V.revokeInviteSchema.parse(input))
   .handler(async ({ data }) => {
     try {
       const { team } = await requireOwner(data.workspaceId);
@@ -116,18 +117,19 @@ export const teamRevokeInvite = createServerFn({ method: "POST" })
   });
 
 export const teamDocHistory = createServerFn({ method: "POST" })
-  .inputValidator((input: { table: string; docId: string }) => input)
+  .inputValidator((input: unknown) => V.docHistorySchema.parse(input))
   .handler(async ({ data }) => {
     try {
-      const { team } = await ctx();
-      return { data: await team.docHistory(data.table, data.docId), error: null };
+      const { user, team } = await ctx();
+      const scope = await team.accessibleWorkspaces(user.id);
+      return { data: await team.docHistory(data.table, data.docId, scope), error: null };
     } catch (e: any) {
       return { data: null, error: { message: e?.message ?? String(e) } };
     }
   });
 
 export const teamWorkspaceHistory = createServerFn({ method: "POST" })
-  .inputValidator((input: { workspaceId: string; kind?: "all" | "changes" | "views" }) => input)
+  .inputValidator((input: unknown) => V.workspaceHistorySchema.parse(input))
   .handler(async ({ data }) => {
     try {
       const { user, team } = await ctx();
@@ -144,7 +146,7 @@ export const teamWorkspaceHistory = createServerFn({ method: "POST" })
 
 /** Записать, что сотрудник открыл важный раздел. */
 export const teamLogView = createServerFn({ method: "POST" })
-  .inputValidator((input: { workspaceId: string | null; section: string }) => input)
+  .inputValidator((input: unknown) => V.logViewSchema.parse(input))
   .handler(async ({ data }) => {
     try {
       const { user, team } = await ctx();
@@ -161,7 +163,7 @@ export const teamLogView = createServerFn({ method: "POST" })
   });
 
 export const teamSetOrg = createServerFn({ method: "POST" })
-  .inputValidator((input: { workspaceId: string; memberId: string; orgId: string | null }) => input)
+  .inputValidator((input: unknown) => V.memberOrgSchema.parse(input))
   .handler(async ({ data }) => {
     try {
       const { team } = await requireOwner(data.workspaceId);
@@ -173,7 +175,7 @@ export const teamSetOrg = createServerFn({ method: "POST" })
   });
 
 export const teamDocAuthors = createServerFn({ method: "POST" })
-  .inputValidator((input: { workspaceId: string }) => input)
+  .inputValidator((input: unknown) => V.workspaceIdSchema.parse(input))
   .handler(async ({ data }) => {
     try {
       const { user, team } = await ctx();

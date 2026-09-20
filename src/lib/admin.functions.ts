@@ -1,5 +1,6 @@
 // Серверные функции админки. Доступны только пользователю с признаком администратора.
 import { createServerFn } from "@tanstack/react-start";
+import * as V from "./validate";
 
 function fail(e: any) {
   return { data: null, error: { message: e?.message ?? String(e) } };
@@ -73,7 +74,7 @@ export const adminStats = createServerFn({ method: "POST" }).handler(async () =>
 });
 
 export const adminCreateUser = createServerFn({ method: "POST" })
-  .inputValidator((input: { email: string; password: string; name?: string }) => input)
+  .inputValidator((input: unknown) => V.adminCreateUserSchema.parse(input))
   .handler(async ({ data }) => {
     try {
       const { requireAdmin, hashPassword } = await import("./auth.server");
@@ -94,7 +95,7 @@ export const adminCreateUser = createServerFn({ method: "POST" })
   });
 
 export const adminSetPassword = createServerFn({ method: "POST" })
-  .inputValidator((input: { userId: string; password: string }) => input)
+  .inputValidator((input: unknown) => V.adminUserPasswordSchema.parse(input))
   .handler(async ({ data }) => {
     try {
       const { requireAdmin, hashPassword } = await import("./auth.server");
@@ -111,7 +112,7 @@ export const adminSetPassword = createServerFn({ method: "POST" })
   });
 
 export const adminSetAdmin = createServerFn({ method: "POST" })
-  .inputValidator((input: { userId: string; isAdmin: boolean }) => input)
+  .inputValidator((input: unknown) => V.adminUserFlagSchema.parse(input))
   .handler(async ({ data }) => {
     try {
       const { requireAdmin } = await import("./auth.server");
@@ -127,7 +128,7 @@ export const adminSetAdmin = createServerFn({ method: "POST" })
   });
 
 export const adminDeleteUser = createServerFn({ method: "POST" })
-  .inputValidator((input: { userId: string }) => input)
+  .inputValidator((input: unknown) => V.adminUserSchema.parse(input))
   .handler(async ({ data }) => {
     try {
       const { requireAdmin } = await import("./auth.server");
@@ -150,7 +151,7 @@ export const adminDeleteUser = createServerFn({ method: "POST" })
 
 /** Только чтение: один SELECT, максимум 200 строк. */
 export const adminSelect = createServerFn({ method: "POST" })
-  .inputValidator((input: { query: string }) => input)
+  .inputValidator((input: unknown) => V.adminQuerySchema.parse(input))
   .handler(async ({ data }) => {
     try {
       const { requireAdmin } = await import("./auth.server");

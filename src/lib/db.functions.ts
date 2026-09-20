@@ -1,8 +1,9 @@
 // Серверные функции: доступ к базе и вход. Браузер вызывает только их.
 import { createServerFn } from "@tanstack/react-start";
+import * as V from "./validate";
 
 export const dbQuery = createServerFn({ method: "POST" })
-  .inputValidator((input: any) => input)
+  .inputValidator((input: unknown) => V.querySpecSchema.parse(input) as any)
   .handler(async ({ data }) => {
     const { requireUser } = await import("./auth.server");
     const { runQuery } = await import("./pg.server");
@@ -16,7 +17,7 @@ export const dbQuery = createServerFn({ method: "POST" })
   });
 
 export const dbGetById = createServerFn({ method: "POST" })
-  .inputValidator((input: { table: string; id: string }) => input)
+  .inputValidator((input: unknown) => V.getByIdSchema.parse(input))
   .handler(async ({ data }) => {
     const { requireUser } = await import("./auth.server");
     const { getRowById } = await import("./pg.server");
@@ -36,7 +37,7 @@ export const dbGetById = createServerFn({ method: "POST" })
   });
 
 export const authSignIn = createServerFn({ method: "POST" })
-  .inputValidator((input: { email: string; password: string }) => input)
+  .inputValidator((input: unknown) => V.signInSchema.parse(input))
   .handler(async ({ data }) => {
     const { signIn } = await import("./auth.server");
     try {
@@ -47,7 +48,7 @@ export const authSignIn = createServerFn({ method: "POST" })
   });
 
 export const authSignUp = createServerFn({ method: "POST" })
-  .inputValidator((input: { email: string; password: string; name?: string }) => input)
+  .inputValidator((input: unknown) => V.signUpSchema.parse(input))
   .handler(async ({ data }) => {
     const { signUp } = await import("./auth.server");
     try {
@@ -73,7 +74,7 @@ export const authMe = createServerFn({ method: "POST" }).handler(async () => {
 });
 
 export const authChangePassword = createServerFn({ method: "POST" })
-  .inputValidator((input: { password: string }) => input)
+  .inputValidator((input: unknown) => V.changePasswordSchema.parse(input))
   .handler(async ({ data }) => {
     const { changePassword } = await import("./auth.server");
     try {
@@ -85,7 +86,7 @@ export const authChangePassword = createServerFn({ method: "POST" })
   });
 
 export const authRequestReset = createServerFn({ method: "POST" })
-  .inputValidator((input: { email: string }) => input)
+  .inputValidator((input: unknown) => V.resetRequestSchema.parse(input))
   .handler(async ({ data }) => {
     const { createResetToken } = await import("./auth.server");
     const { sendMail, appUrl, resetEmailHtml } = await import("./email.server");
@@ -107,7 +108,7 @@ export const authRequestReset = createServerFn({ method: "POST" })
   });
 
 export const authResetPassword = createServerFn({ method: "POST" })
-  .inputValidator((input: { token: string; password: string }) => input)
+  .inputValidator((input: unknown) => V.resetSchema.parse(input))
   .handler(async ({ data }) => {
     const { resetPasswordWithToken } = await import("./auth.server");
     try {
@@ -118,20 +119,41 @@ export const authResetPassword = createServerFn({ method: "POST" })
     }
   });
 
+/** Максимальный размер картинки — 5 МБ. */
+const MAX_FILE_BYTES = 5 * 1024 * 1024;
+const ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif", "image/avif"]);
+
 export const storageUpload = createServerFn({ method: "POST" })
-  .inputValidator((input: { bucket: string; path: string; contentType: string; base64: string }) => input)
+  .inputValidator((input: unknown) => V.uploadSchema.parse(input))
   .handler(async ({ data }) => {
     const { requireUser } = await import("./auth.server");
     const { sql } = await import("./pg.server");
+    const { roleIn, canWrite } = await import("./team.server");
     try {
-      await requireUser();
-      const s = sql();
+      const user = await requireUser();
+      if (!data.workspaceId) throw new Error("Не указана база");
+      const role = await roleIn(user.id, data.workspaceId);
+      if (!role) throw new Error("Нет доступа к этой базе");
+      if (!canWrite(role, "products")) throw new Error("Недостаточно прав для загрузки файлов");
+      if (!ALLOWED_TYPES.has(data.contentType)) throw new Error("Можно загружать только картинки");
       const bytes = Buffer.from(data.base64, "base64");
-      await s`
-        insert into files (id, bucket, path, content_type, bytes)
-        values (${crypto.randomUUID()}, ${data.bucket}, ${data.path}, ${data.contentType}, ${bytes})
-        on conflict (bucket, path) do update
-          set bytes = excluded.bytes, content_type = excluded.content_type`;
+      if (bytes.length > MAX_FILE_BYTES) throw new Error("Файл больше 5 МБ");
+      const s = sql();
+      const upd = await s`
+        update files
+           set bytes = ${bytes}, content_type = ${data.contentType}
+         where bucket = ${data.bucket} and path = ${data.path}
+           and workspace_id = ${data.workspaceId}
+        returning path`;
+      if (!upd.length) {
+        const busy = await s`
+          select 1 from files where bucket = ${data.bucket} and path = ${data.path} limit 1`;
+        if (busy.length) throw new Error("Нет доступа к этому файлу");
+        await s`
+          insert into files (id, bucket, path, content_type, bytes, workspace_id)
+          values (${crypto.randomUUID()}, ${data.bucket}, ${data.path}, ${data.contentType},
+                  ${bytes}, ${data.workspaceId})`;
+      }
       return { path: data.path, error: null };
     } catch (e: any) {
       return { path: null, error: { message: e?.message ?? String(e) } };
@@ -139,14 +161,22 @@ export const storageUpload = createServerFn({ method: "POST" })
   });
 
 export const storageRemove = createServerFn({ method: "POST" })
-  .inputValidator((input: { bucket: string; paths: string[] }) => input)
+  .inputValidator((input: unknown) => V.removeFilesSchema.parse(input))
   .handler(async ({ data }) => {
     const { requireUser } = await import("./auth.server");
     const { sql } = await import("./pg.server");
+    const { roleIn, canWrite } = await import("./team.server");
     try {
-      await requireUser();
+      const user = await requireUser();
+      if (!data.workspaceId) throw new Error("Не указана база");
+      const role = await roleIn(user.id, data.workspaceId);
+      if (!role) throw new Error("Нет доступа к этой базе");
+      if (!canWrite(role, "products")) throw new Error("Недостаточно прав для удаления файлов");
       const s = sql();
-      await s`delete from files where bucket = ${data.bucket} and path = any(${data.paths})`;
+      await s`
+        delete from files
+         where bucket = ${data.bucket} and path = any(${data.paths})
+           and workspace_id = ${data.workspaceId}`;
       return { ok: true, error: null };
     } catch (e: any) {
       return { ok: false, error: { message: e?.message ?? String(e) } };
@@ -163,7 +193,7 @@ export const userPrefsGet = createServerFn({ method: "POST" }).handler(async () 
 });
 
 export const userPrefsSet = createServerFn({ method: "POST" })
-  .inputValidator((input: { patch: Record<string, any> }) => input)
+  .inputValidator((input: unknown) => V.prefsSchema.parse(input))
   .handler(async ({ data }) => {
     const { setUserPrefs } = await import("./auth.server");
     try {

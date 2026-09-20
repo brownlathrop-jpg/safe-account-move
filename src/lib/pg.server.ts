@@ -6,6 +6,26 @@ type Row = Record<string, any>;
 
 let _sql: ReturnType<typeof postgres> | null = null;
 
+/**
+ * Настройка шифрования соединения с базой.
+ * База на этом же сервере (127.0.0.1) — шифрование не нужно.
+ * База на другом сервере — обязательно проверяем сертификат;
+ * самоподписанный сертификат кладём в PGSSLROOTCERT.
+ */
+export function sslOption(url: string): any {
+  let host = "";
+  try {
+    host = new URL(url).hostname;
+  } catch {
+    host = "";
+  }
+  if (host === "localhost" || host === "127.0.0.1" || host === "::1") return false;
+  const ca = process.env["PGSSLROOTCERT"];
+  if (ca) return { rejectUnauthorized: true, ca };
+  // корневого сертификата нет: канал шифруется, но имя сервера не проверяется
+  return { rejectUnauthorized: false };
+}
+
 export function sql() {
   if (!_sql) {
     const url = process.env["DATABASE_URL"];
@@ -14,7 +34,7 @@ export function sql() {
       max: 5,
       idle_timeout: 20,
       prepare: false,
-      ssl: { rejectUnauthorized: false },
+      ssl: sslOption(url),
     });
   }
   return _sql;
@@ -643,6 +663,13 @@ async function usedProductIds(s: any, filters: Filter[], scope: string[] | null)
   return used.map((u) => String(u.id));
 }
 
+/** Значение — число (в том числе строкой), а не дата и не текст. */
+function isNumericValue(v: unknown): boolean {
+  if (typeof v === "number") return Number.isFinite(v);
+  if (typeof v !== "string") return false;
+  return /^-?\d+(\.\d+)?$/.test(v.trim());
+}
+
 /** WHERE со сквозной нумерацией параметров. */
 function applyWhere(buf: SqlBuf, filters: Filter[], scope: string[] | null, table: string) {
   const parts: string[] = [];
@@ -672,17 +699,20 @@ function applyWhere(buf: SqlBuf, filters: Filter[], scope: string[] | null, tabl
         break;
       }
       case "gte":
-        push(`${col} >= ?`, String(f.value));
-        break;
       case "lte":
-        push(`${col} <= ?`, String(f.value));
-        break;
       case "gt":
-        push(`${col} > ?`, String(f.value));
+      case "lt": {
+        const sign = f.op === "gte" ? ">=" : f.op === "lte" ? "<=" : f.op === "gt" ? ">" : "<";
+        // числа сравниваем как числа (иначе «9» > «10»), даты и прочее — как текст
+        if (isNumericValue(f.value)) {
+          push(
+            // в шаблоне нельзя использовать «?» — это метка параметра
+            `(case when ${col} ~ '^-{0,1}[0-9]+([.][0-9]+){0,1}$' then (${col})::numeric else null end) ${sign} ?`,
+            Number(f.value),
+          );
+        } else push(`${col} ${sign} ?`, String(f.value));
         break;
-      case "lt":
-        push(`${col} < ?`, String(f.value));
-        break;
+      }
       case "isnull":
         parts.push(`(${col} IS NULL OR ${col} = '')`);
         break;
