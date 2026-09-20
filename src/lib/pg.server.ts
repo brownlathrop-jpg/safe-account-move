@@ -477,12 +477,21 @@ export async function runQuery(
           if (keys.length) {
             const c = new SqlBuf();
             c.text = `select id from ${table}`;
-            applyWhere(
-              c,
-              keys.map((k) => ({ op: "eq" as FilterOp, field: k, value: item[k] })),
-              null,
-              table,
-            );
+            const conflictFilters: Filter[] = keys.map((k) => ({
+              op: "eq" as FilterOp,
+              field: k,
+              value: item[k],
+            }));
+            // База фиксируется явно: совпадение не может найтись в чужой базе.
+            if (table !== "workspaces" && !keys.includes("workspace_id")) {
+              if (!item.workspace_id) throw new Error("Не указана база (workspace_id)");
+              conflictFilters.push({
+                op: "eq" as FilterOp,
+                field: "workspace_id",
+                value: String(item.workspace_id),
+              });
+            }
+            applyWhere(c, conflictFilters, scope, table);
             c.text += " limit 1";
             const found = await s.unsafe(c.text, c.params as any);
             existingId = (found as any[])[0]?.id ?? null;
@@ -496,14 +505,18 @@ export async function runQuery(
                workspace_id = coalesce($2, workspace_id),
                user_id = coalesce($3, user_id),
                updated_at = now()
-             where id = $4 returning *`,
+             where id = $4
+               and ($5::text[] is null or workspace_id = any($5::text[]))
+             returning *`,
             [
               s.json(patch as any),
               item.workspace_id ?? null,
               item.user_id ?? null,
               existingId,
+              table === "workspaces" ? null : scope,
             ] as any,
           );
+          if (!(res as any[]).length) throw new Error("Нет доступа к этой записи");
           out.push(toRow((res as any[])[0]));
         } else {
           const r = splitRow({ created_at: now, ...item });
@@ -553,7 +566,7 @@ export async function runQuery(
     if (skipIds.length) {
       buf.params.push(skipIds);
       const cond = `products.id <> all($${buf.params.length})`;
-      buf.text += buf.text.includes(" where ") ? ` and ${cond}` : ` where ${cond}`;
+      buf.text += /\swhere\s/i.test(buf.text) ? ` and ${cond}` : ` where ${cond}`;
     }
     buf.text += " returning *";
     const res = await s.unsafe(buf.text, buf.params as any);
