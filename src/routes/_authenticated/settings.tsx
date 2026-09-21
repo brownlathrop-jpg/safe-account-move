@@ -60,6 +60,9 @@ type Org = {
   director_name: string;
   accountant_name: string;
   taxation_system: string;
+  /** НДС по умолчанию: режим расчёта и ставка для новых документов. */
+  vat_mode?: string;
+  vat_rate?: string;
   is_primary: boolean;
   invoice_number_mask: string;
   /** Логотип для печати (картинка, приведённая к единому размеру). */
