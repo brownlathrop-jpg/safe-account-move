@@ -36,6 +36,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useDiscounts, grossSum, discountSum, netSum, discountLabel, type DiscountKind } from "@/lib/discounts";
 import { DocTreeCard, loadChain } from "@/components/DocTreeCard";
 import { docTitle as docTitleOf, docTitleAccusative, effectiveCashKind } from "@/lib/doc-tree";
+import {
+  VAT_MODES, VAT_RATES, splitVat, sumVat, toVatRate, vatRateId, defaultVatMode, defaultVatRate,
+  type VatMode, type VatRate,
+} from "@/lib/vat";
 
 export const Route = createFileRoute("/_authenticated/invoices/$id")({
   head: () => ({
@@ -61,6 +65,7 @@ type Item = {
   discount_kind?: DiscountKind | null;
   discount_value?: number | null;
   discount_name?: string | null;
+  vat_rate?: VatRate;
 };
 type DocType = "order" | "shipment" | "cash_receipt";
 type PrintMode = "standard" | "invoice" | "pko" | "torg12" | "upd";
@@ -136,6 +141,9 @@ function InvoiceView() {
   const [cashReceived, setCashReceived] = useState<number>(0);
   const [cashBasis, setCashBasis] = useState<string>("");
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "card">("card");
+  const [vatMode, setVatMode] = useState<VatMode>("none");
+  /** НДС не был задан у документа — берём настройку организации. */
+  const [vatFromDoc, setVatFromDoc] = useState(false);
 
   // Автоподгонка ТОРГ-12 / УПД под один лист A4 (альбомная)
   const landscapeRef = useRef<HTMLDivElement | null>(null);
@@ -205,6 +213,9 @@ function InvoiceView() {
     setCashBasis(inv.cash_basis ?? "");
     setPaymentMethod(inv.payment_method === "cash" ? "cash" : "card");
     setOrgId(inv.organization_id ?? "");
+    const mode = inv.vat_mode as VatMode | undefined;
+    setVatFromDoc(Boolean(mode));
+    if (mode) setVatMode(mode);
     setItems((inv.items ?? []).map((it: any) => ({
       id: it.id, product_id: it.product_id, name: it.name,
       quantity: Number(it.quantity), price: Number(it.price),
@@ -212,8 +223,21 @@ function InvoiceView() {
       discount_kind: (it.discount_kind === "amount" ? "amount" : "percent") as DiscountKind,
       discount_value: Number(it.discount_value ?? 0),
       discount_name: it.discount_name ?? null,
+      vat_rate: it.vat_rate === undefined || it.vat_rate === null ? undefined : toVatRate(it.vat_rate),
     })));
   }, [inv]);
+
+  // Если у документа НДС не задан — подставляем настройки организации.
+  useEffect(() => {
+    if (vatFromDoc || !myOrg) return;
+    const mode = ((myOrg as any).vat_mode as VatMode | undefined) ?? defaultVatMode((myOrg as any).taxation_system);
+    setVatMode(mode);
+    if (mode !== "none") {
+      const rate = defaultVatRate(myOrg as any);
+      setItems(prev => prev.map(it => (it.vat_rate === undefined ? { ...it, vat_rate: rate } : it)));
+    }
+  }, [myOrg, vatFromDoc]);
+
 
   const docType: DocType = (inv?.doc_type ?? "order") as DocType;
   const isOrder = docType === "order";
@@ -244,9 +268,15 @@ function InvoiceView() {
   const lineGross = (it: Item) => grossSum(it.quantity, it.price);
   const lineDiscount = (it: Item) => discountSum(it.quantity, it.price, it.discount_kind, it.discount_value);
   const lineNet = (it: Item) => netSum(it.quantity, it.price, it.discount_kind, it.discount_value);
+  const lineVat = (it: Item) => splitVat(lineNet(it), it.vat_rate ?? null, vatMode);
   const totalGross = useMemo(() => items.reduce((s, i) => s + lineGross(i), 0), [items]);
   const totalDiscount = useMemo(() => items.reduce((s, i) => s + lineDiscount(i), 0), [items]);
-  const total = useMemo(() => items.reduce((s, i) => s + lineNet(i), 0), [items]);
+  const vatTotals = useMemo(
+    () => sumVat(items.map(i => ({ sum: lineNet(i), vat_rate: i.vat_rate ?? null })), vatMode),
+    [items, vatMode],
+  );
+  /** Сумма к оплате — всегда с НДС. */
+  const total = vatTotals.gross;
   const filteredPartners = partners.filter((p: any) => kind === "outgoing" ? p.kind === "customer" : p.kind === "supplier");
   const editable = inv?.status !== "cancelled";
   const { data: priceTypes = [] } = usePriceTypes(wsId);
@@ -308,16 +338,21 @@ function InvoiceView() {
         cash_basis: isPKO ? (cashBasis || null) : null,
         payment_method: paymentMethod,
         organization_id: orgId || null,
+        vat_mode: vatMode,
+        vat_total: vatTotals.vat,
+        total_net: vatTotals.net,
       };
 
       const rows = items.map(it => ({
         id: it.id ?? null,
         product_id: it.product_id, name: it.name,
-        quantity: it.quantity, price: it.price, sum: lineNet(it),
+        quantity: it.quantity, price: it.price, sum: lineVat(it).gross,
         kind: it.kind ?? "product",
         discount_kind: it.discount_kind ?? "percent",
         discount_value: Number(it.discount_value) || 0,
         discount_name: it.discount_name ?? null,
+        vat_rate: it.vat_rate ?? null,
+        vat_sum: lineVat(it).vat,
       }));
 
       // Шапка и позиции сохраняются одной транзакцией: при ошибке документ
@@ -565,12 +600,18 @@ function InvoiceView() {
               wsId={wsId}
               orgId={orgId || inv.organization_id || null}
               invoiceId={id}
-              items={items.map((it) => ({
-                name: it.name,
-                quantity: it.quantity,
-                price: it.quantity ? Math.round((lineNet(it) / it.quantity) * 100) / 100 : it.price,
-                kind: it.kind,
-              }))}
+              items={items.map((it) => {
+                const v = lineVat(it);
+                const rate = vatMode === "none" ? null : (it.vat_rate ?? null);
+                return {
+                  name: it.name,
+                  quantity: it.quantity,
+                  // В чеке цена всегда с НДС.
+                  price: it.quantity ? Math.round((v.gross / it.quantity) * 100) / 100 : it.price,
+                  kind: it.kind,
+                  ...(rate === null ? {} : { vat: (`vat${rate}` as any) }),
+                };
+              })}
               fiscal={inv.fiscal}
               isReturn={!!inv.is_return}
               defaultPaymentType={paymentMethod === "card" ? "electronically" : "cash"}
@@ -741,6 +782,23 @@ function InvoiceView() {
               <Label className="text-xs">Дата</Label>
               <Input className="h-8" type="date" value={date} onChange={e => setDate(e.target.value)} disabled={!editable} />
             </div>
+            <div className="space-y-1">
+              <Label className="text-xs">НДС</Label>
+              <Select value={vatMode} onValueChange={(v) => {
+                const mode = v as VatMode;
+                setVatMode(mode);
+                setVatFromDoc(true);
+                if (mode !== "none") {
+                  const rate = defaultVatRate(myOrg as any) ?? 20;
+                  setItems(prev => prev.map(it => (it.vat_rate === undefined || it.vat_rate === null ? { ...it, vat_rate: rate } : it)));
+                }
+              }} disabled={!editable}>
+                <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {VAT_MODES.map(m => <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <div className={`mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 ${orgs.length > 1 ? "lg:grid-cols-4" : "lg:grid-cols-3"}`}>
             {orgs.length > 1 && (
@@ -881,6 +939,7 @@ function InvoiceView() {
                   <TableHead className="w-24 text-right">Кол-во</TableHead>
                   <TableHead className="w-28 text-right">Цена</TableHead>
                   <TableHead className="w-36 text-right">Скидка</TableHead>
+                  {vatMode !== "none" && <TableHead className="w-28 text-right">НДС</TableHead>}
                   <TableHead className="w-32 text-right">Сумма</TableHead>
                   <TableHead className="w-8"></TableHead>
                 </TableRow>
@@ -888,7 +947,7 @@ function InvoiceView() {
               <TableBody>
                 {items.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={editable ? 7 : 6} className="p-0">
+                    <TableCell colSpan={(editable ? 7 : 6) + (vatMode !== "none" ? 1 : 0)} className="p-0">
                       {editable ? (
                         <button
                           type="button"
@@ -949,11 +1008,26 @@ function InvoiceView() {
                         </div>
                       )}
                     </TableCell>
+                    {vatMode !== "none" && (
+                      <TableCell className="text-right">
+                        <Select value={vatRateId(it.vat_rate ?? null)}
+                          onValueChange={(v) => updateItem(idx, { vat_rate: toVatRate(v) })}
+                          disabled={!editable}>
+                          <SelectTrigger className="h-7 w-24 text-xs px-2 ml-auto"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {VAT_RATES.map(r => <SelectItem key={r.id} value={r.id}>{r.label}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                        {lineVat(it).vat > 0 && (
+                          <div className="text-[11px] text-muted-foreground mt-0.5">{fmt.format(lineVat(it).vat)}</div>
+                        )}
+                      </TableCell>
+                    )}
                     <TableCell className="text-right font-medium">
                       {lineDiscount(it) > 0 && (
                         <div className="text-[11px] text-muted-foreground line-through">{fmt.format(lineGross(it))}</div>
                       )}
-                      {fmt.format(lineNet(it))}
+                      {fmt.format(lineVat(it).gross)}
                     </TableCell>
                     <TableCell>
                       {editable && <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => removeItem(idx)}><Trash2 className="h-3.5 w-3.5" /></Button>}
@@ -969,7 +1043,13 @@ function InvoiceView() {
                   <span className="text-xs text-muted-foreground">Скидка: −{fmt.format(totalDiscount)}</span>
                 </>
               )}
-              <span className="text-xs text-muted-foreground">Итого:</span>
+              {vatMode !== "none" && (
+                <>
+                  <span className="text-xs text-muted-foreground">Без НДС: {fmt.format(vatTotals.net)}</span>
+                  <span className="text-xs text-muted-foreground">НДС: {fmt.format(vatTotals.vat)}</span>
+                </>
+              )}
+              <span className="text-xs text-muted-foreground">{vatMode === "none" ? "Итого:" : "Всего с НДС:"}</span>
               <span className="text-base font-semibold">{fmt.format(total)}</span>
             </div>
           </div>
@@ -1110,8 +1190,8 @@ function InvoiceView() {
             {(() => {
               const goods = items.filter(it => (it.kind ?? "product") === "product");
               const services = items.filter(it => it.kind === "service");
-              const goodsTotal = goods.reduce((s, i) => s + lineNet(i), 0);
-              const servicesTotal = services.reduce((s, i) => s + lineNet(i), 0);
+              const goodsTotal = goods.reduce((s, i) => s + lineVat(i).gross, 0);
+              const servicesTotal = services.reduce((s, i) => s + lineVat(i).gross, 0);
               const cols = totalDiscount > 0 ? 8 : 6;
               const hasBoth = goods.length > 0 && services.length > 0;
               let n = 0;
@@ -1133,7 +1213,7 @@ function InvoiceView() {
                     {totalDiscount > 0 && (
                       <td className="border border-black px-2 py-1 text-right">{nfmt.format(lineGross(it))}</td>
                     )}
-                    <td className="border border-black px-2 py-1 text-right">{nfmt.format(lineNet(it))}</td>
+                    <td className="border border-black px-2 py-1 text-right">{nfmt.format(lineVat(it).gross)}</td>
                   </tr>
                 );
               };
@@ -1171,10 +1251,10 @@ function InvoiceView() {
                         <td className="border border-black px-2 py-1 text-right">−{nfmt.format(totalDiscount)}</td></tr>
                     </>
                   )}
-                  <tr><td colSpan={cols - 1} className="px-2 py-1 text-right font-bold">Итого:</td>
-                    <td className="border border-black px-2 py-1 text-right font-bold">{nfmt.format(total)}</td></tr>
-                  <tr><td colSpan={cols - 1} className="px-2 py-1 text-right font-bold">Без налога (НДС):</td>
-                    <td className="border border-black px-2 py-1 text-right">---</td></tr>
+                  <tr><td colSpan={cols - 1} className="px-2 py-1 text-right font-bold">Итого{vatMode !== "none" ? " без НДС" : ""}:</td>
+                    <td className="border border-black px-2 py-1 text-right font-bold">{nfmt.format(vatMode === "none" ? total : vatTotals.net)}</td></tr>
+                  <tr><td colSpan={cols - 1} className="px-2 py-1 text-right font-bold">{vatMode === "none" ? "Без налога (НДС):" : "НДС:"}</td>
+                    <td className="border border-black px-2 py-1 text-right">{vatMode === "none" ? "---" : nfmt.format(vatTotals.vat)}</td></tr>
                   <tr><td colSpan={cols - 1} className="px-2 py-1 text-right font-bold">Всего к оплате:</td>
                     <td className="border border-black px-2 py-1 text-right font-bold">{nfmt.format(total)}</td></tr>
                 </>
@@ -1196,11 +1276,17 @@ function InvoiceView() {
       {(printMode === "torg12" || printMode === "upd") && (() => {
         const printItems: PrintItem[] = items.map((it) => {
           const p: any = products.find((x: any) => x.id === it.product_id);
+          const v = lineVat(it);
           return {
             name: it.name,
             unit: p?.unit || (it.kind === "service" ? "усл" : "шт"),
             quantity: it.quantity,
-            price: it.quantity ? Math.round((netSum(it.quantity, it.price, it.discount_kind, it.discount_value) / it.quantity) * 100) / 100 : it.price,
+            // В бланках цена указывается без НДС.
+            price: it.quantity ? Math.round((v.net / it.quantity) * 100) / 100 : it.price,
+            vatRate: vatMode === "none" ? null : (it.vat_rate ?? null),
+            vatSum: v.vat,
+            netSum: v.net,
+            grossSum: v.gross,
           };
         });
         return (

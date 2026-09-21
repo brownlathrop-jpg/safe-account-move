@@ -16,7 +16,14 @@ export function Torg12({
   items: PrintItem[];
   note?: string | null;
 }) {
-  const total = items.reduce((s, i) => s + i.quantity * i.price, 0);
+  const r2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
+  const net = (i: PrintItem) => r2(i.netSum ?? i.quantity * i.price);
+  const vat = (i: PrintItem) => r2(i.vatSum ?? 0);
+  const gross = (i: PrintItem) => r2(i.grossSum ?? net(i) + vat(i));
+  const rateText = (i: PrintItem) => (i.vatRate === null || i.vatRate === undefined || !i.vatRate ? "без НДС" : `${i.vatRate} %`);
+  const netTotal = r2(items.reduce((s, i) => s + net(i), 0));
+  const vatTotal = r2(items.reduce((s, i) => s + vat(i), 0));
+  const total = r2(items.reduce((s, i) => s + gross(i), 0));
   const qtyTotal = items.reduce((s, i) => s + i.quantity, 0);
   const b = "border border-black px-1 py-0.5 align-top";
   const d = new Date(date);
@@ -136,28 +143,28 @@ export function Torg12({
               <td className={b} />
               <td className={`${b} text-right`}>{it.quantity}</td>
               <td className={`${b} text-right`}>{nfmt.format(it.price)}</td>
-              <td className={`${b} text-right`}>{nfmt.format(it.quantity * it.price)}</td>
-              <td className={`${b} text-center`}>без НДС</td>
-              <td className={`${b} text-center`}>—</td>
-              <td className={`${b} text-right`}>{nfmt.format(it.quantity * it.price)}</td>
+              <td className={`${b} text-right`}>{nfmt.format(net(it))}</td>
+              <td className={`${b} text-center`}>{rateText(it)}</td>
+              <td className={`${b} text-right`}>{vat(it) ? nfmt.format(vat(it)) : "—"}</td>
+              <td className={`${b} text-right`}>{nfmt.format(gross(it))}</td>
             </tr>
           ))}
           <tr>
             <td className={`${b} text-right font-bold`} colSpan={9}>Итого</td>
             <td className={`${b} text-right font-bold`}>{qtyTotal}</td>
             <td className={`${b} text-center`}>Х</td>
-            <td className={`${b} text-right font-bold`}>{nfmt.format(total)}</td>
+            <td className={`${b} text-right font-bold`}>{nfmt.format(netTotal)}</td>
             <td className={`${b} text-center`}>Х</td>
-            <td className={`${b} text-center`}>—</td>
+            <td className={`${b} text-right font-bold`}>{vatTotal ? nfmt.format(vatTotal) : "—"}</td>
             <td className={`${b} text-right font-bold`}>{nfmt.format(total)}</td>
           </tr>
           <tr>
             <td className={`${b} text-right font-bold`} colSpan={9}>Всего по накладной</td>
             <td className={`${b} text-right font-bold`}>{qtyTotal}</td>
             <td className={`${b} text-center`}>Х</td>
-            <td className={`${b} text-right font-bold`}>{nfmt.format(total)}</td>
+            <td className={`${b} text-right font-bold`}>{nfmt.format(netTotal)}</td>
             <td className={`${b} text-center`}>Х</td>
-            <td className={`${b} text-center`}>—</td>
+            <td className={`${b} text-right font-bold`}>{vatTotal ? nfmt.format(vatTotal) : "—"}</td>
             <td className={`${b} text-right font-bold`}>{nfmt.format(total)}</td>
           </tr>
         </tbody>

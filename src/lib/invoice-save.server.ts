@@ -15,6 +15,9 @@ export type SaveItem = {
   discount_kind?: string | null;
   discount_value?: number | null;
   discount_name?: string | null;
+  /** Ставка НДС по строке (null — без НДС) и сумма налога. */
+  vat_rate?: number | null;
+  vat_sum?: number | null;
 };
 
 const TOTAL_SQL = `coalesce((

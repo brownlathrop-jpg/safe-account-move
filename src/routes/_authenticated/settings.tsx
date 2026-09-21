@@ -26,6 +26,7 @@ import { PrintHeader } from "@/components/print/PrintHeader";
 import { SNO_LABELS, VAT_LABELS, PAYMENT_METHOD_LABELS, PAYMENT_OBJECT_LABELS } from "@/lib/kkt-atol";
 import { useMyOrgId, setMyOrgPref } from "@/lib/organizations";
 import { useViewLog } from "@/hooks/use-view-log";
+import { VAT_MODES, VAT_RATES } from "@/lib/vat";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({
@@ -60,6 +61,9 @@ type Org = {
   director_name: string;
   accountant_name: string;
   taxation_system: string;
+  /** НДС по умолчанию: режим расчёта и ставка для новых документов. */
+  vat_mode?: string;
+  vat_rate?: string;
   is_primary: boolean;
   invoice_number_mask: string;
   /** Логотип для печати (картинка, приведённая к единому размеру). */
@@ -83,7 +87,7 @@ const empty: Org = {
   bank_name: "", bank_bik: "", bank_corr_account: "", bank_account: "",
   director_name: "", accountant_name: "", taxation_system: "usn_6", is_primary: true,
   invoice_number_mask: "{YYYY}-{MM}-{DD}-{NNN}",
-  logo_url: null, print_name: "",
+  logo_url: null, print_name: "", vat_mode: "none", vat_rate: "none",
 };
 
 function SettingsPage() {
@@ -296,6 +300,25 @@ function SettingsPage() {
                   <SelectItem value="psn">Патент (ПСН)</SelectItem>
                   <SelectItem value="esxn">ЕСХН</SelectItem>
                   <SelectItem value="npd">НПД (самозанятый)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>НДС в документах</Label>
+              <Select value={form.vat_mode || "none"} onValueChange={v => upd("vat_mode", v)}>
+                <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {VAT_MODES.map(m => <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>Ставка НДС по умолчанию</Label>
+              <Select value={form.vat_rate || "none"} onValueChange={v => upd("vat_rate", v)}
+                disabled={(form.vat_mode || "none") === "none"}>
+                <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {VAT_RATES.map(r => <SelectItem key={r.id} value={r.id}>{r.label}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
