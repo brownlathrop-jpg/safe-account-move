@@ -395,11 +395,17 @@ export async function runQuery(
   const scope = await accessibleWorkspaces(userId);
 
   /** Проверить право записи в затронутые базы. */
-  const assertWrite = async (wsIds: (string | null)[]) => {
+  const assertWrite = async (wsIds: (string | null)[], adding = 0) => {
+    const { assertWriteAllowed, assertInsertLimit, assertCanCreateWorkspace } = await import(
+      "./billing.server"
+    );
     const ids = Array.from(new Set(wsIds.filter((x): x is string => !!x)));
     if (!ids.length) {
-      // создание своей базы разрешено любому вошедшему
-      if (table === "workspaces") return;
+      // создание своей базы: почта подтверждена и лимит тарифа не исчерпан
+      if (table === "workspaces") {
+        await assertCanCreateWorkspace(userId);
+        return;
+      }
       // запись без базы больше не разрешена (кроме явных общих справочников)
       if (!GLOBAL_TABLES.has(table)) throw new Error("Не указана база (workspace_id)");
       return;
@@ -408,6 +414,9 @@ export async function runQuery(
       const role = await roleIn(userId, id);
       if (!role) throw new Error("Нет доступа к этой базе");
       if (!canWrite(role, table)) throw new Error("Недостаточно прав для изменения данных");
+      // приостановленная или неоплаченная база — только чтение
+      await assertWriteAllowed(id);
+      if (adding > 0) await assertInsertLimit(table, id, adding);
     }
   };
   const log = (op: "insert" | "update" | "delete", rows: Row[], changes?: Record<string, unknown>) => {
