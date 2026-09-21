@@ -17,6 +17,10 @@ CREATE TABLE IF NOT EXISTS app_users (
 CREATE UNIQUE INDEX IF NOT EXISTS app_users_email_key ON app_users (lower(email));
 -- личные настройки пользователя (например, тип цены по умолчанию)
 ALTER TABLE app_users ADD COLUMN IF NOT EXISTS prefs jsonb NOT NULL DEFAULT '{}'::jsonb;
+-- признак администратора платформы
+ALTER TABLE app_users ADD COLUMN IF NOT EXISTS is_admin boolean NOT NULL DEFAULT false;
+-- номер версии входов: увеличение отзывает все прежние cookie пользователя
+ALTER TABLE app_users ADD COLUMN IF NOT EXISTS session_version int NOT NULL DEFAULT 1;
 
 CREATE TABLE IF NOT EXISTS app_sessions (
   token      text PRIMARY KEY,
