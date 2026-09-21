@@ -20,7 +20,7 @@ import QRCode from "qrcode";
 import { useKktPrintReceipt, useKktSettingsForOrg, useKktShift, useKktShiftAction } from "@/hooks/use-kkt";
 import {
   fnsCheckUrl, fnsQrPayload, mergeServicesIntoGoods, printLastReceiptCopy, receiptTotal,
-  type KktPaymentType, type KktPosition,
+  type KktPaymentType, type KktPosition, type KktVat,
 } from "@/lib/kkt-atol";
 
 const fmt = new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB" });
