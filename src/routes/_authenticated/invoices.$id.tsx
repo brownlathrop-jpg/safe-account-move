@@ -600,12 +600,18 @@ function InvoiceView() {
               wsId={wsId}
               orgId={orgId || inv.organization_id || null}
               invoiceId={id}
-              items={items.map((it) => ({
-                name: it.name,
-                quantity: it.quantity,
-                price: it.quantity ? Math.round((lineNet(it) / it.quantity) * 100) / 100 : it.price,
-                kind: it.kind,
-              }))}
+              items={items.map((it) => {
+                const v = lineVat(it);
+                const rate = vatMode === "none" ? null : (it.vat_rate ?? null);
+                return {
+                  name: it.name,
+                  quantity: it.quantity,
+                  // В чеке цена всегда с НДС.
+                  price: it.quantity ? Math.round((v.gross / it.quantity) * 100) / 100 : it.price,
+                  kind: it.kind,
+                  ...(rate === null ? {} : { vat: (`vat${rate}` as any) }),
+                };
+              })}
               fiscal={inv.fiscal}
               isReturn={!!inv.is_return}
               defaultPaymentType={paymentMethod === "card" ? "electronically" : "cash"}
