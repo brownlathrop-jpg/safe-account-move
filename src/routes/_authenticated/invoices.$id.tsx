@@ -268,9 +268,15 @@ function InvoiceView() {
   const lineGross = (it: Item) => grossSum(it.quantity, it.price);
   const lineDiscount = (it: Item) => discountSum(it.quantity, it.price, it.discount_kind, it.discount_value);
   const lineNet = (it: Item) => netSum(it.quantity, it.price, it.discount_kind, it.discount_value);
+  const lineVat = (it: Item) => splitVat(lineNet(it), it.vat_rate ?? null, vatMode);
   const totalGross = useMemo(() => items.reduce((s, i) => s + lineGross(i), 0), [items]);
   const totalDiscount = useMemo(() => items.reduce((s, i) => s + lineDiscount(i), 0), [items]);
-  const total = useMemo(() => items.reduce((s, i) => s + lineNet(i), 0), [items]);
+  const vatTotals = useMemo(
+    () => sumVat(items.map(i => ({ sum: lineNet(i), vat_rate: i.vat_rate ?? null })), vatMode),
+    [items, vatMode],
+  );
+  /** Сумма к оплате — всегда с НДС. */
+  const total = vatTotals.gross;
   const filteredPartners = partners.filter((p: any) => kind === "outgoing" ? p.kind === "customer" : p.kind === "supplier");
   const editable = inv?.status !== "cancelled";
   const { data: priceTypes = [] } = usePriceTypes(wsId);
