@@ -302,3 +302,55 @@ export async function resetPasswordWithToken(token: string, newPassword: string)
   await s`update password_resets set used_at = now() where token = ${token}`;
   await revokeSessions(reset.user_id);
 }
+
+/* ------------------------------------------- подтверждение адреса почты */
+
+/** Подтверждена ли почта пользователя. */
+export async function emailConfirmed(userId: string): Promise<boolean> {
+  const s = sql();
+  const rows = await s`select email_confirmed_at from app_users where id = ${userId} limit 1`;
+  return !!(rows[0] as any)?.email_confirmed_at;
+}
+
+/** Создаёт ссылку-токен подтверждения почты (действует сутки). */
+export async function createConfirmToken(userId: string): Promise<string> {
+  const token = randomBytes(24).toString("hex");
+  const s = sql();
+  await s`
+    insert into email_confirmations (token, user_id, expires_at)
+    values (${token}, ${userId}, now() + interval '1 day')`;
+  return token;
+}
+
+/** Подтверждает почту по токену из письма. */
+export async function confirmEmail(token: string): Promise<AppUser> {
+  const s = sql();
+  const rows = await s`
+    select * from email_confirmations
+     where token = ${token} and used_at is null and expires_at > now() limit 1`;
+  if (!rows.length) throw new Error("Ссылка недействительна или устарела");
+  const userId = String((rows[0] as any).user_id);
+  await s`update app_users set email_confirmed_at = coalesce(email_confirmed_at, now()) where id = ${userId}`;
+  await s`update email_confirmations set used_at = now() where token = ${token}`;
+  const user = await currentUser();
+  if (user && user.id === userId) return { ...user, email_confirmed: true };
+  const u = await s`select id, email, name, is_admin from app_users where id = ${userId} limit 1`;
+  const row = u[0] as any;
+  const appUser: AppUser = {
+    id: row.id,
+    email: row.email,
+    name: row.name ?? "",
+    is_admin: !!row.is_admin,
+    email_confirmed: true,
+  };
+  await startSession(appUser);
+  return appUser;
+}
+
+/** Новый токен подтверждения для вошедшего пользователя. */
+export async function refreshConfirmToken(): Promise<{ email: string; token: string } | null> {
+  const user = await currentUser();
+  if (!user) throw new Error("Требуется вход");
+  if (user.email_confirmed) return null;
+  return { email: user.email, token: await createConfirmToken(user.id) };
+}
