@@ -14,8 +14,18 @@ export type PrintItem = {
   name: string;
   unit: string;
   quantity: number;
+  /** Цена за единицу без НДС (когда НДС в цене — цена уже без налога). */
   price: number;
+  /** Ставка НДС: null — «без НДС». */
+  vatRate?: number | null;
+  /** Сумма НДС по строке. */
+  vatSum?: number;
+  /** Сумма без НДС. */
+  netSum?: number;
+  /** Сумма с НДС. */
+  grossSum?: number;
 };
+
 
 export const nfmt = new Intl.NumberFormat("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 export const dfmt = new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" });
