@@ -1,26 +1,34 @@
-# CRM Dvoreckij
+# КабинетCRM (crm.skladnow.ru)
 
-переезд с другого аккаунта, без подключения lovable cloud. Только supabase, чтобы после окончания подписки база не отвалилась
+Учётная система: товары и папки, контрагенты, склад, документы (заявки, накладные, поступления),
+касса и оплаты, отчёты (КУДиР, кассовая книга, оборотная ведомость), печать ТОРГ-12/УПД/КО-1,
+импорт из 1С, онлайн-касса АТОЛ, роли сотрудников и журнал действий.
 
-This project was built with [Lovable](https://lovable.dev).
+Работает на своём сервере: TanStack Start (React 19 + Vite) + PostgreSQL (JSONB),
+обновления в реальном времени через LISTEN/NOTIFY и SSE `/api/realtime`.
+Внешние сервисы для работы не требуются.
 
-**Live app**: https://safe-account-move.lovable.app
-
-## Build with Lovable
-
-Continue developing this project in the [Lovable editor](https://lovable.dev/projects/09d8c64e-3480-4304-9451-865aa261b6e4).
-
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: every change made in Lovable is committed straight to this repository.
-- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
-
-## Development
-
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
+## Запуск локально
 
 ```sh
-git clone <this-repository-url>
-cd <repository-name>
-npm i
-npm run dev
+bun install          # или npm i
+cp .env.example .env # заполнить DATABASE_URL, SESSION_SECRET и т.д.
+bun run dev
 ```
+
+## Продакшен
+
+```sh
+bun run build        # сборка в dist/
+node selfhost/node-server.js   # запуск на обычном Node (pm2 name: crm)
+```
+
+Деплой на VPS: `scripts/deploy.sh` (собирает и заливает `dist/` + `selfhost/`, рестартует pm2).
+
+## Документация
+
+- `ПЛАН.md` — состав и статус функций
+- `ЗАЩИТА.md` — защита сервера и базы
+- `РАЗДЕЛЕНИЕ.md` — изоляция данных между клиентами
+- `MIGRATION.md`, `selfhost/ПЕРЕЕЗД.md` — перенос базы и переезд на другой сервер
+- `sql/`, `db/` — схема и миграции
