@@ -14,6 +14,7 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiRealtimeRouteImport } from './routes/api/realtime'
 import { Route as AuthenticatedTeamRouteImport } from './routes/_authenticated/team'
+import { Route as AuthenticatedTariffsRouteImport } from './routes/_authenticated/tariffs'
 import { Route as AuthenticatedStockRouteImport } from './routes/_authenticated/stock'
 import { Route as AuthenticatedShipmentsRouteImport } from './routes/_authenticated/shipments'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
@@ -59,6 +60,11 @@ const ApiRealtimeRoute = ApiRealtimeRouteImport.update({
 const AuthenticatedTeamRoute = AuthenticatedTeamRouteImport.update({
   id: '/team',
   path: '/team',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedTariffsRoute = AuthenticatedTariffsRouteImport.update({
+  id: '/tariffs',
+  path: '/tariffs',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedStockRoute = AuthenticatedStockRouteImport.update({
@@ -192,6 +198,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof AuthenticatedSettingsRoute
   '/shipments': typeof AuthenticatedShipmentsRouteWithChildren
   '/stock': typeof AuthenticatedStockRoute
+  '/tariffs': typeof AuthenticatedTariffsRoute
   '/team': typeof AuthenticatedTeamRoute
   '/api/realtime': typeof ApiRealtimeRoute
   '/cash/new': typeof AuthenticatedCashNewRoute
@@ -216,6 +223,7 @@ export interface FileRoutesByTo {
   '/products': typeof AuthenticatedProductsRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/stock': typeof AuthenticatedStockRoute
+  '/tariffs': typeof AuthenticatedTariffsRoute
   '/team': typeof AuthenticatedTeamRoute
   '/api/realtime': typeof ApiRealtimeRoute
   '/cash/new': typeof AuthenticatedCashNewRoute
@@ -246,6 +254,7 @@ export interface FileRoutesById {
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/shipments': typeof AuthenticatedShipmentsRouteWithChildren
   '/_authenticated/stock': typeof AuthenticatedStockRoute
+  '/_authenticated/tariffs': typeof AuthenticatedTariffsRoute
   '/_authenticated/team': typeof AuthenticatedTeamRoute
   '/api/realtime': typeof ApiRealtimeRoute
   '/_authenticated/cash/new': typeof AuthenticatedCashNewRoute
@@ -276,6 +285,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/shipments'
     | '/stock'
+    | '/tariffs'
     | '/team'
     | '/api/realtime'
     | '/cash/new'
@@ -300,6 +310,7 @@ export interface FileRouteTypes {
     | '/products'
     | '/settings'
     | '/stock'
+    | '/tariffs'
     | '/team'
     | '/api/realtime'
     | '/cash/new'
@@ -329,6 +340,7 @@ export interface FileRouteTypes {
     | '/_authenticated/settings'
     | '/_authenticated/shipments'
     | '/_authenticated/stock'
+    | '/_authenticated/tariffs'
     | '/_authenticated/team'
     | '/api/realtime'
     | '/_authenticated/cash/new'
@@ -388,6 +400,13 @@ declare module '@tanstack/react-router' {
       path: '/team'
       fullPath: '/team'
       preLoaderRoute: typeof AuthenticatedTeamRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/tariffs': {
+      id: '/_authenticated/tariffs'
+      path: '/tariffs'
+      fullPath: '/tariffs'
+      preLoaderRoute: typeof AuthenticatedTariffsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/stock': {
@@ -619,6 +638,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedShipmentsRoute: typeof AuthenticatedShipmentsRouteWithChildren
   AuthenticatedStockRoute: typeof AuthenticatedStockRoute
+  AuthenticatedTariffsRoute: typeof AuthenticatedTariffsRoute
   AuthenticatedTeamRoute: typeof AuthenticatedTeamRoute
   AuthenticatedPartnerIdRoute: typeof AuthenticatedPartnerIdRoute
 }
@@ -634,6 +654,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedShipmentsRoute: AuthenticatedShipmentsRouteWithChildren,
   AuthenticatedStockRoute: AuthenticatedStockRoute,
+  AuthenticatedTariffsRoute: AuthenticatedTariffsRoute,
   AuthenticatedTeamRoute: AuthenticatedTeamRoute,
   AuthenticatedPartnerIdRoute: AuthenticatedPartnerIdRoute,
 }
