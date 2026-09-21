@@ -1020,7 +1020,13 @@ function InvoiceView() {
                   <span className="text-xs text-muted-foreground">Скидка: −{fmt.format(totalDiscount)}</span>
                 </>
               )}
-              <span className="text-xs text-muted-foreground">Итого:</span>
+              {vatMode !== "none" && (
+                <>
+                  <span className="text-xs text-muted-foreground">Без НДС: {fmt.format(vatTotals.net)}</span>
+                  <span className="text-xs text-muted-foreground">НДС: {fmt.format(vatTotals.vat)}</span>
+                </>
+              )}
+              <span className="text-xs text-muted-foreground">{vatMode === "none" ? "Итого:" : "Всего с НДС:"}</span>
               <span className="text-base font-semibold">{fmt.format(total)}</span>
             </div>
           </div>
