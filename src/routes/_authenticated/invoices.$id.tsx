@@ -213,6 +213,9 @@ function InvoiceView() {
     setCashBasis(inv.cash_basis ?? "");
     setPaymentMethod(inv.payment_method === "cash" ? "cash" : "card");
     setOrgId(inv.organization_id ?? "");
+    const mode = inv.vat_mode as VatMode | undefined;
+    setVatFromDoc(Boolean(mode));
+    if (mode) setVatMode(mode);
     setItems((inv.items ?? []).map((it: any) => ({
       id: it.id, product_id: it.product_id, name: it.name,
       quantity: Number(it.quantity), price: Number(it.price),
@@ -220,8 +223,21 @@ function InvoiceView() {
       discount_kind: (it.discount_kind === "amount" ? "amount" : "percent") as DiscountKind,
       discount_value: Number(it.discount_value ?? 0),
       discount_name: it.discount_name ?? null,
+      vat_rate: toVatRate(it.vat_rate),
     })));
   }, [inv]);
+
+  // Если у документа НДС не задан — подставляем настройки организации.
+  useEffect(() => {
+    if (vatFromDoc || !myOrg) return;
+    const mode = ((myOrg as any).vat_mode as VatMode | undefined) ?? defaultVatMode((myOrg as any).taxation_system);
+    setVatMode(mode);
+    if (mode !== "none") {
+      const rate = defaultVatRate(myOrg as any);
+      setItems(prev => prev.map(it => (it.vat_rate === undefined ? { ...it, vat_rate: rate } : it)));
+    }
+  }, [myOrg, vatFromDoc]);
+
 
   const docType: DocType = (inv?.doc_type ?? "order") as DocType;
   const isOrder = docType === "order";
