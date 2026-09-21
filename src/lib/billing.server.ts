@@ -1,6 +1,19 @@
-// Тарифы, срок оплаты доступа и лимиты по базам. Только сервер.
+// Тарифы, срок оплаты доступа, лимиты и возможности по базам. Только сервер.
 import { sql } from "./pg.server";
-import { PLANS, limitsOf, planId, type PlanId, type PlanLimits } from "./plans";
+import {
+  ADDON_IDS,
+  FEATURE_LABEL,
+  PLANS,
+  addonId,
+  featuresOf,
+  limitsOf,
+  membersLimit,
+  monthlyPrice,
+  planId,
+  type PlanFeatures,
+  type PlanId,
+  type PlanLimits,
+} from "./plans";
 
 export type Access = {
   workspaceId: string;
@@ -14,6 +27,10 @@ export type Access = {
   daysLeft: number | null;
   reason: string;
   limits: PlanLimits;
+  features: PlanFeatures;
+  extraMembers: number;
+  addons: string[];
+  priceMonth: number;
 };
 
 type WsRow = {
@@ -23,6 +40,8 @@ type WsRow = {
   paid_until: Date | string | null;
   suspended: boolean | null;
   user_id: string | null;
+  extra_members: number | null;
+  addons: unknown;
 } | null;
 
 const cache = new Map<string, { at: number; row: WsRow }>();
@@ -38,7 +57,8 @@ async function wsRow(workspaceId: string): Promise<WsRow> {
   if (hit && Date.now() - hit.at < TTL) return hit.row;
   const s = sql();
   const rows = await s`
-    select id, data->>'name' as name, plan, paid_until, suspended, user_id
+    select id, data->>'name' as name, plan, paid_until, suspended, user_id,
+           coalesce(extra_members, 0) as extra_members, coalesce(addons, '[]'::jsonb) as addons
       from workspaces where id = ${workspaceId} limit 1`;
   const row = (rows.length ? (rows[0] as any) : null) as WsRow;
   cache.set(workspaceId, { at: Date.now(), row });
@@ -51,12 +71,36 @@ function toIso(v: Date | string | null | undefined): string | null {
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
 
+function parseAddons(value: unknown): string[] {
+  const raw = Array.isArray(value)
+    ? value
+    : typeof value === "string"
+      ? (() => {
+          try {
+            const p = JSON.parse(value);
+            return Array.isArray(p) ? p : [];
+          } catch {
+            return [];
+          }
+        })()
+      : [];
+  const out: string[] = [];
+  for (const v of raw) {
+    const id = addonId(v);
+    if (id && !out.includes(id)) out.push(id);
+  }
+  return out;
+}
+
 function buildAccess(row: NonNullable<WsRow>): Access {
   const plan = planId(row.plan);
   const paidUntil = toIso(row.paid_until);
   const suspended = !!row.suspended;
+  const extraMembers = Math.max(0, Number(row.extra_members ?? 0) || 0);
+  const addons = parseAddons(row.addons);
+  const free = PLANS[plan].priceMonth === 0;
   const daysLeft =
-    paidUntil === null
+    free || paidUntil === null
       ? null
       : Math.ceil((new Date(paidUntil).getTime() - Date.now()) / 86_400_000);
   const expired = daysLeft !== null && daysLeft < 0;
@@ -66,6 +110,7 @@ function buildAccess(row: NonNullable<WsRow>): Access {
     : expired
       ? "Срок оплаты закончился: база доступна только для чтения. Продлите доступ."
       : "";
+  const limits = { ...limitsOf(plan), members: membersLimit(plan, extraMembers) };
   return {
     workspaceId: String(row.id),
     name: row.name ?? "База",
@@ -76,7 +121,11 @@ function buildAccess(row: NonNullable<WsRow>): Access {
     readOnly,
     daysLeft,
     reason,
-    limits: limitsOf(plan),
+    limits,
+    features: featuresOf(plan),
+    extraMembers,
+    addons,
+    priceMonth: monthlyPrice(plan, extraMembers, addons),
   };
 }
 
@@ -91,9 +140,22 @@ export async function assertWriteAllowed(workspaceId: string) {
   if (access?.readOnly) throw new Error(access.reason);
 }
 
+/** Бросает ошибку, если возможность не входит в тариф базы. */
+export async function assertFeature(workspaceId: string, feature: keyof PlanFeatures) {
+  const access = await workspaceAccess(workspaceId);
+  if (!access) return;
+  if (!access.features[feature]) {
+    throw new Error(
+      `«${FEATURE_LABEL[feature]}» не входит в тариф «${access.planLabel}». Смените тариф, чтобы включить.`,
+    );
+  }
+}
+
 export type Usage = {
   products: number;
+  partners: number;
   invoices: number;
+  docsThisMonth: number;
   members: number;
   storageMb: number;
 };
@@ -101,18 +163,30 @@ export type Usage = {
 export async function workspaceUsage(workspaceId: string): Promise<Usage> {
   const s = sql();
   const one = async (q: Promise<any[]>) => Number((await q)[0]?.n ?? 0);
-  const [products, invoices, members, bytes] = await Promise.all([
+  const [products, partners, invoices, docsThisMonth, members, bytes] = await Promise.all([
     one(s`select count(*)::int as n from products where workspace_id = ${workspaceId}` as any),
+    one(s`select count(*)::int as n from partners where workspace_id = ${workspaceId}` as any),
     one(s`select count(*)::int as n from invoices where workspace_id = ${workspaceId}` as any),
+    one(s`select count(*)::int as n from invoices
+            where workspace_id = ${workspaceId}
+              and created_at >= date_trunc('month', now())` as any),
     one(s`select count(*)::int as n from workspace_members where workspace_id = ${workspaceId}` as any),
     one(s`select coalesce(sum(octet_length(bytes)), 0)::bigint as n from files where workspace_id = ${workspaceId}` as any),
   ]);
-  return { products, invoices, members, storageMb: Math.round(bytes / 1024 / 1024) };
+  return {
+    products,
+    partners,
+    invoices,
+    docsThisMonth,
+    members,
+    storageMb: Math.round(bytes / 1024 / 1024),
+  };
 }
 
 /** Какой лимит отвечает за таблицу. */
 function limitKey(table: string): keyof PlanLimits | null {
   if (table === "products") return "products";
+  if (table === "partners") return "partners";
   if (table === "invoices") return "invoices";
   if (table === "workspace_members" || table === "workspace_invites") return "members";
   return null;
@@ -120,8 +194,10 @@ function limitKey(table: string): keyof PlanLimits | null {
 
 const LIMIT_LABEL: Record<string, string> = {
   products: "товаров",
+  partners: "контрагентов",
   invoices: "документов",
-  members: "сотрудников",
+  docsPerMonth: "документов в месяц",
+  members: "пользователей",
   workspaces: "баз",
   storageMb: "места (МБ)",
 };
@@ -132,18 +208,32 @@ export async function assertInsertLimit(table: string, workspaceId: string, addi
   if (!key || adding <= 0) return;
   const access = await workspaceAccess(workspaceId);
   if (!access) return;
-  const limit = access.limits[key];
-  if (limit === null) return;
   const s = sql();
-  const rows = await s.unsafe(
-    `select count(*)::int as n from ${table} where workspace_id = $1`,
-    [workspaceId] as any,
-  );
-  const used = Number((rows[0] as any)?.n ?? 0);
-  if (used + adding > limit) {
-    throw new Error(
-      `Тариф «${access.planLabel}» допускает не более ${limit} ${LIMIT_LABEL[key]}. Сейчас: ${used}. Смените тариф.`,
+  const limit = access.limits[key];
+  if (limit !== null) {
+    const rows = await s.unsafe(
+      `select count(*)::int as n from ${table} where workspace_id = $1`,
+      [workspaceId] as any,
     );
+    const used = Number((rows[0] as any)?.n ?? 0);
+    if (used + adding > limit) {
+      throw new Error(
+        `Тариф «${access.planLabel}» допускает не более ${limit} ${LIMIT_LABEL[key]}. Сейчас: ${used}. Смените тариф.`,
+      );
+    }
+  }
+  // отдельный лимит на документы в текущем месяце
+  if (table === "invoices" && access.limits.docsPerMonth !== null) {
+    const monthLimit = access.limits.docsPerMonth;
+    const rows = await s`
+      select count(*)::int as n from invoices
+       where workspace_id = ${workspaceId} and created_at >= date_trunc('month', now())`;
+    const used = Number((rows[0] as any)?.n ?? 0);
+    if (used + adding > monthLimit) {
+      throw new Error(
+        `Тариф «${access.planLabel}» допускает не более ${monthLimit} документов в месяц. Уже создано: ${used}. Смените тариф.`,
+      );
+    }
   }
 }
 
@@ -163,7 +253,7 @@ export async function assertStorageLimit(workspaceId: string, addBytes: number) 
 
 /**
  * Можно ли создать ещё одну базу: почта подтверждена и лимит тарифа не исчерпан.
- * Тариф берём лучший из уже имеющихся баз, для нового клиента — пробный.
+ * Тариф берём лучший из уже имеющихся баз, для нового клиента — бесплатный.
  */
 export async function assertCanCreateWorkspace(userId: string) {
   const s = sql();
@@ -174,8 +264,8 @@ export async function assertCanCreateWorkspace(userId: string) {
   const rows = await s`select plan from workspaces where user_id = ${userId}`;
   const count = rows.length;
   if (!count) return;
-  const order: PlanId[] = ["trial", "start", "pro"];
-  let best: PlanId = "trial";
+  const order: PlanId[] = ["free", "ip", "business", "opt"];
+  let best: PlanId = "free";
   for (const r of rows) {
     const p = planId((r as any).plan);
     if (order.indexOf(p) > order.indexOf(best)) best = p;
@@ -185,3 +275,6 @@ export async function assertCanCreateWorkspace(userId: string) {
     throw new Error(`Тариф «${PLANS[best].label}» допускает не более ${limit} ${LIMIT_LABEL["workspaces"]}.`);
   }
 }
+
+/** Разрешённые названия опций (для админки). */
+export const ADDON_WHITELIST = ADDON_IDS as readonly string[];
