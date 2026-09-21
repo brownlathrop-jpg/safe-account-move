@@ -1,19 +1,18 @@
-// Отправка писем через Resend (шлюз Lovable). Только серверный код.
-const GATEWAY_URL = "https://connector-gateway.lovable.dev/resend";
+// Отправка писем через Resend напрямую (api.resend.com). Только серверный код.
+// Ключ берётся из RESEND_API_KEY в окружении сервера — сторонние шлюзы не нужны.
+const RESEND_URL = "https://api.resend.com/emails";
 
-const FROM = "КабинетCRM <noreply@skladnow.ru>";
+const FROM = process.env["MAIL_FROM"] || "КабинетCRM <noreply@skladnow.ru>";
 
 export async function sendMail(opts: { to: string; subject: string; html: string }) {
-  const lovableKey = process.env["LOVABLE_API_KEY"];
   const resendKey = process.env["RESEND_API_KEY"];
-  if (!lovableKey || !resendKey) throw new Error("Почтовый сервис не настроен");
+  if (!resendKey) throw new Error("Почтовый сервис не настроен");
 
-  const response = await fetch(`${GATEWAY_URL}/emails`, {
+  const response = await fetch(RESEND_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${lovableKey}`,
-      "X-Connection-Api-Key": resendKey,
+      Authorization: `Bearer ${resendKey}`,
     },
     body: JSON.stringify({ from: FROM, to: [opts.to], subject: opts.subject, html: opts.html }),
   });
