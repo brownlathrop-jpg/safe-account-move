@@ -106,3 +106,18 @@ export const adminUserFlagSchema = z.object({ userId: id, isAdmin: z.boolean() }
 export const adminUserSchema = z.object({ userId: id });
 export const adminTransferSchema = z.object({ workspaceId: id, userId: id });
 export const adminQuerySchema = z.object({ query: z.string().min(1).max(5000) });
+
+/* --------------------------------- тарифы, оплата, подтверждение почты */
+
+export const planSchema = z.enum(["trial", "start", "pro"]);
+export const billingMineSchema = z.object({ workspaceId: id.nullable().optional() });
+export const adminSetPlanSchema = z.object({ workspaceId: id, plan: planSchema });
+export const adminSuspendSchema = z.object({ workspaceId: id, suspended: z.boolean() });
+export const adminPaymentSchema = z.object({
+  workspaceId: id,
+  amount: z.number().min(0).max(100000000),
+  months: z.number().int().min(1).max(60),
+  plan: planSchema.optional(),
+  comment: z.string().max(500).optional(),
+});
+export const confirmTokenSchema = z.object({ token: z.string().min(10).max(200) });

@@ -7,6 +7,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { WorkspaceSwitcher } from "@/components/WorkspaceSwitcher";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import { useRealtime } from "@/hooks/use-realtime";
+import { BillingBanner } from "@/components/BillingBanner";
 
 type NavItem = { to: string; label: string; icon: typeof FileText };
 type NavGroup = { title: string; items: NavItem[] };
@@ -188,6 +189,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <GlobalSearch />
           </div>
         </header>
+        <BillingBanner />
         <main className="flex-1 overflow-y-auto overflow-x-hidden">
           <div className="w-full p-3 sm:p-6">{children}</div>
         </main>

@@ -94,3 +94,31 @@ CREATE INDEX IF NOT EXISTS product_folders_parent_idx ON product_folders ((data-
 CREATE INDEX IF NOT EXISTS stock_movements_product_idx ON stock_movements ((data->>'product_id'));
 CREATE INDEX IF NOT EXISTS stock_movements_doc_idx ON stock_movements ((data->>'doc_id'));
 CREATE INDEX IF NOT EXISTS stock_receipt_items_receipt_idx ON stock_receipt_items ((data->>'receipt_id'));
+
+-- Тарифы, оплата доступа и подтверждение почты (см. sql/migrations/202609210040_billing_and_email.sql)
+alter table workspaces add column if not exists plan text not null default 'trial';
+alter table workspaces add column if not exists paid_until timestamptz;
+alter table workspaces add column if not exists suspended boolean not null default false;
+alter table app_users add column if not exists email_confirmed_at timestamptz;
+
+create table if not exists workspace_payments (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id text not null,
+  amount numeric(14,2) not null default 0,
+  months int not null default 1,
+  plan text not null default '',
+  paid_until timestamptz,
+  comment text not null default '',
+  created_by uuid,
+  created_at timestamptz not null default now()
+);
+create index if not exists workspace_payments_ws_idx on workspace_payments (workspace_id, created_at desc);
+
+create table if not exists email_confirmations (
+  token text primary key,
+  user_id uuid not null references app_users(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  expires_at timestamptz not null,
+  used_at timestamptz
+);
+create index if not exists email_confirmations_user_idx on email_confirmations (user_id);

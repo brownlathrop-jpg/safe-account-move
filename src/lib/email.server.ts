@@ -60,3 +60,17 @@ export function inviteEmailHtml(link: string, existingUser: boolean): string {
   </div>`;
 }
 
+
+export function confirmEmailHtml(link: string): string {
+  return `
+  <div style="font-family:Arial,sans-serif;background:#ffffff;padding:24px;color:#111827">
+    <h2 style="margin:0 0 12px">Подтвердите адрес почты</h2>
+    <p style="margin:0 0 16px">Спасибо за регистрацию в КабинетCRM. Нажмите кнопку — и можно приступать к работе. Ссылка действует сутки.</p>
+    <p style="margin:0 0 20px">
+      <a href="${link}" style="background:#2563eb;color:#ffffff;text-decoration:none;padding:12px 20px;border-radius:8px;display:inline-block">
+        Подтвердить почту
+      </a>
+    </p>
+    <p style="margin:0;font-size:13px;color:#6b7280">Если вы не регистрировались — просто удалите письмо.</p>
+  </div>`;
+}

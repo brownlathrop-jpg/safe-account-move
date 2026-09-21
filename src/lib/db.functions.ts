@@ -50,13 +50,56 @@ export const authSignIn = createServerFn({ method: "POST" })
 export const authSignUp = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => V.signUpSchema.parse(input))
   .handler(async ({ data }) => {
-    const { signUp } = await import("./auth.server");
+    const { signUp, createConfirmToken } = await import("./auth.server");
     try {
-      return { user: await signUp(data.email, data.password, data.name ?? ""), error: null };
+      const user = await signUp(data.email, data.password, data.name ?? "");
+      // письмо с подтверждением; ошибка отправки не должна ломать регистрацию
+      try {
+        const { sendMail, appUrl, confirmEmailHtml } = await import("./email.server");
+        const token = await createConfirmToken(user.id);
+        await sendMail({
+          to: user.email,
+          subject: "Подтвердите почту в КабинетCRM",
+          html: confirmEmailHtml(`${appUrl()}/auth?confirm=${token}`),
+        });
+      } catch (mailError: any) {
+        console.error("[signup] письмо подтверждения не отправлено:", mailError?.message ?? mailError);
+      }
+      return { user, error: null };
     } catch (e: any) {
       return { user: null, error: { message: e?.message ?? String(e) } };
     }
   });
+
+/** Подтверждение почты по ссылке из письма. */
+export const authConfirmEmail = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) => V.confirmTokenSchema.parse(input))
+  .handler(async ({ data }) => {
+    const { confirmEmail } = await import("./auth.server");
+    try {
+      return { user: await confirmEmail(data.token), error: null };
+    } catch (e: any) {
+      return { user: null, error: { message: e?.message ?? String(e) } };
+    }
+  });
+
+/** Отправить письмо с подтверждением заново. */
+export const authResendConfirm = createServerFn({ method: "POST" }).handler(async () => {
+  const { refreshConfirmToken } = await import("./auth.server");
+  try {
+    const res = await refreshConfirmToken();
+    if (!res) return { ok: true, error: null };
+    const { sendMail, appUrl, confirmEmailHtml } = await import("./email.server");
+    await sendMail({
+      to: res.email,
+      subject: "Подтвердите почту в КабинетCRM",
+      html: confirmEmailHtml(`${appUrl()}/auth?confirm=${res.token}`),
+    });
+    return { ok: true, error: null };
+  } catch (e: any) {
+    return { ok: false, error: { message: e?.message ?? String(e) } };
+  }
+});
 
 export const authSignOut = createServerFn({ method: "POST" }).handler(async () => {
   const { signOut } = await import("./auth.server");
@@ -138,6 +181,9 @@ export const storageUpload = createServerFn({ method: "POST" })
       if (!ALLOWED_TYPES.has(data.contentType)) throw new Error("Можно загружать только картинки");
       const bytes = Buffer.from(data.base64, "base64");
       if (bytes.length > MAX_FILE_BYTES) throw new Error("Файл больше 5 МБ");
+      const { assertWriteAllowed, assertStorageLimit } = await import("./billing.server");
+      await assertWriteAllowed(data.workspaceId);
+      await assertStorageLimit(data.workspaceId, bytes.length);
       const s = sql();
       const upd = await s`
         update files
