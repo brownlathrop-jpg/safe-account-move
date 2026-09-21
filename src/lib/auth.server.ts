@@ -207,7 +207,7 @@ export async function setUserPrefs(patch: Record<string, any>): Promise<Record<s
 }
 
 export async function changePassword(newPassword: string) {
-  if (newPassword.length < 6) throw new Error("Пароль должен быть не короче 6 символов");
+  assertStrongPassword(newPassword);
   const user = await requireUser();
   const s = sql();
   await s`update app_users set password_hash = ${hashPassword(newPassword)} where id = ${user.id}`;
@@ -226,7 +226,7 @@ export async function createResetToken(email: string): Promise<string | null> {
 }
 
 export async function resetPasswordWithToken(token: string, newPassword: string) {
-  if (newPassword.length < 6) throw new Error("Пароль должен быть не короче 6 символов");
+  assertStrongPassword(newPassword);
   const s = sql();
   const rows = await s`
     select * from password_resets
