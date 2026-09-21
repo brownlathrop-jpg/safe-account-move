@@ -98,10 +98,10 @@ export const workspaceOnlySchema = z.object({ workspaceId: id });
 export const costProductSchema = z.object({ workspaceId: id, productId: id });
 export const adminCreateUserSchema = z.object({
   email: emailSchema,
-  password: passwordSchema,
+  password: newPasswordSchema,
   name: z.string().max(200).optional(),
 });
-export const adminUserPasswordSchema = z.object({ userId: id, password: passwordSchema });
+export const adminUserPasswordSchema = z.object({ userId: id, password: newPasswordSchema });
 export const adminUserFlagSchema = z.object({ userId: id, isAdmin: z.boolean() });
 export const adminUserSchema = z.object({ userId: id });
 export const adminQuerySchema = z.object({ query: z.string().min(1).max(5000) });
