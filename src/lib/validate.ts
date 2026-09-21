@@ -29,16 +29,22 @@ export const getByIdSchema = z.object({ table: z.string().min(1).max(63), id });
 
 export const emailSchema = z.string().trim().min(3).max(200).email("Укажите корректный e-mail");
 export const passwordSchema = z.string().min(6).max(200);
+/** Новый пароль: не короче 8 символов. */
+export const newPasswordSchema = z
+  .string()
+  .min(8, "Пароль должен быть не короче 8 символов")
+  .max(200);
 
 export const signInSchema = z.object({ email: emailSchema, password: passwordSchema });
 export const signUpSchema = z.object({
   email: emailSchema,
-  password: passwordSchema,
+  password: newPasswordSchema,
   name: z.string().max(200).optional(),
 });
 export const resetRequestSchema = z.object({ email: emailSchema });
-export const resetSchema = z.object({ token: z.string().min(10).max(200), password: passwordSchema });
-export const changePasswordSchema = z.object({ password: passwordSchema });
+export const resetSchema = z.object({ token: z.string().min(10).max(200), password: newPasswordSchema });
+export const changePasswordSchema = z.object({ password: newPasswordSchema });
+
 
 export const uploadSchema = z.object({
   bucket: z.string().min(1).max(64),
@@ -92,10 +98,10 @@ export const workspaceOnlySchema = z.object({ workspaceId: id });
 export const costProductSchema = z.object({ workspaceId: id, productId: id });
 export const adminCreateUserSchema = z.object({
   email: emailSchema,
-  password: passwordSchema,
+  password: newPasswordSchema,
   name: z.string().max(200).optional(),
 });
-export const adminUserPasswordSchema = z.object({ userId: id, password: passwordSchema });
+export const adminUserPasswordSchema = z.object({ userId: id, password: newPasswordSchema });
 export const adminUserFlagSchema = z.object({ userId: id, isAdmin: z.boolean() });
 export const adminUserSchema = z.object({ userId: id });
 export const adminQuerySchema = z.object({ query: z.string().min(1).max(5000) });

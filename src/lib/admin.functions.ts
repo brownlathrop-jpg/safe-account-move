@@ -80,7 +80,7 @@ export const adminCreateUser = createServerFn({ method: "POST" })
       const { requireAdmin, hashPassword } = await import("./auth.server");
       await requireAdmin();
       if (!data.email.includes("@")) throw new Error("Укажите корректный email");
-      if (data.password.length < 6) throw new Error("Пароль не короче 6 символов");
+      if (data.password.length < 8) throw new Error("Пароль не короче 8 символов");
       const { sql } = await import("./pg.server");
       const s = sql();
       const exists = await s`select 1 from app_users where lower(email) = lower(${data.email}) limit 1`;
@@ -100,7 +100,7 @@ export const adminSetPassword = createServerFn({ method: "POST" })
     try {
       const { requireAdmin, hashPassword } = await import("./auth.server");
       await requireAdmin();
-      if (data.password.length < 6) throw new Error("Пароль не короче 6 символов");
+      if (data.password.length < 8) throw new Error("Пароль не короче 8 символов");
       const { sql } = await import("./pg.server");
       const s = sql();
       await s`update app_users set password_hash = ${hashPassword(data.password)} where id = ${data.userId}`;

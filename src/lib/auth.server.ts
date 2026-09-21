@@ -38,9 +38,18 @@ async function findByEmail(email: string) {
   return rows.length ? (rows[0] as any) : null;
 }
 
+/** Требования к новому паролю. */
+export function assertStrongPassword(password: string) {
+  if (password.length < 8) throw new Error("Пароль должен быть не короче 8 символов");
+}
+
 export async function signUp(email: string, password: string, name = ""): Promise<AppUser> {
   if (!email.includes("@")) throw new Error("Укажите корректный email");
-  if (password.length < 6) throw new Error("Пароль должен быть не короче 6 символов");
+  assertStrongPassword(password);
+  const ip = clientIp();
+  if (await tooManySignUps(ip)) {
+    throw new Error("Слишком много регистраций с этого адреса. Попробуйте позже.");
+  }
   if (await findByEmail(email)) throw new Error("Пользователь с таким email уже зарегистрирован");
   const s = sql();
   const rows = await s`
@@ -48,10 +57,12 @@ export async function signUp(email: string, password: string, name = ""): Promis
     values (${email}, ${hashPassword(password)}, ${name})
     returning id, email, name`;
   const user = rows[0] as any as AppUser;
+  await recordAttempt(`signup:${email}`, ip, true);
   await acceptInvites(user);
   await startSession(user);
   return user;
 }
+
 
 /** IP посетителя (за прокси заголовок ставит nginx). */
 function clientIp(): string {
@@ -64,8 +75,11 @@ function clientIp(): string {
   }
 }
 
-const MAX_TRIES = 8;         // столько неудачных попыток разрешено
-const WINDOW_MIN = 15;       // за такое время (минут)
+const MAX_EMAIL_TRIES = 5;    // неудачных попыток на один email
+const MAX_IP_TRIES = 15;      // неудачных попыток с одного адреса
+const WINDOW_MIN = 15;        // за такое время (минут)
+const MAX_SIGNUPS_PER_IP = 5; // регистраций с одного адреса
+const SIGNUP_WINDOW_MIN = 60; // за такое время (минут)
 
 /** Записать попытку входа и почистить старые записи. */
 async function recordAttempt(email: string, ip: string, ok: boolean) {
@@ -78,20 +92,41 @@ async function recordAttempt(email: string, ip: string, ok: boolean) {
   }
 }
 
-/** Слишком много неудачных попыток по этому email или с этого адреса? */
+/** Раздельные счётчики: свой лимит на email и свой — на IP. */
 async function tooManyAttempts(email: string, ip: string): Promise<boolean> {
   try {
     const s = sql();
     const rows = await s`
-      select count(*)::int as c from auth_attempts
+      select
+        count(*) filter (where lower(email) = lower(${email}))::int as by_email,
+        count(*) filter (where ${ip} <> '' and ip = ${ip})::int as by_ip
+      from auth_attempts
        where ok = false
-         and created_at > now() - (${WINDOW_MIN} || ' minutes')::interval
-         and (lower(email) = lower(${email}) or (ip <> '' and ip = ${ip}))`;
-    return Number((rows[0] as any)?.c ?? 0) >= MAX_TRIES;
+         and email not like 'signup:%'
+         and created_at > now() - (${WINDOW_MIN} || ' minutes')::interval`;
+    const r = (rows[0] as any) ?? {};
+    return Number(r.by_email ?? 0) >= MAX_EMAIL_TRIES || Number(r.by_ip ?? 0) >= MAX_IP_TRIES;
   } catch {
     return false;
   }
 }
+
+/** Слишком много регистраций с одного адреса. */
+async function tooManySignUps(ip: string): Promise<boolean> {
+  if (!ip) return false;
+  try {
+    const s = sql();
+    const rows = await s`
+      select count(*)::int as c from auth_attempts
+       where ip = ${ip}
+         and email like 'signup:%'
+         and created_at > now() - (${SIGNUP_WINDOW_MIN} || ' minutes')::interval`;
+    return Number((rows[0] as any)?.c ?? 0) >= MAX_SIGNUPS_PER_IP;
+  } catch {
+    return false;
+  }
+}
+
 
 export async function signIn(email: string, password: string): Promise<AppUser> {
   const ip = clientIp();
@@ -172,7 +207,7 @@ export async function setUserPrefs(patch: Record<string, any>): Promise<Record<s
 }
 
 export async function changePassword(newPassword: string) {
-  if (newPassword.length < 6) throw new Error("Пароль должен быть не короче 6 символов");
+  assertStrongPassword(newPassword);
   const user = await requireUser();
   const s = sql();
   await s`update app_users set password_hash = ${hashPassword(newPassword)} where id = ${user.id}`;
@@ -191,7 +226,7 @@ export async function createResetToken(email: string): Promise<string | null> {
 }
 
 export async function resetPasswordWithToken(token: string, newPassword: string) {
-  if (newPassword.length < 6) throw new Error("Пароль должен быть не короче 6 символов");
+  assertStrongPassword(newPassword);
   const s = sql();
   const rows = await s`
     select * from password_resets
