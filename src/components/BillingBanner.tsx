@@ -25,7 +25,7 @@ export function BillingBanner() {
   if (!data) return null;
 
   const resend = async () => {
-    const res: any = await authResendConfirm({ data: {} });
+    const res: any = await authResendConfirm();
     if (res?.error) return toast.error(res.error.message);
     toast.success("Письмо отправлено — проверьте почту");
   };
