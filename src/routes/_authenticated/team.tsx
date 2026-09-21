@@ -27,9 +27,11 @@ import {
 } from "@/lib/team.functions";
 import { useOrganizations } from "@/lib/organizations";
 import { useViewLog } from "@/hooks/use-view-log";
+import { useFeature } from "@/hooks/use-billing";
+import { FeatureLock } from "@/components/FeatureLock";
 
 export const Route = createFileRoute("/_authenticated/team")({
-  component: TeamPage,
+  component: TeamPageGate,
   head: () => ({
     meta: [
       { title: "Сотрудники и роли — КабинетCRM" },
@@ -403,4 +405,19 @@ function TeamPage() {
       </Tabs>
     </div>
   );
+}
+
+/** Командная работа входит в тарифы «Бизнес» и «Опт». */
+function TeamPageGate() {
+  const gate = useFeature("team");
+  if (gate.loading) return <div className="p-4 text-sm text-muted-foreground">Загрузка…</div>;
+  if (!gate.allowed)
+    return (
+      <FeatureLock
+        feature="team"
+        planLabel={gate.planLabel}
+        hint="Сотрудники, роли и история изменений доступны на тарифах «Бизнес» и «Опт»."
+      />
+    );
+  return <TeamPage />;
 }

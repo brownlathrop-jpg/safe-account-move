@@ -28,8 +28,23 @@ import {
   adminSetPlan,
   adminSuspend,
   adminAddPayment,
+  adminSetExtras,
 } from "@/lib/billing.functions";
-import { PLANS, PLAN_IDS, limitsOf, limitText, planLabel, type PlanId } from "@/lib/plans";
+import {
+  ADDONS,
+  ADDON_IDS,
+  EXTRA_MEMBER_PRICE,
+  PLANS,
+  PLAN_IDS,
+  limitsOf,
+  limitText,
+  membersLimit,
+  monthlyPrice,
+  planId,
+  planLabel,
+  type AddonId,
+  type PlanId,
+} from "@/lib/plans";
 
 export const Route = createFileRoute("/_authenticated/admin")({
   component: AdminPage,
@@ -141,7 +156,9 @@ function AdminPage() {
   const [payFor, setPayFor] = useState<string | null>(null);
   const [payMonths, setPayMonths] = useState("12");
   const [payAmount, setPayAmount] = useState("");
-  const [payPlan, setPayPlan] = useState<PlanId>("start");
+  const [payPlan, setPayPlan] = useState<PlanId>("ip");
+  const [payExtra, setPayExtra] = useState("0");
+  const [payAddons, setPayAddons] = useState<AddonId[]>([]);
   const [payComment, setPayComment] = useState("");
 
   const payments = useQuery({
@@ -164,6 +181,16 @@ function AdminPage() {
   const suspend = useMutation({
     mutationFn: (v: { workspaceId: string; suspended: boolean }) => call(adminSuspend, v),
     onSuccess: () => { toast.success("Сохранено"); refreshClients(); },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const setExtras = useMutation({
+    mutationFn: () => call(adminSetExtras, {
+      workspaceId: payFor,
+      extraMembers: Number(payExtra) || 0,
+      addons: payAddons,
+    }),
+    onSuccess: () => { toast.success("Опции сохранены"); refreshClients(); },
     onError: (e: any) => toast.error(e.message),
   });
 
@@ -293,7 +320,8 @@ function AdminPage() {
                     <TableHead>Тариф</TableHead>
                     <TableHead>Оплачено до</TableHead>
                     <TableHead>Товары</TableHead>
-                    <TableHead>Документы</TableHead>
+                    <TableHead>Контрагенты</TableHead>
+                    <TableHead>Документов за месяц</TableHead>
                     <TableHead>Сотрудники</TableHead>
                     <TableHead>Картинки</TableHead>
                     <TableHead>Приостановлена</TableHead>
@@ -315,7 +343,7 @@ function AdminPage() {
                         <TableCell>
                           <select
                             className="rounded border bg-background px-2 py-1 text-sm"
-                            value={String(c.plan ?? "trial")}
+                            value={planId(c.plan)}
                             onChange={(e) => setPlan.mutate({ workspaceId: c.id, plan: e.target.value as PlanId })}
                           >
                             {PLAN_IDS.map((p) => (
@@ -327,8 +355,11 @@ function AdminPage() {
                           {until ? until.toLocaleDateString("ru-RU") : "—"}
                         </TableCell>
                         <TableCell>{limitText(c.products, lim.products)}</TableCell>
-                        <TableCell>{limitText(c.invoices, lim.invoices)}</TableCell>
-                        <TableCell>{limitText(c.members, lim.members)}</TableCell>
+                        <TableCell>{limitText(c.partners, lim.partners)}</TableCell>
+                        <TableCell>{limitText(c.docs_month, lim.docsPerMonth)}</TableCell>
+                        <TableCell>
+                          {limitText(Math.max(Number(c.members ?? 0), 1), membersLimit(c.plan, Number(c.extra_members ?? 0)))}
+                        </TableCell>
                         <TableCell>{limitText(c.storageMb, lim.storageMb)}</TableCell>
                         <TableCell>
                           <Switch
@@ -341,9 +372,16 @@ function AdminPage() {
                             size="sm"
                             variant={payFor === c.id ? "default" : "outline"}
                             onClick={() => {
+                              const p: PlanId = planId(c.plan) === "free" ? "ip" : planId(c.plan);
+                              const extra = Number(c.extra_members ?? 0) || 0;
+                              const addons = ((c.addons ?? []) as string[]).filter((a): a is AddonId =>
+                                (ADDON_IDS as string[]).includes(a),
+                              );
                               setPayFor(c.id);
-                              setPayPlan((String(c.plan ?? "start") === "trial" ? "start" : String(c.plan)) as PlanId);
-                              setPayAmount(String(PLANS[(String(c.plan ?? "start") === "trial" ? "start" : String(c.plan)) as PlanId].priceMonth * 12));
+                              setPayPlan(p);
+                              setPayExtra(String(extra));
+                              setPayAddons(addons);
+                              setPayAmount(String(monthlyPrice(p, extra, addons) * 12));
                             }}
                           >Оплата</Button>
                         </TableCell>
@@ -372,7 +410,7 @@ function AdminPage() {
                       onChange={(e) => {
                         const p = e.target.value as PlanId;
                         setPayPlan(p);
-                        setPayAmount(String(PLANS[p].priceMonth * (Number(payMonths) || 1)));
+                        setPayAmount(String(monthlyPrice(p, Number(payExtra) || 0, payAddons) * (Number(payMonths) || 1)));
                       }}
                     >
                       {PLAN_IDS.map((p) => <option key={p} value={p}>{PLANS[p].label}</option>)}
@@ -384,7 +422,7 @@ function AdminPage() {
                       value={payMonths}
                       onChange={(e) => {
                         setPayMonths(e.target.value);
-                        setPayAmount(String(PLANS[payPlan].priceMonth * (Number(e.target.value) || 1)));
+                        setPayAmount(String(monthlyPrice(payPlan, Number(payExtra) || 0, payAddons) * (Number(e.target.value) || 1)));
                       }}
                     />
                   </div>
@@ -398,6 +436,38 @@ function AdminPage() {
                   </div>
                   <Button onClick={() => addPayment.mutate()} disabled={addPayment.isPending}>
                     Продлить доступ
+                  </Button>
+                </div>
+
+                <div className="grid gap-3 rounded border p-3 md:grid-cols-4 md:items-end">
+                  <div className="space-y-1">
+                    <Label>Доп. пользователей (+{EXTRA_MEMBER_PRICE} ₽/мес)</Label>
+                    <Input
+                      value={payExtra}
+                      onChange={(e) => {
+                        setPayExtra(e.target.value);
+                        setPayAmount(String(monthlyPrice(payPlan, Number(e.target.value) || 0, payAddons) * (Number(payMonths) || 1)));
+                      }}
+                    />
+                  </div>
+                  {ADDON_IDS.map((a) => (
+                    <label key={a} className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={payAddons.includes(a)}
+                        onChange={(e) => {
+                          const next = e.target.checked
+                            ? [...payAddons, a]
+                            : payAddons.filter((x) => x !== a);
+                          setPayAddons(next);
+                          setPayAmount(String(monthlyPrice(payPlan, Number(payExtra) || 0, next) * (Number(payMonths) || 1)));
+                        }}
+                      />
+                      {ADDONS[a].label} (+{ADDONS[a].priceMonth} ₽/мес)
+                    </label>
+                  ))}
+                  <Button variant="outline" onClick={() => setExtras.mutate()} disabled={setExtras.isPending}>
+                    Сохранить опции
                   </Button>
                 </div>
 

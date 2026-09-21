@@ -42,10 +42,15 @@ export const adminBillingList = createServerFn({ method: "POST" }).handler(async
              w.plan,
              w.paid_until,
              w.suspended,
+             coalesce(w.extra_members, 0) as extra_members,
+             coalesce(w.addons, '[]'::jsonb) as addons,
              u.email as owner,
              u.email_confirmed_at,
              (select count(*)::int from products p where p.workspace_id = w.id) as products,
+             (select count(*)::int from partners pt where pt.workspace_id = w.id) as partners,
              (select count(*)::int from invoices i where i.workspace_id = w.id) as invoices,
+             (select count(*)::int from invoices i
+               where i.workspace_id = w.id and i.created_at >= date_trunc('month', now())) as docs_month,
              (select count(*)::int from workspace_members m where m.workspace_id = w.id) as members,
              (select coalesce(sum(octet_length(f.bytes)), 0)::bigint from files f where f.workspace_id = w.id) as bytes,
              (select coalesce(sum(pay.amount), 0)::numeric from workspace_payments pay where pay.workspace_id = w.id) as paid_total
@@ -150,6 +155,28 @@ export const adminAddPayment = createServerFn({ method: "POST" })
                 ${data.comment ?? ""}, ${admin.id})`;
       clearBillingCache(data.workspaceId);
       return { data: { paidUntil }, error: null };
+    } catch (e: any) {
+      return { data: null, error: { message: e?.message ?? String(e) } };
+    }
+  });
+
+/** Дополнительные пользователи и платные опции базы. */
+export const adminSetExtras = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) => V.adminExtrasSchema.parse(input))
+  .handler(async ({ data }) => {
+    const { requireAdmin } = await import("./auth.server");
+    const { sql } = await import("./pg.server");
+    const { clearBillingCache } = await import("./billing.server");
+    try {
+      await requireAdmin();
+      const s = sql();
+      await s`
+        update workspaces
+           set extra_members = ${data.extraMembers},
+               addons = ${JSON.stringify(data.addons)}::jsonb
+         where id = ${data.workspaceId}`;
+      clearBillingCache(data.workspaceId);
+      return { data: { ok: true }, error: null };
     } catch (e: any) {
       return { data: null, error: { message: e?.message ?? String(e) } };
     }

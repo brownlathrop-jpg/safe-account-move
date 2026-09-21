@@ -96,9 +96,11 @@ CREATE INDEX IF NOT EXISTS stock_movements_doc_idx ON stock_movements ((data->>'
 CREATE INDEX IF NOT EXISTS stock_receipt_items_receipt_idx ON stock_receipt_items ((data->>'receipt_id'));
 
 -- Тарифы, оплата доступа и подтверждение почты (см. sql/migrations/202609210040_billing_and_email.sql)
-alter table workspaces add column if not exists plan text not null default 'trial';
+alter table workspaces add column if not exists plan text not null default 'free';
 alter table workspaces add column if not exists paid_until timestamptz;
 alter table workspaces add column if not exists suspended boolean not null default false;
+alter table workspaces add column if not exists extra_members int not null default 0;
+alter table workspaces add column if not exists addons jsonb not null default '[]'::jsonb;
 alter table app_users add column if not exists email_confirmed_at timestamptz;
 
 create table if not exists workspace_payments (
