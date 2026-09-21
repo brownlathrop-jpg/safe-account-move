@@ -1184,8 +1184,8 @@ function InvoiceView() {
             {(() => {
               const goods = items.filter(it => (it.kind ?? "product") === "product");
               const services = items.filter(it => it.kind === "service");
-              const goodsTotal = goods.reduce((s, i) => s + lineNet(i), 0);
-              const servicesTotal = services.reduce((s, i) => s + lineNet(i), 0);
+              const goodsTotal = goods.reduce((s, i) => s + lineVat(i).gross, 0);
+              const servicesTotal = services.reduce((s, i) => s + lineVat(i).gross, 0);
               const cols = totalDiscount > 0 ? 8 : 6;
               const hasBoth = goods.length > 0 && services.length > 0;
               let n = 0;
