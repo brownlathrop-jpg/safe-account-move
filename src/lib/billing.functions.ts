@@ -159,3 +159,25 @@ export const adminAddPayment = createServerFn({ method: "POST" })
       return { data: null, error: { message: e?.message ?? String(e) } };
     }
   });
+
+/** Дополнительные пользователи и платные опции базы. */
+export const adminSetExtras = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) => V.adminExtrasSchema.parse(input))
+  .handler(async ({ data }) => {
+    const { requireAdmin } = await import("./auth.server");
+    const { sql } = await import("./pg.server");
+    const { clearBillingCache } = await import("./billing.server");
+    try {
+      await requireAdmin();
+      const s = sql();
+      await s`
+        update workspaces
+           set extra_members = ${data.extraMembers},
+               addons = ${JSON.stringify(data.addons)}::jsonb
+         where id = ${data.workspaceId}`;
+      clearBillingCache(data.workspaceId);
+      return { data: { ok: true }, error: null };
+    } catch (e: any) {
+      return { data: null, error: { message: e?.message ?? String(e) } };
+    }
+  });
