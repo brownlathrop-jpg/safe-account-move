@@ -55,6 +55,8 @@ export const teamInvite = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     try {
       const { user, team } = await requireOwner(data.workspaceId);
+      const { assertFeature } = await import("./billing.server");
+      await assertFeature(data.workspaceId, "team");
       const res = await team.createInvite({
         workspaceId: data.workspaceId,
         email: data.email,
