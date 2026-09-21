@@ -79,8 +79,7 @@ export const adminCreateUser = createServerFn({ method: "POST" })
     try {
       const { requireAdmin, hashPassword } = await import("./auth.server");
       await requireAdmin();
-      if (!data.email.includes("@")) throw new Error("Укажите корректный email");
-      if (data.password.length < 8) throw new Error("Пароль не короче 8 символов");
+      // длина пароля проверена схемой adminCreateUserSchema
       const { sql } = await import("./pg.server");
       const s = sql();
       const exists = await s`select 1 from app_users where lower(email) = lower(${data.email}) limit 1`;
@@ -98,13 +97,14 @@ export const adminSetPassword = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => V.adminUserPasswordSchema.parse(input))
   .handler(async ({ data }) => {
     try {
-      const { requireAdmin, hashPassword } = await import("./auth.server");
+      const { requireAdmin, hashPassword, revokeSessions } = await import("./auth.server");
       await requireAdmin();
-      if (data.password.length < 8) throw new Error("Пароль не короче 8 символов");
+      // длина пароля проверена схемой adminUserPasswordSchema
       const { sql } = await import("./pg.server");
       const s = sql();
       await s`update app_users set password_hash = ${hashPassword(data.password)} where id = ${data.userId}`;
-      await s`delete from app_sessions where user_id = ${data.userId}`;
+      // все прежние входы этого пользователя перестают действовать
+      await revokeSessions(data.userId);
       return { data: { ok: true }, error: null };
     } catch (e) {
       return fail(e);
@@ -127,19 +127,57 @@ export const adminSetAdmin = createServerFn({ method: "POST" })
     }
   });
 
+/** Передать базу другому пользователю (иначе владельца базы невозможно удалить). */
+export const adminTransferWorkspace = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) => V.adminTransferSchema.parse(input))
+  .handler(async ({ data }) => {
+    try {
+      const { requireAdmin } = await import("./auth.server");
+      await requireAdmin();
+      const { sql } = await import("./pg.server");
+      const s = sql();
+      const target = await s`select id, email from app_users where id = ${data.userId} limit 1`;
+      if (!target.length) throw new Error("Пользователь не найден");
+      const ws = await s`select id, user_id from workspaces where id = ${data.workspaceId} limit 1`;
+      if (!ws.length) throw new Error("База не найдена");
+      const oldOwner = (ws[0] as any).user_id as string | null;
+      await s`update workspaces set user_id = ${data.userId}, updated_at = now() where id = ${data.workspaceId}`;
+      // прежний владелец остаётся участником с правами менеджера, если он ещё есть
+      if (oldOwner && oldOwner !== data.userId) {
+        await s`
+          insert into workspace_members (id, workspace_id, user_id, data)
+          values (${crypto.randomUUID()}, ${data.workspaceId}, ${oldOwner},
+                  ${s.json({ role: "manager" } as any)})
+          on conflict (workspace_id, user_id) do nothing`;
+      }
+      // новый владелец не должен числиться ещё и участником
+      await s`
+        delete from workspace_members
+         where workspace_id = ${data.workspaceId} and user_id = ${data.userId}`;
+      return { data: { ok: true }, error: null };
+    } catch (e) {
+      return fail(e);
+    }
+  });
+
 export const adminDeleteUser = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => V.adminUserSchema.parse(input))
   .handler(async ({ data }) => {
     try {
-      const { requireAdmin } = await import("./auth.server");
+      const { requireAdmin, revokeSessions } = await import("./auth.server");
       const me = await requireAdmin();
       if (me.id === data.userId) throw new Error("Нельзя удалить себя");
       const { sql } = await import("./pg.server");
       const s = sql();
       const ws = await s`select count(*) from workspaces where user_id = ${data.userId}`;
       if (Number((ws[0] as any)?.count ?? 0) > 0) {
-        throw new Error("У пользователя есть базы с данными — сначала передайте или удалите их");
+        throw new Error("У пользователя есть свои базы — сначала передайте их другому пользователю");
       }
+      // отзываем входы и чистим все следы участия
+      await revokeSessions(data.userId);
+      await s`delete from workspace_members where user_id = ${data.userId}`;
+      await s`delete from workspace_invites where invited_by = ${data.userId}`;
+      await s`delete from document_log where user_id = ${data.userId}`;
       await s`delete from app_sessions where user_id = ${data.userId}`;
       await s`delete from password_resets where user_id = ${data.userId}`;
       await s`delete from app_users where id = ${data.userId}`;
@@ -149,7 +187,17 @@ export const adminDeleteUser = createServerFn({ method: "POST" })
     }
   });
 
-/** Только чтение: один SELECT, максимум 200 строк. */
+/** Разрешённые для чтения таблицы админского запроса. */
+const READABLE_TABLES = new Set([
+  "app_users", "auth_attempts", "workspaces", "workspace_members", "workspace_invites",
+  "document_log", "products", "product_folders", "product_types", "partners",
+  "invoices", "invoice_items", "invoice_payments", "invoice_statuses", "warehouses",
+  "stock_movements", "stock_receipts", "stock_receipt_items", "cashflow_items",
+  "organizations", "bank_accounts", "banks", "price_types", "units", "discounts",
+  "files", "schema_migrations", "password_resets",
+]);
+
+/** Только чтение: один SELECT по разрешённым таблицам, максимум 200 строк. */
 export const adminSelect = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => V.adminQuerySchema.parse(input))
   .handler(async ({ data }) => {
@@ -162,9 +210,21 @@ export const adminSelect = createServerFn({ method: "POST" })
       if (/\b(insert|update|delete|drop|alter|create|truncate|grant|copy)\b/i.test(q)) {
         throw new Error("Разрешено только чтение данных");
       }
+      // белый список: любые обращения к функциям и служебным объектам отсекаются
+      const names = Array.from(q.matchAll(/\b(?:from|join)\s+([a-zA-Z_][a-zA-Z0-9_.]*)/gi)).map(
+        (m) => String(m[1]).toLowerCase().replace(/^public\./, ""),
+      );
+      const bad = names.filter((n) => !READABLE_TABLES.has(n));
+      if (bad.length) throw new Error(`Недоступные таблицы: ${bad.join(", ")}`);
+      if (/\(\s*\)|pg_read_file|pg_ls_dir|lo_import|dblink|set_config|pg_sleep/i.test(q)) {
+        throw new Error("В запросе нельзя вызывать функции");
+      }
       const { sql } = await import("./pg.server");
       const s = sql();
-      const rows = await s.unsafe(`select * from (${q}) as sub limit 200`);
+      const rows = await s.begin(async (tx) => {
+        await tx.unsafe("set transaction read only");
+        return tx.unsafe(`select * from (${q}) as sub limit 200`);
+      });
       return { data: rows as any[], error: null };
     } catch (e) {
       return fail(e);

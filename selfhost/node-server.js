@@ -4,8 +4,11 @@
  */
 import { createServer } from 'node:http';
 import { readFileSync, existsSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+
+/** Максимальный размер тела запроса: 5 МБ картинки в base64 ≈ 6,7 МБ + запас. */
+const MAX_BODY = 12 * 1024 * 1024;
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
