@@ -40,7 +40,7 @@ async function findByEmail(email: string) {
 
 /** Требования к новому паролю. */
 export function assertStrongPassword(password: string) {
-  if (password.length < 12) throw new Error("Пароль должен быть не короче 12 символов");
+  if (password.length < 8) throw new Error("Пароль должен быть не короче 8 символов");
 }
 
 export async function signUp(email: string, password: string, name = ""): Promise<AppUser> {

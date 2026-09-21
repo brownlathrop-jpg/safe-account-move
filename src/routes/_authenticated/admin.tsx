@@ -165,7 +165,7 @@ function AdminPage() {
               </div>
               <div className="space-y-1">
                 <Label>Пароль</Label>
-                <Input value={password} onChange={(e) => setPassword(e.target.value)} placeholder="не короче 12 символов" />
+                <Input value={password} onChange={(e) => setPassword(e.target.value)} placeholder="не короче 8 символов" />
               </div>
               <Button onClick={() => createUser.mutate()} disabled={createUser.isPending}>Создать</Button>
             </CardContent>

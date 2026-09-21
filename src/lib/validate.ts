@@ -29,10 +29,10 @@ export const getByIdSchema = z.object({ table: z.string().min(1).max(63), id });
 
 export const emailSchema = z.string().trim().min(3).max(200).email("Укажите корректный e-mail");
 export const passwordSchema = z.string().min(6).max(200);
-/** Новый пароль: не короче 12 символов. */
+/** Новый пароль: не короче 8 символов. */
 export const newPasswordSchema = z
   .string()
-  .min(12, "Пароль должен быть не короче 12 символов")
+  .min(8, "Пароль должен быть не короче 8 символов")
   .max(200);
 
 export const signInSchema = z.object({ email: emailSchema, password: passwordSchema });
