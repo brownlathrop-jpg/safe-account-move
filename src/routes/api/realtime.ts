@@ -12,10 +12,11 @@ export const Route = createFileRoute("/api/realtime")({
         const { subscribeChanges } = await import("@/lib/realtime.server");
         const { accessibleWorkspaces } = await import("@/lib/team.server");
         // список своих баз: события чужих клиентов наружу не уходят
-        const scope = new Set(await accessibleWorkspaces(user.id));
+        let scope = new Set(await accessibleWorkspaces(user.id));
         const encoder = new TextEncoder();
         let unsubscribe: (() => void) | null = null;
         let ping: ReturnType<typeof setInterval> | null = null;
+        let refresh: ReturnType<typeof setInterval> | null = null;
 
         const stream = new ReadableStream({
           async start(controller) {
@@ -32,10 +33,20 @@ export const Route = createFileRoute("/api/realtime")({
               send(`data: ${JSON.stringify(event)}\n\n`);
             });
             ping = setInterval(() => send(": ping\n\n"), 25000);
+            // соединение живёт часами: раз в минуту перечитываем список баз,
+            // чтобы исключённый сотрудник перестал получать события
+            refresh = setInterval(async () => {
+              try {
+                scope = new Set(await accessibleWorkspaces(user.id));
+              } catch {
+                /* сбой запроса не должен рвать поток */
+              }
+            }, 60000);
           },
           cancel() {
             unsubscribe?.();
             if (ping) clearInterval(ping);
+            if (refresh) clearInterval(refresh);
           },
         });
 
