@@ -28,6 +28,8 @@ const fmt = new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB" 
 export type KktDocItem = {
   name: string; quantity: number; price: number; unit?: string;
   kind?: "product" | "service";
+  /** Ставка НДС позиции для чека (если не задана — берётся настройка кассы). */
+  vat?: KktVat;
 };
 
 export function KktReceiptButton({
@@ -65,6 +67,7 @@ export function KktReceiptButton({
   const allPositions: KktPosition[] = items.map((i) => ({
     name: i.name, quantity: Number(i.quantity) || 0, price: Number(i.price) || 0, unit: i.unit,
     kind: i.kind ?? "product",
+    ...(i.vat ? { vat: i.vat } : {}),
   }));
   const hasServices = allPositions.some((p) => p.kind === "service" && p.quantity > 0);
   let positions = allPositions;
