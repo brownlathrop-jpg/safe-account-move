@@ -3,7 +3,13 @@ import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { getRequestHeader, useSession } from "@tanstack/react-start/server";
 import { sql } from "./pg.server";
 
-export type AppUser = { id: string; email: string; name: string; is_admin?: boolean };
+export type AppUser = {
+  id: string;
+  email: string;
+  name: string;
+  is_admin?: boolean;
+  email_confirmed?: boolean;
+};
 
 type SessionData = { userId?: string; email?: string; v?: number };
 
@@ -215,13 +221,19 @@ export async function currentUser(): Promise<AppUser | null> {
   if (!userId) return null;
   const s = sql();
   const rows = await s`
-    select id, email, name, is_admin, session_version
+    select id, email, name, is_admin, session_version, email_confirmed_at
     from app_users where id = ${userId} limit 1`;
   if (!rows.length) return null;
   const row = rows[0] as any;
   // cookie с устаревшим номером версии недействительна
   if (Number(session.data.v ?? 0) !== Number(row.session_version ?? 1)) return null;
-  return { id: row.id, email: row.email, name: row.name ?? "", is_admin: !!row.is_admin };
+  return {
+    id: row.id,
+    email: row.email,
+    name: row.name ?? "",
+    is_admin: !!row.is_admin,
+    email_confirmed: !!row.email_confirmed_at,
+  };
 }
 
 export async function requireUser(): Promise<AppUser> {
