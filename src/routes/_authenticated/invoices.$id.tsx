@@ -1207,7 +1207,7 @@ function InvoiceView() {
                     {totalDiscount > 0 && (
                       <td className="border border-black px-2 py-1 text-right">{nfmt.format(lineGross(it))}</td>
                     )}
-                    <td className="border border-black px-2 py-1 text-right">{nfmt.format(lineNet(it))}</td>
+                    <td className="border border-black px-2 py-1 text-right">{nfmt.format(lineVat(it).gross)}</td>
                   </tr>
                 );
               };
