@@ -181,6 +181,9 @@ export const storageUpload = createServerFn({ method: "POST" })
       if (!ALLOWED_TYPES.has(data.contentType)) throw new Error("Можно загружать только картинки");
       const bytes = Buffer.from(data.base64, "base64");
       if (bytes.length > MAX_FILE_BYTES) throw new Error("Файл больше 5 МБ");
+      const { assertWriteAllowed, assertStorageLimit } = await import("./billing.server");
+      await assertWriteAllowed(data.workspaceId);
+      await assertStorageLimit(data.workspaceId, bytes.length);
       const s = sql();
       const upd = await s`
         update files
