@@ -985,11 +985,26 @@ function InvoiceView() {
                         </div>
                       )}
                     </TableCell>
+                    {vatMode !== "none" && (
+                      <TableCell className="text-right">
+                        <Select value={vatRateId(it.vat_rate ?? null)}
+                          onValueChange={(v) => updateItem(idx, { vat_rate: toVatRate(v) })}
+                          disabled={!editable}>
+                          <SelectTrigger className="h-7 w-24 text-xs px-2 ml-auto"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {VAT_RATES.map(r => <SelectItem key={r.id} value={r.id}>{r.label}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                        {lineVat(it).vat > 0 && (
+                          <div className="text-[11px] text-muted-foreground mt-0.5">{fmt.format(lineVat(it).vat)}</div>
+                        )}
+                      </TableCell>
+                    )}
                     <TableCell className="text-right font-medium">
                       {lineDiscount(it) > 0 && (
                         <div className="text-[11px] text-muted-foreground line-through">{fmt.format(lineGross(it))}</div>
                       )}
-                      {fmt.format(lineNet(it))}
+                      {fmt.format(lineVat(it).gross)}
                     </TableCell>
                     <TableCell>
                       {editable && <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => removeItem(idx)}><Trash2 className="h-3.5 w-3.5" /></Button>}
