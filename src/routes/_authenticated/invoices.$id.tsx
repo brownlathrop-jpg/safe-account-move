@@ -338,16 +338,21 @@ function InvoiceView() {
         cash_basis: isPKO ? (cashBasis || null) : null,
         payment_method: paymentMethod,
         organization_id: orgId || null,
+        vat_mode: vatMode,
+        vat_total: vatTotals.vat,
+        total_net: vatTotals.net,
       };
 
       const rows = items.map(it => ({
         id: it.id ?? null,
         product_id: it.product_id, name: it.name,
-        quantity: it.quantity, price: it.price, sum: lineNet(it),
+        quantity: it.quantity, price: it.price, sum: lineVat(it).gross,
         kind: it.kind ?? "product",
         discount_kind: it.discount_kind ?? "percent",
         discount_value: Number(it.discount_value) || 0,
         discount_name: it.discount_name ?? null,
+        vat_rate: it.vat_rate ?? null,
+        vat_sum: lineVat(it).vat,
       }));
 
       // Шапка и позиции сохраняются одной транзакцией: при ошибке документ
