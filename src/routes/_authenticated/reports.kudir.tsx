@@ -163,9 +163,19 @@ function KudirPage() {
           .select("id,invoice_id,partner_id,amount,date,direction,method,note")
           .eq("workspace_id", wsId),
         (db as any).from("invoices")
-          .select("id,number,kind,doc_type,total,cash_received,issue_date,note,fiscal,status,is_return,organization_id,partner:partners(name)")
+          .select("id,number,kind,doc_type,total,cash_received,issue_date,note,fiscal,status,is_return,organization_id,vat_mode,vat_total,partner:partners(name)")
           .eq("workspace_id", wsId),
       ]);
+
+      // При НДС (ОСН, УСН с НДС) в книгу попадает сумма без налога:
+      // НДС — не доход и не расход налогоплательщика.
+      const exVat = (amount: number, inv: any) => {
+        const vat = Number(inv?.vat_total ?? 0);
+        const tot = Number(inv?.total ?? 0);
+        if (!inv || inv.vat_mode === "none" || !vat || !tot) return amount;
+        return Math.round(amount * (1 - vat / tot) * 100) / 100;
+      };
+      const vatNote = (inv: any) => (Number(inv?.vat_total ?? 0) && inv?.vat_mode !== "none" ? " (без НДС)" : "");
 
       const byId = new Map<string, any>();
       for (const i of (invs ?? []) as any[]) byId.set(String(i.id), i);
@@ -187,11 +197,11 @@ function KudirPage() {
           id: `p-${p.id}`,
           date: String(p.date ?? inv?.issue_date ?? "").slice(0, 10),
           doc: docLabel,
-          content: isIncome
+          content: (isIncome
             ? `Поступление оплаты от покупателя${inv?.partner?.name ? ` ${inv.partner.name}` : ""}`
-            : `Оплата поставщику${inv?.partner?.name ? ` ${inv.partner.name}` : ""}`,
-          income: isIncome ? amount : 0,
-          expense: isIncome ? 0 : amount,
+            : `Оплата поставщику${inv?.partner?.name ? ` ${inv.partner.name}` : ""}`) + vatNote(inv),
+          income: isIncome ? exVat(amount, inv) : 0,
+          expense: isIncome ? 0 : exVat(amount, inv),
           hasReceipt: receipt,
           receiptNumber: f?.receiptNumber ?? f?.fiscalDocNumber ?? null,
           orgId: inv?.organization_id ?? null,
@@ -231,11 +241,11 @@ function KudirPage() {
           id: `s-${i.id}`,
           date: String(i.issue_date ?? "").slice(0, 10),
           doc: `${ruDate(String(i.issue_date ?? ""))} № ${i.number ?? ""}`,
-          content: i.is_return
+          content: (i.is_return
             ? "Возврат покупателю по чеку"
-            : `Выручка по чеку${i.partner?.name ? ` · ${i.partner.name}` : ""}`,
-          income: i.is_return ? 0 : amount,
-          expense: i.is_return ? amount : 0,
+            : `Выручка по чеку${i.partner?.name ? ` · ${i.partner.name}` : ""}`) + vatNote(i),
+          income: i.is_return ? 0 : exVat(amount, i),
+          expense: i.is_return ? exVat(amount, i) : 0,
           hasReceipt: true,
           receiptNumber: f.receiptNumber ?? f.fiscalDocNumber ?? null,
           orgId: i.organization_id ?? null,
