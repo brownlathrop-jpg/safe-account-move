@@ -1245,10 +1245,10 @@ function InvoiceView() {
                         <td className="border border-black px-2 py-1 text-right">−{nfmt.format(totalDiscount)}</td></tr>
                     </>
                   )}
-                  <tr><td colSpan={cols - 1} className="px-2 py-1 text-right font-bold">Итого:</td>
-                    <td className="border border-black px-2 py-1 text-right font-bold">{nfmt.format(total)}</td></tr>
-                  <tr><td colSpan={cols - 1} className="px-2 py-1 text-right font-bold">Без налога (НДС):</td>
-                    <td className="border border-black px-2 py-1 text-right">---</td></tr>
+                  <tr><td colSpan={cols - 1} className="px-2 py-1 text-right font-bold">Итого{vatMode !== "none" ? " без НДС" : ""}:</td>
+                    <td className="border border-black px-2 py-1 text-right font-bold">{nfmt.format(vatMode === "none" ? total : vatTotals.net)}</td></tr>
+                  <tr><td colSpan={cols - 1} className="px-2 py-1 text-right font-bold">{vatMode === "none" ? "Без налога (НДС):" : "НДС:"}</td>
+                    <td className="border border-black px-2 py-1 text-right">{vatMode === "none" ? "---" : nfmt.format(vatTotals.vat)}</td></tr>
                   <tr><td colSpan={cols - 1} className="px-2 py-1 text-right font-bold">Всего к оплате:</td>
                     <td className="border border-black px-2 py-1 text-right font-bold">{nfmt.format(total)}</td></tr>
                 </>
