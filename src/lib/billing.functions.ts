@@ -47,7 +47,7 @@ export const adminBillingList = createServerFn({ method: "POST" }).handler(async
              (select count(*)::int from products p where p.workspace_id = w.id) as products,
              (select count(*)::int from invoices i where i.workspace_id = w.id) as invoices,
              (select count(*)::int from workspace_members m where m.workspace_id = w.id) as members,
-             (select coalesce(sum(f.bytes), 0)::bigint from files f where f.workspace_id = w.id) as bytes,
+             (select coalesce(sum(octet_length(f.bytes)), 0)::bigint from files f where f.workspace_id = w.id) as bytes,
              (select coalesce(sum(pay.amount), 0)::numeric from workspace_payments pay where pay.workspace_id = w.id) as paid_total
         from workspaces w
         left join app_users u on u.id = w.user_id

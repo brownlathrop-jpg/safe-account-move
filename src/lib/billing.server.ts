@@ -105,7 +105,7 @@ export async function workspaceUsage(workspaceId: string): Promise<Usage> {
     one(s`select count(*)::int as n from products where workspace_id = ${workspaceId}` as any),
     one(s`select count(*)::int as n from invoices where workspace_id = ${workspaceId}` as any),
     one(s`select count(*)::int as n from workspace_members where workspace_id = ${workspaceId}` as any),
-    one(s`select coalesce(sum(bytes), 0)::bigint as n from files where workspace_id = ${workspaceId}` as any),
+    one(s`select coalesce(sum(octet_length(bytes)), 0)::bigint as n from files where workspace_id = ${workspaceId}` as any),
   ]);
   return { products, invoices, members, storageMb: Math.round(bytes / 1024 / 1024) };
 }
@@ -154,7 +154,7 @@ export async function assertStorageLimit(workspaceId: string, addBytes: number) 
   if (!access || limit === null) return;
   const s = sql();
   const rows = await s`
-    select coalesce(sum(bytes), 0)::bigint as n from files where workspace_id = ${workspaceId}`;
+    select coalesce(sum(octet_length(bytes)), 0)::bigint as n from files where workspace_id = ${workspaceId}`;
   const usedMb = (Number((rows[0] as any)?.n ?? 0) + addBytes) / 1024 / 1024;
   if (usedMb > limit) {
     throw new Error(`Тариф «${access.planLabel}» допускает не более ${limit} МБ картинок. Смените тариф.`);
