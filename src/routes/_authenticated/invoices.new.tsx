@@ -20,6 +20,10 @@ import { invoiceDraft, type DraftItem } from "@/lib/invoice-draft";
 import { useActiveWorkspaceId } from "@/lib/workspace";
 import { usePriceTypes, useMyPriceTypeId, priceOf } from "@/lib/price-types";
 import { grossSum } from "@/lib/discounts";
+import {
+  VAT_MODES, VAT_RATES, sumVat, splitVat, vatRateId, toVatRate, defaultVatMode, defaultVatRate,
+  type VatMode, type VatRate,
+} from "@/lib/vat";
 import { useOrganizations, useMyOrgId, pickOrg } from "@/lib/organizations";
 
 export const Route = createFileRoute("/_authenticated/invoices/new")({
@@ -123,7 +127,24 @@ function NewInvoice() {
     kind === "outgoing" ? p.kind === "customer" : p.kind === "supplier"
   );
 
-  const total = useMemo(() => items.reduce((s, i) => s + grossSum(i.quantity, i.price), 0), [items]);
+  // НДС документа: режим и единая ставка берутся из настроек организации.
+  const [vatMode, setVatMode] = useState<VatMode>("none");
+  const [vatRate, setVatRate] = useState<VatRate>(null);
+  const [vatTouched, setVatTouched] = useState(false);
+  useEffect(() => {
+    if (vatTouched || !org) return;
+    const mode = ((org as any).vat_mode as VatMode | undefined) ?? defaultVatMode((org as any).taxation_system);
+    setVatMode(mode);
+    setVatRate(mode === "none" ? null : (defaultVatRate(org as any) ?? 20));
+  }, [org, vatTouched]);
+
+  const lineVat = (it: { quantity: number; price: number }) =>
+    splitVat(grossSum(it.quantity, it.price), vatMode === "none" ? null : vatRate, vatMode);
+  const vatTotals = useMemo(
+    () => sumVat(items.map(i => ({ sum: grossSum(i.quantity, i.price), vat_rate: vatMode === "none" ? null : vatRate })), vatMode),
+    [items, vatMode, vatRate],
+  );
+  const total = vatTotals.gross;
 
   const setItems = (next: DraftItem[]) => invoiceDraft.set({ items: next });
   const addItemAndPick = () => {
@@ -168,14 +189,19 @@ function NewInvoice() {
         doc_type: "order",
         note: note || null,
         organization_id: effOrgId,
+        vat_mode: vatMode,
+        vat_total: vatTotals.vat,
+        total_net: vatTotals.net,
       };
       const rows = items.map((it) => ({
         product_id: it.product_id,
         name: it.name,
         quantity: it.quantity,
         price: it.price,
-        sum: grossSum(it.quantity, it.price),
+        sum: lineVat(it).gross,
         kind: it.kind ?? "product",
+        vat_rate: vatMode === "none" ? null : vatRate,
+        vat_sum: lineVat(it).vat,
       }));
 
       // Документ и его позиции создаются одной транзакцией.
@@ -313,6 +339,7 @@ function NewInvoice() {
               <TableHead className="w-[40%]">Товар</TableHead>
               <TableHead className="w-24 text-right">Кол-во</TableHead>
               <TableHead className="w-28 text-right">Цена</TableHead>
+              {vatMode !== "none" && <TableHead className="w-24 text-right">НДС</TableHead>}
               <TableHead className="w-32 text-right">Сумма</TableHead>
               <TableHead className="w-8"></TableHead>
             </TableRow>
@@ -320,7 +347,7 @@ function NewInvoice() {
           <TableBody>
             {items.length === 0 && (
               <TableRow>
-                <TableCell colSpan={5} className="p-0">
+                <TableCell colSpan={vatMode !== "none" ? 6 : 5} className="p-0">
                   <button
                     type="button"
                     onClick={addItemAndPick}
@@ -340,14 +367,40 @@ function NewInvoice() {
                 </TableCell>
                 <TableCell><NumCell grid="invnew" row={idx} col={0} step="0.001" className="xls-cell" value={it.quantity} onCommit={(v) => updateItem(idx, { quantity: v })} /></TableCell>
                 <TableCell><NumCell grid="invnew" row={idx} col={1} step="0.01" className="xls-cell" value={it.price} onCommit={(v) => updateItem(idx, { price: v })} /></TableCell>
-                <TableCell className="text-right font-medium">{fmt.format(it.quantity * it.price)}</TableCell>
+                {vatMode !== "none" && (
+                  <TableCell className="text-right text-xs text-muted-foreground">{fmt.format(lineVat(it).vat)}</TableCell>
+                )}
+                <TableCell className="text-right font-medium">{fmt.format(lineVat(it).gross)}</TableCell>
                 <TableCell><Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => removeItem(idx)}><Trash2 className="h-3.5 w-3.5" /></Button></TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
-        <div className="px-3 py-2 border-t flex justify-end items-center gap-3">
-          <span className="text-xs text-muted-foreground">Итого:</span>
+        <div className="px-3 py-2 border-t flex flex-wrap justify-end items-center gap-3">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">НДС:</span>
+            <Select value={vatMode} onValueChange={(v) => { setVatTouched(true); const m = v as VatMode; setVatMode(m); if (m !== "none" && vatRate === null) setVatRate(defaultVatRate(org as any) ?? 20); }}>
+              <SelectTrigger className="h-7 w-36 text-xs px-2"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {VAT_MODES.map(m => <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            {vatMode !== "none" && (
+              <Select value={vatRateId(vatRate)} onValueChange={(v) => { setVatTouched(true); setVatRate(toVatRate(v)); }}>
+                <SelectTrigger className="h-7 w-24 text-xs px-2"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {VAT_RATES.map(r => <SelectItem key={r.id} value={r.id}>{r.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+          {vatMode !== "none" && (
+            <>
+              <span className="text-xs text-muted-foreground">Без НДС: {fmt.format(vatTotals.net)}</span>
+              <span className="text-xs text-muted-foreground">НДС: {fmt.format(vatTotals.vat)}</span>
+            </>
+          )}
+          <span className="text-xs text-muted-foreground">{vatMode === "none" ? "Итого:" : "Всего с НДС:"}</span>
           <span className="text-base font-semibold">{fmt.format(total)}</span>
         </div>
       </Card>
