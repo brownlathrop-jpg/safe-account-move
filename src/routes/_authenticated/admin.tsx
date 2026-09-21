@@ -22,6 +22,14 @@ import {
   adminSelect,
 } from "@/lib/admin.functions";
 import { useViewLog } from "@/hooks/use-view-log";
+import {
+  adminBillingList,
+  adminPayments,
+  adminSetPlan,
+  adminSuspend,
+  adminAddPayment,
+} from "@/lib/billing.functions";
+import { PLANS, PLAN_IDS, limitsOf, limitText, planLabel, type PlanId } from "@/lib/plans";
 
 export const Route = createFileRoute("/_authenticated/admin")({
   component: AdminPage,
@@ -124,6 +132,57 @@ function AdminPage() {
     onError: (e: any) => toast.error(e.message),
   });
 
+  const clients = useQuery({
+    queryKey: ["admin-billing"],
+    queryFn: () => call(adminBillingList),
+    enabled: allowed === true,
+  });
+
+  const [payFor, setPayFor] = useState<string | null>(null);
+  const [payMonths, setPayMonths] = useState("12");
+  const [payAmount, setPayAmount] = useState("");
+  const [payPlan, setPayPlan] = useState<PlanId>("start");
+  const [payComment, setPayComment] = useState("");
+
+  const payments = useQuery({
+    queryKey: ["admin-payments", payFor],
+    queryFn: () => call(adminPayments, { workspaceId: payFor }),
+    enabled: allowed === true && !!payFor,
+  });
+
+  const refreshClients = () => {
+    qc.invalidateQueries({ queryKey: ["admin-billing"] });
+    qc.invalidateQueries({ queryKey: ["admin-payments"] });
+  };
+
+  const setPlan = useMutation({
+    mutationFn: (v: { workspaceId: string; plan: PlanId }) => call(adminSetPlan, v),
+    onSuccess: () => { toast.success("Тариф сохранён"); refreshClients(); },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const suspend = useMutation({
+    mutationFn: (v: { workspaceId: string; suspended: boolean }) => call(adminSuspend, v),
+    onSuccess: () => { toast.success("Сохранено"); refreshClients(); },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const addPayment = useMutation({
+    mutationFn: () => call(adminAddPayment, {
+      workspaceId: payFor,
+      months: Number(payMonths) || 1,
+      amount: Number(String(payAmount).replace(",", ".")) || 0,
+      plan: payPlan,
+      comment: payComment,
+    }),
+    onSuccess: () => {
+      toast.success("Оплата зарегистрирована, доступ продлён");
+      setPayAmount(""); setPayComment("");
+      refreshClients();
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
   const runQuery = useMutation({
     mutationFn: () => call(adminSelect, { query }),
     onSuccess: (data: any) => setRows(data ?? []),
@@ -147,6 +206,7 @@ function AdminPage() {
       <Tabs defaultValue="users">
         <TabsList>
           <TabsTrigger value="users">Пользователи</TabsTrigger>
+          <TabsTrigger value="clients">Клиенты и оплата</TabsTrigger>
           <TabsTrigger value="base">Состояние базы</TabsTrigger>
           <TabsTrigger value="sql">Запросы</TabsTrigger>
         </TabsList>
@@ -219,6 +279,162 @@ function AdminPage() {
               </Table>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="clients" className="space-y-4">
+          <Card>
+            <CardHeader><CardTitle className="text-base">Клиенты (базы), тарифы и срок доступа</CardTitle></CardHeader>
+            <CardContent className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>База</TableHead>
+                    <TableHead>Владелец</TableHead>
+                    <TableHead>Тариф</TableHead>
+                    <TableHead>Оплачено до</TableHead>
+                    <TableHead>Товары</TableHead>
+                    <TableHead>Документы</TableHead>
+                    <TableHead>Сотрудники</TableHead>
+                    <TableHead>Картинки</TableHead>
+                    <TableHead>Приостановлена</TableHead>
+                    <TableHead className="text-right">Оплата</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {(clients.data ?? []).map((c: any) => {
+                    const lim = limitsOf(c.plan);
+                    const until = c.paid_until ? new Date(c.paid_until) : null;
+                    const expired = !!until && until.getTime() < Date.now();
+                    return (
+                      <TableRow key={c.id}>
+                        <TableCell className="font-medium">{c.name}</TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {c.owner ?? "—"}
+                          {!c.email_confirmed_at && <span className="ml-1 text-xs text-amber-600">почта не подтверждена</span>}
+                        </TableCell>
+                        <TableCell>
+                          <select
+                            className="rounded border bg-background px-2 py-1 text-sm"
+                            value={String(c.plan ?? "trial")}
+                            onChange={(e) => setPlan.mutate({ workspaceId: c.id, plan: e.target.value as PlanId })}
+                          >
+                            {PLAN_IDS.map((p) => (
+                              <option key={p} value={p}>{PLANS[p].label}</option>
+                            ))}
+                          </select>
+                        </TableCell>
+                        <TableCell className={expired ? "text-destructive font-medium" : ""}>
+                          {until ? until.toLocaleDateString("ru-RU") : "—"}
+                        </TableCell>
+                        <TableCell>{limitText(c.products, lim.products)}</TableCell>
+                        <TableCell>{limitText(c.invoices, lim.invoices)}</TableCell>
+                        <TableCell>{limitText(c.members, lim.members)}</TableCell>
+                        <TableCell>{limitText(c.storageMb, lim.storageMb)}</TableCell>
+                        <TableCell>
+                          <Switch
+                            checked={!!c.suspended}
+                            onCheckedChange={(v) => suspend.mutate({ workspaceId: c.id, suspended: v })}
+                          />
+                        </TableCell>
+                        <TableCell className="text-right whitespace-nowrap">
+                          <Button
+                            size="sm"
+                            variant={payFor === c.id ? "default" : "outline"}
+                            onClick={() => {
+                              setPayFor(c.id);
+                              setPayPlan((String(c.plan ?? "start") === "trial" ? "start" : String(c.plan)) as PlanId);
+                              setPayAmount(String(PLANS[(String(c.plan ?? "start") === "trial" ? "start" : String(c.plan)) as PlanId].priceMonth * 12));
+                            }}
+                          >Оплата</Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+
+          {payFor && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">
+                  Оплата и продление: {(clients.data ?? []).find((c: any) => c.id === payFor)?.name ?? ""}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-3 md:grid-cols-5 md:items-end">
+                  <div className="space-y-1">
+                    <Label>Тариф</Label>
+                    <select
+                      className="w-full rounded border bg-background px-2 py-2 text-sm"
+                      value={payPlan}
+                      onChange={(e) => {
+                        const p = e.target.value as PlanId;
+                        setPayPlan(p);
+                        setPayAmount(String(PLANS[p].priceMonth * (Number(payMonths) || 1)));
+                      }}
+                    >
+                      {PLAN_IDS.map((p) => <option key={p} value={p}>{PLANS[p].label}</option>)}
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Месяцев</Label>
+                    <Input
+                      value={payMonths}
+                      onChange={(e) => {
+                        setPayMonths(e.target.value);
+                        setPayAmount(String(PLANS[payPlan].priceMonth * (Number(e.target.value) || 1)));
+                      }}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Сумма, ₽</Label>
+                    <Input value={payAmount} onChange={(e) => setPayAmount(e.target.value)} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Комментарий</Label>
+                    <Input value={payComment} onChange={(e) => setPayComment(e.target.value)} placeholder="счёт, договор…" />
+                  </div>
+                  <Button onClick={() => addPayment.mutate()} disabled={addPayment.isPending}>
+                    Продлить доступ
+                  </Button>
+                </div>
+
+                <div className="overflow-x-auto rounded border">
+                  <table className="w-full text-xs">
+                    <thead className="bg-muted">
+                      <tr>
+                        <th className="px-2 py-1 text-left">Дата</th>
+                        <th className="px-2 py-1 text-left">Тариф</th>
+                        <th className="px-2 py-1 text-right">Месяцев</th>
+                        <th className="px-2 py-1 text-right">Сумма</th>
+                        <th className="px-2 py-1 text-left">Оплачено до</th>
+                        <th className="px-2 py-1 text-left">Комментарий</th>
+                        <th className="px-2 py-1 text-left">Кто внёс</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(payments.data ?? []).map((p: any) => (
+                        <tr key={p.id} className="border-t">
+                          <td className="px-2 py-1">{new Date(p.created_at).toLocaleString("ru-RU")}</td>
+                          <td className="px-2 py-1">{planLabel(p.plan)}</td>
+                          <td className="px-2 py-1 text-right">{p.months}</td>
+                          <td className="px-2 py-1 text-right">{Number(p.amount ?? 0).toLocaleString("ru-RU")}</td>
+                          <td className="px-2 py-1">{p.paid_until ? new Date(p.paid_until).toLocaleDateString("ru-RU") : "—"}</td>
+                          <td className="px-2 py-1">{p.comment}</td>
+                          <td className="px-2 py-1 text-muted-foreground">{p.author ?? "—"}</td>
+                        </tr>
+                      ))}
+                      {!(payments.data ?? []).length && (
+                        <tr><td className="px-2 py-2 text-muted-foreground" colSpan={7}>Оплат пока нет</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         <TabsContent value="base">
