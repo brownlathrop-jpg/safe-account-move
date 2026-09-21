@@ -36,6 +36,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useDiscounts, grossSum, discountSum, netSum, discountLabel, type DiscountKind } from "@/lib/discounts";
 import { DocTreeCard, loadChain } from "@/components/DocTreeCard";
 import { docTitle as docTitleOf, docTitleAccusative, effectiveCashKind } from "@/lib/doc-tree";
+import {
+  VAT_MODES, VAT_RATES, splitVat, sumVat, toVatRate, vatRateId, defaultVatMode, defaultVatRate,
+  type VatMode, type VatRate,
+} from "@/lib/vat";
 
 export const Route = createFileRoute("/_authenticated/invoices/$id")({
   head: () => ({
