@@ -223,7 +223,7 @@ function InvoiceView() {
       discount_kind: (it.discount_kind === "amount" ? "amount" : "percent") as DiscountKind,
       discount_value: Number(it.discount_value ?? 0),
       discount_name: it.discount_name ?? null,
-      vat_rate: toVatRate(it.vat_rate),
+      vat_rate: it.vat_rate === undefined || it.vat_rate === null ? undefined : toVatRate(it.vat_rate),
     })));
   }, [inv]);
 
