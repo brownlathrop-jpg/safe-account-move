@@ -500,7 +500,10 @@ export async function runQuery(
       const payload = (spec.payload ?? []).map((i) =>
         table === "workspaces" ? { ...i, user_id: userId } : i,
       );
-      await assertWrite(payload.map((i) => (i.workspace_id ? String(i.workspace_id) : null)));
+      await assertWrite(
+        payload.map((i) => (i.workspace_id ? String(i.workspace_id) : null)),
+        spec.mode === "insert" ? payload.length : 0,
+      );
       const conflict = spec.onConflict ?? ["id"];
       const out: Row[] = [];
       for (const item of payload) {
