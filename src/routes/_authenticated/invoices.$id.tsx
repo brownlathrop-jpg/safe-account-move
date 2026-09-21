@@ -141,6 +141,9 @@ function InvoiceView() {
   const [cashReceived, setCashReceived] = useState<number>(0);
   const [cashBasis, setCashBasis] = useState<string>("");
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "card">("card");
+  const [vatMode, setVatMode] = useState<VatMode>("none");
+  /** НДС не был задан у документа — берём настройку организации. */
+  const [vatFromDoc, setVatFromDoc] = useState(false);
 
   // Автоподгонка ТОРГ-12 / УПД под один лист A4 (альбомная)
   const landscapeRef = useRef<HTMLDivElement | null>(null);
