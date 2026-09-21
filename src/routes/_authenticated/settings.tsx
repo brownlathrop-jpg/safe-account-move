@@ -19,6 +19,8 @@ import { Import1CPanel } from "@/components/import-1c-panel";
 import { PriceImportPanel } from "@/components/price-import-panel";
 import { KktSettingsPanel } from "@/components/kkt-settings-panel";
 import { DataExportPanel } from "@/components/data-export-panel";
+import { useBilling } from "@/hooks/use-billing";
+import { FeatureLock } from "@/components/FeatureLock";
 import { prepareLogo } from "@/lib/logo-image";
 import { PrintHeader } from "@/components/print/PrintHeader";
 import { SNO_LABELS, VAT_LABELS, PAYMENT_METHOD_LABELS, PAYMENT_OBJECT_LABELS } from "@/lib/kkt-atol";
@@ -85,6 +87,7 @@ const empty: Org = {
 };
 
 function SettingsPage() {
+  const { features } = useBilling();
   useViewLog("settings");
   const qc = useQueryClient();
   const wsId = useActiveWorkspaceId();
@@ -528,13 +531,19 @@ function SettingsPage() {
             <div className="overflow-x-auto">
               <TabsList className="h-8 w-max justify-start">
                 <TabsTrigger value="prices">Прайсы и остатки</TabsTrigger>
-                <TabsTrigger value="onec">Импорт из 1С</TabsTrigger>
-                <TabsTrigger value="backup">Выгрузка данных</TabsTrigger>
+                {features.exchange1c && <TabsTrigger value="onec">Импорт из 1С</TabsTrigger>}
+                {features.exchange1c && <TabsTrigger value="backup">Выгрузка данных</TabsTrigger>}
               </TabsList>
             </div>
             <TabsContent value="prices" className="mt-3"><PriceImportPanel /></TabsContent>
-            <TabsContent value="onec" className="mt-3"><Import1CPanel /></TabsContent>
-            <TabsContent value="backup" className="mt-3"><DataExportPanel /></TabsContent>
+            {features.exchange1c ? (
+              <>
+                <TabsContent value="onec" className="mt-3"><Import1CPanel /></TabsContent>
+                <TabsContent value="backup" className="mt-3"><DataExportPanel /></TabsContent>
+              </>
+            ) : (
+              <div className="mt-3"><FeatureLock feature="exchange1c" /></div>
+            )}
           </Tabs>
         </TabsContent>
       </Tabs>
