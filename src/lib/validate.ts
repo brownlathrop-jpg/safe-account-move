@@ -109,7 +109,13 @@ export const adminQuerySchema = z.object({ query: z.string().min(1).max(5000) })
 
 /* --------------------------------- тарифы, оплата, подтверждение почты */
 
-export const planSchema = z.enum(["trial", "start", "pro"]);
+export const planSchema = z.enum(["free", "ip", "business", "opt"]);
+export const addonsSchema = z.array(z.enum(["marking", "marketplaces"])).max(10);
+export const adminExtrasSchema = z.object({
+  workspaceId: id,
+  extraMembers: z.number().int().min(0).max(500),
+  addons: addonsSchema,
+});
 export const billingMineSchema = z.object({ workspaceId: id.nullable().optional() });
 export const adminSetPlanSchema = z.object({ workspaceId: id, plan: planSchema });
 export const adminSuspendSchema = z.object({ workspaceId: id, suspended: z.boolean() });
