@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { authConfirmEmail } from "@/lib/db.functions";
 
 export const Route = createFileRoute("/auth")({
   ssr: false,
@@ -20,7 +21,32 @@ function AuthPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const [confirming, setConfirming] = useState(false);
+
+  // Подтверждение почты по ссылке из письма: /auth?confirm=токен
   useEffect(() => {
+    const token = new URLSearchParams(window.location.search).get("confirm");
+    if (!token) return;
+    setConfirming(true);
+    authConfirmEmail({ data: { token } })
+      .then((res: any) => {
+        if (res?.error) {
+          toast.error(res.error.message);
+          window.history.replaceState(null, "", "/auth");
+          setConfirming(false);
+          return;
+        }
+        toast.success("Почта подтверждена");
+        navigate({ to: "/dashboard", replace: true });
+      })
+      .catch((e: any) => {
+        toast.error(e?.message ?? "Не удалось подтвердить почту");
+        setConfirming(false);
+      });
+  }, [navigate]);
+
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("confirm")) return;
     db.auth.getUser().then(({ data }) => {
       if (data.user) navigate({ to: "/dashboard", replace: true });
     });
@@ -74,7 +100,7 @@ function AuthPage() {
     });
     setLoading(false);
     if (error) return toast.error(error.message);
-    toast.success("Аккаунт создан");
+    toast.success("Аккаунт создан — подтвердите почту по ссылке из письма");
     const { data } = await db.auth.getUser();
     if (data.user) navigate({ to: "/dashboard", replace: true });
   };
