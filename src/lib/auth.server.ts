@@ -38,9 +38,18 @@ async function findByEmail(email: string) {
   return rows.length ? (rows[0] as any) : null;
 }
 
+/** Требования к новому паролю. */
+export function assertStrongPassword(password: string) {
+  if (password.length < 12) throw new Error("Пароль должен быть не короче 12 символов");
+}
+
 export async function signUp(email: string, password: string, name = ""): Promise<AppUser> {
   if (!email.includes("@")) throw new Error("Укажите корректный email");
-  if (password.length < 6) throw new Error("Пароль должен быть не короче 6 символов");
+  assertStrongPassword(password);
+  const ip = clientIp();
+  if (await tooManySignUps(ip)) {
+    throw new Error("Слишком много регистраций с этого адреса. Попробуйте позже.");
+  }
   if (await findByEmail(email)) throw new Error("Пользователь с таким email уже зарегистрирован");
   const s = sql();
   const rows = await s`
@@ -48,10 +57,12 @@ export async function signUp(email: string, password: string, name = ""): Promis
     values (${email}, ${hashPassword(password)}, ${name})
     returning id, email, name`;
   const user = rows[0] as any as AppUser;
+  await recordAttempt(`signup:${email}`, ip, true);
   await acceptInvites(user);
   await startSession(user);
   return user;
 }
+
 
 /** IP посетителя (за прокси заголовок ставит nginx). */
 function clientIp(): string {
