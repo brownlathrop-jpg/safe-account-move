@@ -302,6 +302,25 @@ function SettingsPage() {
                 </SelectContent>
               </Select>
             </div>
+            <div className="space-y-1">
+              <Label>НДС в документах</Label>
+              <Select value={form.vat_mode || "none"} onValueChange={v => upd("vat_mode", v)}>
+                <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {VAT_MODES.map(m => <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>Ставка НДС по умолчанию</Label>
+              <Select value={form.vat_rate || "none"} onValueChange={v => upd("vat_rate", v)}
+                disabled={(form.vat_mode || "none") === "none"}>
+                <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {VAT_RATES.map(r => <SelectItem key={r.id} value={r.id}>{r.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
 
