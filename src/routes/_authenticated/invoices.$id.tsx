@@ -916,6 +916,7 @@ function InvoiceView() {
                   <TableHead className="w-24 text-right">Кол-во</TableHead>
                   <TableHead className="w-28 text-right">Цена</TableHead>
                   <TableHead className="w-36 text-right">Скидка</TableHead>
+                  {vatMode !== "none" && <TableHead className="w-28 text-right">НДС</TableHead>}
                   <TableHead className="w-32 text-right">Сумма</TableHead>
                   <TableHead className="w-8"></TableHead>
                 </TableRow>
@@ -923,7 +924,7 @@ function InvoiceView() {
               <TableBody>
                 {items.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={editable ? 7 : 6} className="p-0">
+                    <TableCell colSpan={(editable ? 7 : 6) + (vatMode !== "none" ? 1 : 0)} className="p-0">
                       {editable ? (
                         <button
                           type="button"
