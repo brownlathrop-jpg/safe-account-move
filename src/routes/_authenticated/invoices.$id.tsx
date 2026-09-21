@@ -1270,11 +1270,17 @@ function InvoiceView() {
       {(printMode === "torg12" || printMode === "upd") && (() => {
         const printItems: PrintItem[] = items.map((it) => {
           const p: any = products.find((x: any) => x.id === it.product_id);
+          const v = lineVat(it);
           return {
             name: it.name,
             unit: p?.unit || (it.kind === "service" ? "усл" : "шт"),
             quantity: it.quantity,
-            price: it.quantity ? Math.round((netSum(it.quantity, it.price, it.discount_kind, it.discount_value) / it.quantity) * 100) / 100 : it.price,
+            // В бланках цена указывается без НДС.
+            price: it.quantity ? Math.round((v.net / it.quantity) * 100) / 100 : it.price,
+            vatRate: vatMode === "none" ? null : (it.vat_rate ?? null),
+            vatSum: v.vat,
+            netSum: v.net,
+            grossSum: v.gross,
           };
         });
         return (
