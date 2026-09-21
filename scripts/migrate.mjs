@@ -4,7 +4,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import pg from "pg";
+import postgres from "postgres";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const dir = join(root, "sql", "migrations");
@@ -16,13 +16,9 @@ if (!url) {
 const dry = process.argv.includes("--dry");
 const local = /@(localhost|127\.0\.0\.1|\[::1\])/.test(url);
 
-const client = new pg.Client({
-  connectionString: url,
-  ssl: local ? false : { rejectUnauthorized: false },
-});
-await client.connect();
+const sql = postgres(url, { ssl: local ? false : { rejectUnauthorized: false }, max: 1 });
 
-await client.query(`
+await sql.unsafe(`
   create table if not exists schema_migrations (
     version text primary key,
     applied_at timestamptz not null default now(),
@@ -30,7 +26,7 @@ await client.query(`
   )`);
 
 const applied = new Set(
-  (await client.query("select version from schema_migrations")).rows.map((r) => r.version),
+  (await sql`select version from schema_migrations`).map((r) => r.version),
 );
 
 let files = [];
@@ -52,19 +48,18 @@ for (const file of files) {
   }
   process.stdout.write(`применяю ${file} ... `);
   try {
-    await client.query("begin");
-    await client.query(sqlText);
-    await client.query("insert into schema_migrations (version) values ($1)", [file]);
-    await client.query("commit");
+    await sql.begin(async (tx) => {
+      await tx.unsafe(sqlText);
+      await tx`insert into schema_migrations (version) values (${file})`;
+    });
     console.log("готово");
     count++;
   } catch (e) {
-    await client.query("rollback");
     console.error(`ошибка\n${e.message}`);
-    await client.end();
+    await sql.end();
     process.exit(1);
   }
 }
 
 console.log(count ? `Миграций применено: ${count}` : "Новых миграций нет");
-await client.end();
+await sql.end();
