@@ -244,7 +244,20 @@ export async function setMemberRole(workspaceId: string, memberId: string, role:
 
 export async function removeMember(workspaceId: string, memberId: string) {
   const s = sql();
-  await s`delete from workspace_members where id = ${memberId} and workspace_id = ${workspaceId}`;
+  const rows = await s`
+    delete from workspace_members
+     where id = ${memberId} and workspace_id = ${workspaceId}
+    returning user_id`;
+  // исключённый сотрудник должен потерять доступ сразу, не дожидаясь истечения cookie
+  const userId = (rows[0] as any)?.user_id as string | undefined;
+  if (userId) {
+    try {
+      const { revokeSessions } = await import("./auth.server");
+      await revokeSessions(userId);
+    } catch {
+      /* исключение из базы не должно падать из-за отзыва входа */
+    }
+  }
 }
 
 export async function revokeInvite(workspaceId: string, token: string) {

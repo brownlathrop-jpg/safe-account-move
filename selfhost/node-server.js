@@ -4,8 +4,11 @@
  */
 import { createServer } from 'node:http';
 import { readFileSync, existsSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+
+/** Максимальный размер тела запроса: 5 МБ картинки в base64 ≈ 6,7 МБ + запас. */
+const MAX_BODY = 12 * 1024 * 1024;
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -45,8 +48,10 @@ const { default: worker } = await import(pathToFileURL(join(DIST_DIR, ENTRY_FILE
 const server = createServer(async (req, res) => {
   const urlPath = new URL(req.url, `http://${req.headers.host}`).pathname;
   const filePath = join(PUBLIC_DIR, urlPath);
+  // файл обязан лежать внутри публичной папки (защита от выхода по ../)
+  const inPublic = !relative(PUBLIC_DIR, filePath).startsWith('..');
 
-  if (!urlPath.includes('..') && !urlPath.endsWith('/') && existsSync(filePath)) {
+  if (inPublic && !urlPath.endsWith('/') && existsSync(filePath)) {
     try {
       res.writeHead(200, {
         'Content-Type': mime(urlPath),
@@ -60,10 +65,28 @@ const server = createServer(async (req, res) => {
   const method = (req.method || 'GET').toUpperCase();
   let body;
   if (method !== 'GET' && method !== 'HEAD') {
+    const declared = Number(req.headers['content-length'] || 0);
+    if (declared > MAX_BODY) {
+      res.writeHead(413, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end('Запрос слишком большой');
+      req.destroy();
+      return;
+    }
     const chunks = [];
-    for await (const chunk of req) chunks.push(chunk);
+    let size = 0;
+    for await (const chunk of req) {
+      size += chunk.length;
+      if (size > MAX_BODY) {
+        res.writeHead(413, { 'Content-Type': 'text/plain; charset=utf-8' });
+        res.end('Запрос слишком большой');
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    }
     body = chunks.length ? Buffer.concat(chunks) : undefined;
   }
+
 
   const headers = Object.fromEntries(
     Object.entries(req.headers)
