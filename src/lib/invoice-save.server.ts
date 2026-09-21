@@ -22,10 +22,16 @@ const TOTAL_SQL = `coalesce((
              coalesce((data->>'quantity')::numeric, 0) * coalesce((data->>'price')::numeric, 0)))
     from invoice_items where data->>'invoice_id' = $1), 0)`;
 
-async function checkAccess(userId: string, workspaceId: string | null) {
+async function checkAccess(userId: string, workspaceId: string | null, addingDocs = 0) {
   const role = await roleIn(userId, workspaceId);
   if (!role) throw new Error("Нет доступа к этой базе");
   if (!canWrite(role, "invoices")) throw new Error("Недостаточно прав для изменения документов");
+  if (workspaceId) {
+    // приостановленная или неоплаченная база — только чтение, плюс лимит тарифа
+    const { assertWriteAllowed, assertInsertLimit } = await import("./billing.server");
+    await assertWriteAllowed(workspaceId);
+    if (addingDocs > 0) await assertInsertLimit("invoices", workspaceId, addingDocs);
+  }
 }
 
 /** Обновить существующий документ: шапка и позиции целиком. */
@@ -96,7 +102,7 @@ export async function createInvoice(opts: {
   items: SaveItem[];
 }) {
   const s = sql();
-  await checkAccess(opts.userId, opts.workspaceId);
+  await checkAccess(opts.userId, opts.workspaceId, 1);
   const id = crypto.randomUUID();
 
   await s.begin(async (t) => {
