@@ -105,6 +105,14 @@ function AuthPage() {
     if (data.user) navigate({ to: "/dashboard", replace: true });
   };
 
+  if (confirming) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4 text-sm text-muted-foreground">
+        Подтверждаем почту…
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-accent/30 p-4">
       <div className="w-full max-w-md">
