@@ -143,28 +143,28 @@ export function Torg12({
               <td className={b} />
               <td className={`${b} text-right`}>{it.quantity}</td>
               <td className={`${b} text-right`}>{nfmt.format(it.price)}</td>
-              <td className={`${b} text-right`}>{nfmt.format(it.quantity * it.price)}</td>
-              <td className={`${b} text-center`}>без НДС</td>
-              <td className={`${b} text-center`}>—</td>
-              <td className={`${b} text-right`}>{nfmt.format(it.quantity * it.price)}</td>
+              <td className={`${b} text-right`}>{nfmt.format(net(it))}</td>
+              <td className={`${b} text-center`}>{rateText(it)}</td>
+              <td className={`${b} text-right`}>{vat(it) ? nfmt.format(vat(it)) : "—"}</td>
+              <td className={`${b} text-right`}>{nfmt.format(gross(it))}</td>
             </tr>
           ))}
           <tr>
             <td className={`${b} text-right font-bold`} colSpan={9}>Итого</td>
             <td className={`${b} text-right font-bold`}>{qtyTotal}</td>
             <td className={`${b} text-center`}>Х</td>
-            <td className={`${b} text-right font-bold`}>{nfmt.format(total)}</td>
+            <td className={`${b} text-right font-bold`}>{nfmt.format(netTotal)}</td>
             <td className={`${b} text-center`}>Х</td>
-            <td className={`${b} text-center`}>—</td>
+            <td className={`${b} text-right font-bold`}>{vatTotal ? nfmt.format(vatTotal) : "—"}</td>
             <td className={`${b} text-right font-bold`}>{nfmt.format(total)}</td>
           </tr>
           <tr>
             <td className={`${b} text-right font-bold`} colSpan={9}>Всего по накладной</td>
             <td className={`${b} text-right font-bold`}>{qtyTotal}</td>
             <td className={`${b} text-center`}>Х</td>
-            <td className={`${b} text-right font-bold`}>{nfmt.format(total)}</td>
+            <td className={`${b} text-right font-bold`}>{nfmt.format(netTotal)}</td>
             <td className={`${b} text-center`}>Х</td>
-            <td className={`${b} text-center`}>—</td>
+            <td className={`${b} text-right font-bold`}>{vatTotal ? nfmt.format(vatTotal) : "—"}</td>
             <td className={`${b} text-right font-bold`}>{nfmt.format(total)}</td>
           </tr>
         </tbody>
