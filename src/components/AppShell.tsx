@@ -1,5 +1,5 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import { LayoutDashboard, Package, FileText, Users, LogOut, Plus, Settings, Warehouse, PanelLeftClose, PanelLeftOpen, Shield, BarChart3, UserCog, Menu } from "lucide-react";
+import { LayoutDashboard, Package, FileText, Users, LogOut, Plus, Settings, Warehouse, PanelLeftClose, PanelLeftOpen, Shield, BarChart3, UserCog, Menu, Wallet } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { db } from "@/integrations/db";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { WorkspaceSwitcher } from "@/components/WorkspaceSwitcher";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import { useRealtime } from "@/hooks/use-realtime";
 import { BillingBanner } from "@/components/BillingBanner";
+import { useBilling } from "@/hooks/use-billing";
 
 type NavItem = { to: string; label: string; icon: typeof FileText };
 type NavGroup = { title: string; items: NavItem[] };
@@ -33,6 +34,7 @@ const groups: NavGroup[] = [
     title: "Управление",
     items: [
       { to: "/team", label: "Сотрудники", icon: UserCog },
+      { to: "/tariffs", label: "Тарифы и оплата", icon: Wallet },
       { to: "/settings", label: "Настройки", icon: Settings },
     ],
   },
@@ -45,11 +47,17 @@ export function AppShell({ children }: { children: ReactNode }) {
   useEffect(() => {
     db.auth.getUser().then(({ data }) => setIsAdmin(!!(data.user?.user_metadata as any)?.is_admin));
   }, []);
+  const { features } = useBilling();
+  // разделы, которых нет в тарифе, не показываем
+  const visible: NavGroup[] = groups.map((g) => ({
+    ...g,
+    items: g.items.filter((i) => (i.to === "/team" ? features.team : true)),
+  }));
   const navGroups: NavGroup[] = isAdmin
-    ? groups.map((g) => (g.title === "Управление"
+    ? visible.map((g) => (g.title === "Управление"
         ? { ...g, items: [...g.items, { to: "/admin", label: "Админка", icon: Shield }] }
         : g))
-    : groups;
+    : visible;
 
   const qc = useQueryClient();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
