@@ -26,6 +26,7 @@ import { PrintHeader } from "@/components/print/PrintHeader";
 import { SNO_LABELS, VAT_LABELS, PAYMENT_METHOD_LABELS, PAYMENT_OBJECT_LABELS } from "@/lib/kkt-atol";
 import { useMyOrgId, setMyOrgPref } from "@/lib/organizations";
 import { useViewLog } from "@/hooks/use-view-log";
+import { VAT_MODES, VAT_RATES } from "@/lib/vat";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({
