@@ -65,6 +65,7 @@ type Item = {
   discount_kind?: DiscountKind | null;
   discount_value?: number | null;
   discount_name?: string | null;
+  vat_rate?: VatRate;
 };
 type DocType = "order" | "shipment" | "cash_receipt";
 type PrintMode = "standard" | "invoice" | "pko" | "torg12" | "upd";
