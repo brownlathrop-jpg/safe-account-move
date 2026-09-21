@@ -33,6 +33,7 @@ import {
 import {
   ADDONS,
   ADDON_IDS,
+  EXTRA_MEMBER_PRICE,
   PLANS,
   PLAN_IDS,
   limitsOf,
@@ -440,7 +441,7 @@ function AdminPage() {
 
                 <div className="grid gap-3 rounded border p-3 md:grid-cols-4 md:items-end">
                   <div className="space-y-1">
-                    <Label>Доп. пользователей (+{ADDONS ? 400 : 400} ₽/мес)</Label>
+                    <Label>Доп. пользователей (+{EXTRA_MEMBER_PRICE} ₽/мес)</Label>
                     <Input
                       value={payExtra}
                       onChange={(e) => {
