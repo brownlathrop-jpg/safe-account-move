@@ -20,9 +20,14 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Build
-        run: bun run build
+       - name: Build (standalone)
+        run: bunx vite build --config vite.config.standalone.ts
 
+      - name: Show output
+        run: |
+          ls -la
+          ls -la dist || echo "dist missing"
+          ls -la dist/server || echo "dist/server missing"
       - name: Prepare archive
         run: tar -czf deploy.tar.gz dist selfhost sql scripts
 
