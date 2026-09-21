@@ -22,6 +22,8 @@ import {
 import { useOrganizations, useMyOrgId, pickOrg } from "@/lib/organizations";
 import { isAccounted } from "@/lib/accounting";
 import { useViewLog } from "@/hooks/use-view-log";
+import { useFeature } from "@/hooks/use-billing";
+import { FeatureLock } from "@/components/FeatureLock";
 
 
 export const Route = createFileRoute("/_authenticated/reports/kudir")({
@@ -35,7 +37,7 @@ export const Route = createFileRoute("/_authenticated/reports/kudir")({
       { name: "twitter:card", content: "summary" },
     ],
   }),
-  component: KudirPage,
+  component: KudirPageGate,
 });
 
 const fmt = new Intl.NumberFormat("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -633,4 +635,12 @@ function KudirPage() {
     </div>
 
   );
+}
+
+/** Раздел доступен не на всех тарифах. */
+function KudirPageGate() {
+  const gate = useFeature("kudir");
+  if (gate.loading) return <div className="p-4 text-sm text-muted-foreground">Загрузка…</div>;
+  if (!gate.allowed) return <FeatureLock feature="kudir" planLabel={gate.planLabel} />;
+  return <KudirPage />;
 }

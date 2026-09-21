@@ -19,6 +19,8 @@ import {
   type CashBookDoc, type CashBookMode,
 } from "@/lib/cash-book";
 import { useViewLog } from "@/hooks/use-view-log";
+import { useFeature } from "@/hooks/use-billing";
+import { FeatureLock } from "@/components/FeatureLock";
 
 export const Route = createFileRoute("/_authenticated/reports/book")({
   head: () => ({
@@ -31,7 +33,7 @@ export const Route = createFileRoute("/_authenticated/reports/book")({
       { name: "twitter:card", content: "summary" },
     ],
   }),
-  component: CashBookPage,
+  component: CashBookPageGate,
 });
 
 const fmt = new Intl.NumberFormat("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -313,4 +315,12 @@ function CashBookPage() {
       </Card>
     </div>
   );
+}
+
+/** Раздел доступен не на всех тарифах. */
+function CashBookPageGate() {
+  const gate = useFeature("cashbook");
+  if (gate.loading) return <div className="p-4 text-sm text-muted-foreground">Загрузка…</div>;
+  if (!gate.allowed) return <FeatureLock feature="cashbook" planLabel={gate.planLabel} />;
+  return <CashBookPage />;
 }
