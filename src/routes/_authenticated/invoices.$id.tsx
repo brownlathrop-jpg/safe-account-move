@@ -776,6 +776,23 @@ function InvoiceView() {
               <Label className="text-xs">Дата</Label>
               <Input className="h-8" type="date" value={date} onChange={e => setDate(e.target.value)} disabled={!editable} />
             </div>
+            <div className="space-y-1">
+              <Label className="text-xs">НДС</Label>
+              <Select value={vatMode} onValueChange={(v) => {
+                const mode = v as VatMode;
+                setVatMode(mode);
+                setVatFromDoc(true);
+                if (mode !== "none") {
+                  const rate = defaultVatRate(myOrg as any) ?? 20;
+                  setItems(prev => prev.map(it => (it.vat_rate === undefined || it.vat_rate === null ? { ...it, vat_rate: rate } : it)));
+                }
+              }} disabled={!editable}>
+                <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {VAT_MODES.map(m => <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <div className={`mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 ${orgs.length > 1 ? "lg:grid-cols-4" : "lg:grid-cols-3"}`}>
             {orgs.length > 1 && (
