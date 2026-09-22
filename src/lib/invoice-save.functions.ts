@@ -58,6 +58,7 @@ export const invoiceCreateTx = createServerFn({ method: "POST" })
       });
       return { data: { id: res.id }, error: null };
     } catch (e: any) {
+      logSaveError("invoiceCreateTx", e);
       return { data: null, error: { message: e?.message ?? String(e) } };
     }
   });
