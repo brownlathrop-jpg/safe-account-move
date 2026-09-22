@@ -633,6 +633,16 @@ export async function runQuery(
     }
     return { data: deleted, error: null, skipped: skipIds.length } as any;
   } catch (e: any) {
+    console.error("[runQuery] ошибка запроса:", {
+      table: (spec as any)?.table,
+      op: (spec as any)?.op,
+      message: e?.message,
+      code: e?.code,
+      routine: e?.routine,
+      detail: e?.detail,
+      position: e?.position,
+      query: typeof e?.query === "string" ? e.query.slice(0, 2000) : undefined,
+    });
     return { data: null, error: { message: e?.message ?? String(e) } };
   }
 }
