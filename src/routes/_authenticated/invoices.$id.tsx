@@ -551,7 +551,23 @@ function InvoiceView() {
 
 
 
-  if (error) return <div className="text-destructive">Ошибка загрузки: {(error as Error).message}</div>;
+  if (error) {
+    const msg = (error as Error).message;
+    const notFound = /не найдена|не найден/i.test(msg);
+    return (
+      <div className="max-w-md mx-auto text-center space-y-4 py-16">
+        <h1 className="text-xl font-semibold">{notFound ? "Документ не найден" : "Не удалось открыть документ"}</h1>
+        <p className="text-sm text-muted-foreground">
+          {notFound
+            ? "Возможно, документ был удалён или ссылка устарела."
+            : msg}
+        </p>
+        <Button asChild>
+          <Link to="/invoices">К списку документов</Link>
+        </Button>
+      </div>
+    );
+  }
   if (isLoading || !inv) return <div className="text-muted-foreground">Загрузка…</div>;
 
   const partnerObj = inv.partner;
