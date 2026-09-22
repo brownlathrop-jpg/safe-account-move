@@ -78,7 +78,7 @@ export async function saveInvoice(opts: {
 
     await t.unsafe(
       `update invoices
-          set data = jsonb_set(data, '{total}', to_jsonb(${TOTAL_SQL}), true), updated_at = now()
+          set data = jsonb_set(case when jsonb_typeof(data) = 'object' then data else '{}'::jsonb end, '{total}', to_jsonb(${TOTAL_SQL}), true), updated_at = now()
         where id = $1`,
       [opts.invoiceId] as any,
     );
@@ -122,7 +122,7 @@ export async function createInvoice(opts: {
       );
     }
     await t.unsafe(
-      `update invoices set data = jsonb_set(data, '{total}', to_jsonb(${TOTAL_SQL}), true), updated_at = now() where id = $1`,
+      `update invoices set data = jsonb_set(case when jsonb_typeof(data) = 'object' then data else '{}'::jsonb end, '{total}', to_jsonb(${TOTAL_SQL}), true), updated_at = now() where id = $1`,
       [id] as any,
     );
   });

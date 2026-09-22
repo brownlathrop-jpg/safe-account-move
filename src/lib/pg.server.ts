@@ -358,7 +358,7 @@ async function syncInvoiceTotals(table: string, rows: Row[]) {
     );
     await s.unsafe(
       `update invoices i
-          set data = jsonb_set(i.data, '{total}', to_jsonb(coalesce(t.s, 0)), true),
+          set data = jsonb_set(case when jsonb_typeof(i.data) = 'object' then i.data else '{}'::jsonb end, '{total}', to_jsonb(coalesce(t.s, 0)), true),
               updated_at = now()
          from (
            select (data->>'invoice_id') as inv,
@@ -374,13 +374,19 @@ async function syncInvoiceTotals(table: string, rows: Row[]) {
     // документы, у которых позиций больше не осталось
     await s.unsafe(
       `update invoices i
-          set data = jsonb_set(i.data, '{total}', to_jsonb(0), true), updated_at = now()
+          set data = jsonb_set(case when jsonb_typeof(i.data) = 'object' then i.data else '{}'::jsonb end, '{total}', to_jsonb(0), true), updated_at = now()
         where i.id = any($1::text[])
           and not exists (select 1 from invoice_items it where it.data->>'invoice_id' = i.id)`,
       [ids] as any,
     );
-  } catch {
-    // пересчёт суммы не должен ломать сохранение позиций
+  } catch (e: any) {
+    // пересчёт суммы не должен ломать сохранение позиций, но пишем в журнал
+    console.error("[syncInvoiceTotals] ошибка пересчёта суммы:", {
+      message: e?.message,
+      code: e?.code,
+      routine: e?.routine,
+      query: typeof e?.query === "string" ? e.query.slice(0, 2000) : undefined,
+    });
   }
 }
 
@@ -633,6 +639,16 @@ export async function runQuery(
     }
     return { data: deleted, error: null, skipped: skipIds.length } as any;
   } catch (e: any) {
+    console.error("[runQuery] ошибка запроса:", {
+      table: (spec as any)?.table,
+      op: (spec as any)?.op,
+      message: e?.message,
+      code: e?.code,
+      routine: e?.routine,
+      detail: e?.detail,
+      position: e?.position,
+      query: typeof e?.query === "string" ? e.query.slice(0, 2000) : undefined,
+    });
     return { data: null, error: { message: e?.message ?? String(e) } };
   }
 }
