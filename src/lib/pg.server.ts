@@ -379,8 +379,14 @@ async function syncInvoiceTotals(table: string, rows: Row[]) {
           and not exists (select 1 from invoice_items it where it.data->>'invoice_id' = i.id)`,
       [ids] as any,
     );
-  } catch {
-    // пересчёт суммы не должен ломать сохранение позиций
+  } catch (e: any) {
+    // пересчёт суммы не должен ломать сохранение позиций, но пишем в журнал
+    console.error("[syncInvoiceTotals] ошибка пересчёта суммы:", {
+      message: e?.message,
+      code: e?.code,
+      routine: e?.routine,
+      query: typeof e?.query === "string" ? e.query.slice(0, 2000) : undefined,
+    });
   }
 }
 
