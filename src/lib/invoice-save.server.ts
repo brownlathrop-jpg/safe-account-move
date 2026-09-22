@@ -55,7 +55,9 @@ export async function saveInvoice(opts: {
   await s.begin(async (t) => {
     await t.unsafe(
       `update invoices set data = data || $2::jsonb, updated_at = now() where id = $1`,
-      [opts.invoiceId, JSON.stringify(opts.header)] as any,
+      // объект передаём как есть: драйвер сам кодирует его в jsonb.
+      // JSON.stringify здесь давал бы jsonb-строку (скаляр) вместо объекта.
+      [opts.invoiceId, opts.header] as any,
     );
 
     const keep = opts.items.map((i) => i.id).filter((v): v is string => !!v);
@@ -72,7 +74,7 @@ export async function saveInvoice(opts: {
         `insert into invoice_items (id, workspace_id, user_id, data)
          values ($1, $2, $3, $4::jsonb)
          on conflict (id) do update set data = invoice_items.data || excluded.data, updated_at = now()`,
-        [id, wsId, inv.user_id ?? null, JSON.stringify(data)] as any,
+        [id, wsId, inv.user_id ?? null, data] as any,
       );
     }
 
@@ -112,13 +114,13 @@ export async function createInvoice(opts: {
     const data = { ...opts.header, id, workspace_id: opts.workspaceId, user_id: opts.userId };
     await t.unsafe(
       `insert into invoices (id, workspace_id, user_id, data) values ($1, $2, $3, $4::jsonb)`,
-      [id, opts.workspaceId, opts.userId, JSON.stringify(data)] as any,
+      [id, opts.workspaceId, opts.userId, data] as any,
     );
     for (const it of opts.items) {
       const itemId = it.id || crypto.randomUUID();
       await t.unsafe(
         `insert into invoice_items (id, workspace_id, user_id, data) values ($1, $2, $3, $4::jsonb)`,
-        [itemId, opts.workspaceId, opts.userId, JSON.stringify({ ...it, id: itemId, invoice_id: id })] as any,
+        [itemId, opts.workspaceId, opts.userId, { ...it, id: itemId, invoice_id: id }] as any,
       );
     }
     await t.unsafe(
