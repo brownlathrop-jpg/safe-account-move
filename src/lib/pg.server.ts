@@ -358,7 +358,7 @@ async function syncInvoiceTotals(table: string, rows: Row[]) {
     );
     await s.unsafe(
       `update invoices i
-          set data = jsonb_set(i.data, '{total}', to_jsonb(coalesce(t.s, 0)), true),
+          set data = jsonb_set(case when jsonb_typeof(i.data) = 'object' then i.data else '{}'::jsonb end, '{total}', to_jsonb(coalesce(t.s, 0)), true),
               updated_at = now()
          from (
            select (data->>'invoice_id') as inv,
@@ -374,7 +374,7 @@ async function syncInvoiceTotals(table: string, rows: Row[]) {
     // документы, у которых позиций больше не осталось
     await s.unsafe(
       `update invoices i
-          set data = jsonb_set(i.data, '{total}', to_jsonb(0), true), updated_at = now()
+          set data = jsonb_set(case when jsonb_typeof(i.data) = 'object' then i.data else '{}'::jsonb end, '{total}', to_jsonb(0), true), updated_at = now()
         where i.id = any($1::text[])
           and not exists (select 1 from invoice_items it where it.data->>'invoice_id' = i.id)`,
       [ids] as any,

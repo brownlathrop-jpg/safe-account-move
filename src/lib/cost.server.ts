@@ -192,7 +192,7 @@ export async function recalcCosts(wsId: string): Promise<{ products: number; doc
     if (Math.abs((curMap.get(pid) ?? 0) - c.cost) < 0.005) continue;
     await s`
       update products
-      set data = jsonb_set(data, '{cost}', to_jsonb(${c.cost}::numeric)), updated_at = now()
+      set data = jsonb_set(case when jsonb_typeof(data) = 'object' then data else '{}'::jsonb end, '{cost}', to_jsonb(${c.cost}::numeric)), updated_at = now()
       where id = ${pid}
     `;
     products++;
@@ -208,7 +208,7 @@ export async function recalcCosts(wsId: string): Promise<{ products: number; doc
     if (Math.abs(Number(inv.cost_total ?? 0) - want) < 0.005) continue;
     await s`
       update invoices
-      set data = jsonb_set(data, '{cost_total}', to_jsonb(${want}::numeric)), updated_at = now()
+      set data = jsonb_set(case when jsonb_typeof(data) = 'object' then data else '{}'::jsonb end, '{cost_total}', to_jsonb(${want}::numeric)), updated_at = now()
       where id = ${inv.id}
     `;
     docs++;
