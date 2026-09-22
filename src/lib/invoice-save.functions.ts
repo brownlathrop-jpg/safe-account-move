@@ -20,9 +20,27 @@ export const invoiceSaveTx = createServerFn({ method: "POST" })
       });
       return { data: { id: res.id }, error: null };
     } catch (e: any) {
+      logSaveError("invoiceSaveTx", e);
       return { data: null, error: { message: e?.message ?? String(e) } };
     }
   });
+
+/** Подробная запись ошибки базы в журнал сервера (текст запроса, позиция, код). */
+function logSaveError(where: string, e: any) {
+  try {
+    console.error(`[${where}] ошибка сохранения:`, {
+      message: e?.message,
+      code: e?.code,
+      routine: e?.routine,
+      detail: e?.detail,
+      position: e?.position,
+      query: typeof e?.query === "string" ? e.query.slice(0, 2000) : undefined,
+      stack: typeof e?.stack === "string" ? e.stack.slice(0, 2000) : undefined,
+    });
+  } catch {
+    // журнал не должен ломать ответ
+  }
+}
 
 export const invoiceCreateTx = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => V.invoiceCreateSchema.parse(input) as { workspaceId: string; header: Record<string, unknown>; items: SaveItem[] })
