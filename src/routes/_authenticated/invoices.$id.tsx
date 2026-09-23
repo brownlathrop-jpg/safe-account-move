@@ -32,6 +32,8 @@ import { Torg12 } from "@/components/print/Torg12";
 import { Upd } from "@/components/print/Upd";
 import type { PrintItem } from "@/components/print/print-types";
 import { PrintHeader } from "@/components/print/PrintHeader";
+import { PaymentQr } from "@/components/print/PaymentQr";
+import { SignLine } from "@/components/print/SignLine";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useDiscounts, grossSum, discountSum, netSum, discountLabel, type DiscountKind } from "@/lib/discounts";
 import { DocTreeCard, loadChain } from "@/components/DocTreeCard";
