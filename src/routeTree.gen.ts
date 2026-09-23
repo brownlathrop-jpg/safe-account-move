@@ -31,6 +31,7 @@ import { Route as AuthenticatedInvoicesIndexRouteImport } from './routes/_authen
 import { Route as AuthenticatedCashIndexRouteImport } from './routes/_authenticated/cash.index'
 import { Route as ApiFileSplatRouteImport } from './routes/api/file.$'
 import { Route as AuthenticatedShipmentsNewRouteImport } from './routes/_authenticated/shipments.new'
+import { Route as AuthenticatedReportsReconciliationRouteImport } from './routes/_authenticated/reports.reconciliation'
 import { Route as AuthenticatedReportsKudirRouteImport } from './routes/_authenticated/reports.kudir'
 import { Route as AuthenticatedReportsBookRouteImport } from './routes/_authenticated/reports.book'
 import { Route as AuthenticatedPartnerIdRouteImport } from './routes/_authenticated/partner.$id'
@@ -151,6 +152,12 @@ const AuthenticatedShipmentsNewRoute =
     path: '/new',
     getParentRoute: () => AuthenticatedShipmentsRoute,
   } as any)
+const AuthenticatedReportsReconciliationRoute =
+  AuthenticatedReportsReconciliationRouteImport.update({
+    id: '/reconciliation',
+    path: '/reconciliation',
+    getParentRoute: () => AuthenticatedReportsRoute,
+  } as any)
 const AuthenticatedReportsKudirRoute =
   AuthenticatedReportsKudirRouteImport.update({
     id: '/kudir',
@@ -207,6 +214,7 @@ export interface FileRoutesByFullPath {
   '/partner/$id': typeof AuthenticatedPartnerIdRoute
   '/reports/book': typeof AuthenticatedReportsBookRoute
   '/reports/kudir': typeof AuthenticatedReportsKudirRoute
+  '/reports/reconciliation': typeof AuthenticatedReportsReconciliationRoute
   '/shipments/new': typeof AuthenticatedShipmentsNewRoute
   '/api/file/$': typeof ApiFileSplatRoute
   '/cash/': typeof AuthenticatedCashIndexRoute
@@ -232,6 +240,7 @@ export interface FileRoutesByTo {
   '/partner/$id': typeof AuthenticatedPartnerIdRoute
   '/reports/book': typeof AuthenticatedReportsBookRoute
   '/reports/kudir': typeof AuthenticatedReportsKudirRoute
+  '/reports/reconciliation': typeof AuthenticatedReportsReconciliationRoute
   '/shipments/new': typeof AuthenticatedShipmentsNewRoute
   '/api/file/$': typeof ApiFileSplatRoute
   '/cash': typeof AuthenticatedCashIndexRoute
@@ -263,6 +272,7 @@ export interface FileRoutesById {
   '/_authenticated/partner/$id': typeof AuthenticatedPartnerIdRoute
   '/_authenticated/reports/book': typeof AuthenticatedReportsBookRoute
   '/_authenticated/reports/kudir': typeof AuthenticatedReportsKudirRoute
+  '/_authenticated/reports/reconciliation': typeof AuthenticatedReportsReconciliationRoute
   '/_authenticated/shipments/new': typeof AuthenticatedShipmentsNewRoute
   '/api/file/$': typeof ApiFileSplatRoute
   '/_authenticated/cash/': typeof AuthenticatedCashIndexRoute
@@ -294,6 +304,7 @@ export interface FileRouteTypes {
     | '/partner/$id'
     | '/reports/book'
     | '/reports/kudir'
+    | '/reports/reconciliation'
     | '/shipments/new'
     | '/api/file/$'
     | '/cash/'
@@ -319,6 +330,7 @@ export interface FileRouteTypes {
     | '/partner/$id'
     | '/reports/book'
     | '/reports/kudir'
+    | '/reports/reconciliation'
     | '/shipments/new'
     | '/api/file/$'
     | '/cash'
@@ -349,6 +361,7 @@ export interface FileRouteTypes {
     | '/_authenticated/partner/$id'
     | '/_authenticated/reports/book'
     | '/_authenticated/reports/kudir'
+    | '/_authenticated/reports/reconciliation'
     | '/_authenticated/shipments/new'
     | '/api/file/$'
     | '/_authenticated/cash/'
@@ -521,6 +534,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedShipmentsNewRouteImport
       parentRoute: typeof AuthenticatedShipmentsRoute
     }
+    '/_authenticated/reports/reconciliation': {
+      id: '/_authenticated/reports/reconciliation'
+      path: '/reconciliation'
+      fullPath: '/reports/reconciliation'
+      preLoaderRoute: typeof AuthenticatedReportsReconciliationRouteImport
+      parentRoute: typeof AuthenticatedReportsRoute
+    }
     '/_authenticated/reports/kudir': {
       id: '/_authenticated/reports/kudir'
       path: '/kudir'
@@ -599,12 +619,15 @@ const AuthenticatedInvoicesRouteWithChildren =
 interface AuthenticatedReportsRouteChildren {
   AuthenticatedReportsBookRoute: typeof AuthenticatedReportsBookRoute
   AuthenticatedReportsKudirRoute: typeof AuthenticatedReportsKudirRoute
+  AuthenticatedReportsReconciliationRoute: typeof AuthenticatedReportsReconciliationRoute
   AuthenticatedReportsIndexRoute: typeof AuthenticatedReportsIndexRoute
 }
 
 const AuthenticatedReportsRouteChildren: AuthenticatedReportsRouteChildren = {
   AuthenticatedReportsBookRoute: AuthenticatedReportsBookRoute,
   AuthenticatedReportsKudirRoute: AuthenticatedReportsKudirRoute,
+  AuthenticatedReportsReconciliationRoute:
+    AuthenticatedReportsReconciliationRoute,
   AuthenticatedReportsIndexRoute: AuthenticatedReportsIndexRoute,
 }
 

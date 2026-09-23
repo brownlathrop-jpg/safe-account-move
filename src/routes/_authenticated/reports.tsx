@@ -1,5 +1,5 @@
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
-import { BarChart3, BookOpen, BookText } from "lucide-react";
+import { BarChart3, BookOpen, BookText, Scale } from "lucide-react";
 import { useBilling } from "@/hooks/use-billing";
 
 export const Route = createFileRoute("/_authenticated/reports")({
