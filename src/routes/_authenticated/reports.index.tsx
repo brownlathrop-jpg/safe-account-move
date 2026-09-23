@@ -42,11 +42,12 @@ function monthStart() {
 function ReportsPage() {
   useViewLog("reports");
   const wsId = useActiveWorkspaceId();
-  const [from, setFrom] = useState(monthStart());
-  const [to, setTo] = useState(new Date().toISOString().slice(0, 10));
+  // Фильтры сохраняются между переходами по меню
+  const [from, setFrom] = usePersistentState<string>("reports.from", monthStart());
+  const [to, setTo] = usePersistentState<string>("reports.to", new Date().toISOString().slice(0, 10));
   // Фильтр по юрлицу: продажи/прибыль/долги/деньги — раздельно, склад общий
   const { data: orgs = [] } = useOrganizations(wsId);
-  const [orgSel, setOrgSel] = useState<string>("all");
+  const [orgSel, setOrgSel] = usePersistentState<string>("reports.org", "all");
   const effOrgId = orgSel === "all" ? null : orgSel;
 
   const { data: partners = [] } = useQuery({

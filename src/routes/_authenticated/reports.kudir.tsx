@@ -50,16 +50,17 @@ const ROMAN = ["I", "II", "III", "IV"];
 function KudirPage() {
   useViewLog("kudir");
   const wsId = useActiveWorkspaceId();
-  const [year, setYear] = useState(new Date().getFullYear());
-  const [mode, setMode] = useState<KudirMode>("all");
-  const [object, setObject] = useState<"income" | "income_minus">("income");
+  // Фильтры сохраняются между переходами по меню
+  const [year, setYear] = usePersistentState<number>("kudir.year", new Date().getFullYear());
+  const [mode, setMode] = usePersistentState<KudirMode>("kudir.mode", "all");
+  const [object, setObject] = usePersistentState<"income" | "income_minus">("kudir.object", "income");
   /** Режим книги: УСН — доходы и расходы, ПСН — только доходы. */
-  const [regime, setRegime] = useState<"usn" | "psn" | null>(null);
+  const [regime, setRegime] = usePersistentState<"usn" | "psn" | null>("kudir.regime", null);
 
   // Книга формируется по выбранному юрлицу (по умолчанию — юрлицо текущего входа)
   const { data: orgs = [] } = useOrganizations(wsId);
   const { data: myOrgId } = useMyOrgId(wsId);
-  const [orgSel, setOrgSel] = useState<string>("");
+  const [orgSel, setOrgSel] = usePersistentState<string>("kudir.org", "");
   const org = pickOrg(orgs, orgSel || myOrgId || null) as any;
   const effOrgId: string | null = org?.id ?? null;
 
