@@ -54,7 +54,13 @@ export function PartnerPicker({
           className={cn("h-8 w-full justify-between font-normal", className)}
         >
           <span className={cn("truncate", !selected && "text-muted-foreground")}>
-            {selected ? selected.name : kind === "customer" ? "Выберите покупателя" : "Выберите поставщика"}
+            {selected
+              ? selected.name
+              : kind === "customer"
+                ? "Выберите покупателя"
+                : kind === "supplier"
+                  ? "Выберите поставщика"
+                  : "Выберите контрагента"}
           </span>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
