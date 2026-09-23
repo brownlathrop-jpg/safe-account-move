@@ -102,6 +102,11 @@ function PartnerCard() {
             {partner.phone ? ` · ${partner.phone}` : ""}
           </p>
         </div>
+        <Button asChild variant="outline" className="ml-auto">
+          <Link to="/reports/reconciliation" search={{ partner: id }}>
+            <Scale className="h-4 w-4 mr-1" /> Акт сверки
+          </Link>
+        </Button>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
