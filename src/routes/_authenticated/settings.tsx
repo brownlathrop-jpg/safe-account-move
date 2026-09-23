@@ -434,6 +434,57 @@ function SettingsPage() {
           </div>
         </div>
 
+        {/* Печать и факсимиле подписей: подставляются в счёт на оплату */}
+        <div>
+          <h2 className="font-medium text-xs uppercase tracking-wide text-muted-foreground mb-2">Печать и факсимиле подписей</h2>
+          <p className="mb-2 text-[11px] text-muted-foreground">
+            Загрузите оттиск печати и подписи — при печати счёта можно выбрать «с печатью и подписью»
+            и сразу отправить готовый счёт клиенту. Лучше всего подходит PNG с прозрачным фоном.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {([
+              ["stamp_url", "Печать организации"],
+              ["sign_director_url", "Подпись руководителя"],
+              ["sign_accountant_url", "Подпись бухгалтера"],
+            ] as const).map(([field, label]) => (
+              <div key={field} className="space-y-2 rounded-md border p-3">
+                <Label>{label}</Label>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                    className="h-8 w-auto text-xs"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      e.target.value = "";
+                      if (!file) return;
+                      try {
+                        const { dataUrl } = await prepareStamp(file);
+                        setForm(f => ({ ...f, [field]: dataUrl }));
+                        toast.success("Загружено — не забудьте сохранить");
+                      } catch (err) {
+                        toast.error((err as Error).message);
+                      }
+                    }}
+                  />
+                  {form[field] && (
+                    <Button type="button" size="sm" variant="outline" onClick={() => setForm(f => ({ ...f, [field]: null }))}>
+                      <Trash2 className="h-3.5 w-3.5 mr-1" /> Убрать
+                    </Button>
+                  )}
+                </div>
+                {form[field] && (
+                  <div className="rounded-md border bg-white p-2">
+                    <img src={form[field] as string} alt="" className="mx-auto h-20 object-contain" />
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+
+
         {/* Своя онлайн-касса у этого юрлица: чеки бьются с его реквизитами */}
         <div className="rounded-md border p-3 space-y-2">
           <label className="flex items-center gap-2 text-sm font-medium cursor-pointer select-none">
