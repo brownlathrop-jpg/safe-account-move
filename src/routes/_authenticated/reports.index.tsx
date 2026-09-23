@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
+import { usePersistentState } from "@/hooks/use-persistent-state";
 import { db } from "@/integrations/db";
 import { useActiveWorkspaceId } from "@/lib/workspace";
 import { Card } from "@/components/ui/card";
@@ -42,11 +43,12 @@ function monthStart() {
 function ReportsPage() {
   useViewLog("reports");
   const wsId = useActiveWorkspaceId();
-  const [from, setFrom] = useState(monthStart());
-  const [to, setTo] = useState(new Date().toISOString().slice(0, 10));
+  // Фильтры сохраняются между переходами по меню
+  const [from, setFrom] = usePersistentState<string>("reports.from", monthStart());
+  const [to, setTo] = usePersistentState<string>("reports.to", new Date().toISOString().slice(0, 10));
   // Фильтр по юрлицу: продажи/прибыль/долги/деньги — раздельно, склад общий
   const { data: orgs = [] } = useOrganizations(wsId);
-  const [orgSel, setOrgSel] = useState<string>("all");
+  const [orgSel, setOrgSel] = usePersistentState<string>("reports.org", "all");
   const effOrgId = orgSel === "all" ? null : orgSel;
 
   const { data: partners = [] } = useQuery({

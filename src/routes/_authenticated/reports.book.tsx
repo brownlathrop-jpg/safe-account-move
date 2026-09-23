@@ -1,7 +1,8 @@
 // Кассовая книга (форма КО-4): записи по кассовым ордерам и продажам,
 // оплаченным наличными, с итогами за день и остатком кассы.
 import { createFileRoute } from "@tanstack/react-router";
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useMemo } from "react";
+import { usePersistentState } from "@/hooks/use-persistent-state";
 import { useQuery } from "@tanstack/react-query";
 import { db } from "@/integrations/db";
 import { useActiveWorkspaceId } from "@/lib/workspace";
@@ -54,15 +55,16 @@ function today() {
 function CashBookPage() {
   useViewLog("cashbook");
   const wsId = useActiveWorkspaceId();
-  const [from, setFrom] = useState(monthStart());
-  const [to, setTo] = useState(today());
-  const [mode, setMode] = useState<CashBookMode>("all");
-  const [cashier, setCashier] = useState("");
+  // Фильтры сохраняются между переходами по меню
+  const [from, setFrom] = usePersistentState<string>("cashbook.from", monthStart());
+  const [to, setTo] = usePersistentState<string>("cashbook.to", today());
+  const [mode, setMode] = usePersistentState<CashBookMode>("cashbook.mode", "all");
+  const [cashier, setCashier] = usePersistentState<string>("cashbook.cashier", "");
 
   // Кассовая книга формируется по выбранному юрлицу
   const { data: orgs = [] } = useOrganizations(wsId);
   const { data: myOrgId } = useMyOrgId(wsId);
-  const [orgSel, setOrgSel] = useState<string>("");
+  const [orgSel, setOrgSel] = usePersistentState<string>("cashbook.org", "");
   const org = pickOrg(orgs, orgSel || myOrgId || null) as any;
   const effOrgId: string | null = org?.id ?? null;
 
