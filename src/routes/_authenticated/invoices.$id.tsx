@@ -652,7 +652,12 @@ function InvoiceView() {
                       : (kind === "outgoing" ? "Заказ покупателя" : "Приходная заявка")}
                   </DropdownMenuItem>
                   {kind === "outgoing" && (
-                    <DropdownMenuItem onClick={() => doPrint("invoice")}>Счёт на оплату</DropdownMenuItem>
+                    <>
+                      <DropdownMenuItem onClick={() => doPrint("invoice")}>Счёт на оплату</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => doPrint("invoice", true)}>
+                        Счёт на оплату (с печатью и подписью)
+                      </DropdownMenuItem>
+                    </>
                   )}
                   <DropdownMenuItem onClick={() => doPrint("torg12")}>Товарная накладная ТОРГ-12</DropdownMenuItem>
                   <DropdownMenuItem onClick={() => doPrint("upd")}>Универсальный передаточный документ (УПД)</DropdownMenuItem>
