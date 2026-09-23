@@ -138,6 +138,8 @@ function InvoiceView() {
   const [items, setItems] = useState<Item[]>([]);
   const [pickRow, setPickRow] = useState<number | null>(null);
   const [printMode, setPrintMode] = useState<PrintMode>("standard");
+  /** Печатать счёт с факсимиле подписей и печатью организации. */
+  const [withFacsimile, setWithFacsimile] = useState(false);
   const [cashReceived, setCashReceived] = useState<number>(0);
   const [cashBasis, setCashBasis] = useState<string>("");
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "card">("card");
