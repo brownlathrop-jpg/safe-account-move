@@ -21,6 +21,10 @@ function ReportsLayout() {
           <BarChart3 className="h-4 w-4" />
           Отчёты
         </Link>
+        <Link to="/reports/reconciliation" className={tabClass(pathname === "/reports/reconciliation")}>
+          <Scale className="h-4 w-4" />
+          Акт сверки
+        </Link>
         {features.cashbook && (
           <Link to="/reports/book" className={tabClass(pathname === "/reports/book")}>
             <BookOpen className="h-4 w-4" />
