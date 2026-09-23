@@ -94,6 +94,7 @@ const empty: Org = {
   director_name: "", accountant_name: "", taxation_system: "usn_6", is_primary: true,
   invoice_number_mask: "{YYYY}-{MM}-{DD}-{NNN}",
   logo_url: null, print_name: "", vat_mode: "none", vat_rate: "none",
+  stamp_url: null, sign_director_url: null, sign_accountant_url: null,
 };
 
 function SettingsPage() {
