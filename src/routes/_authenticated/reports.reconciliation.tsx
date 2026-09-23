@@ -1,7 +1,8 @@
 // Акт сверки взаиморасчётов с контрагентом: сальдо на начало, операции
 // за период, обороты и сальдо на конец с печатной формой для подписей.
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
+import { usePersistentState } from "@/hooks/use-persistent-state";
 import { useQuery } from "@tanstack/react-query";
 import { db } from "@/integrations/db";
 import { useActiveWorkspaceId } from "@/lib/workspace";
@@ -53,13 +54,19 @@ function ReconciliationPage() {
   const wsId = useActiveWorkspaceId();
   const { partner: partnerFromUrl } = Route.useSearch();
 
-  const [partnerId, setPartnerId] = useState<string>(partnerFromUrl ?? "");
-  const [from, setFrom] = useState(yearStart());
-  const [to, setTo] = useState(today());
+  // Фильтры сохраняются между переходами по меню
+  const [partnerId, setPartnerId] = usePersistentState<string>("recon.partner", partnerFromUrl ?? "");
+  const [from, setFrom] = usePersistentState<string>("recon.from", yearStart());
+  const [to, setTo] = usePersistentState<string>("recon.to", today());
 
   const { data: orgs = [] } = useOrganizations(wsId);
   const { data: myOrgId } = useMyOrgId(wsId);
-  const [orgSel, setOrgSel] = useState<string>("");
+  const [orgSel, setOrgSel] = usePersistentState<string>("recon.org", "");
+
+  // Переход из карточки контрагента (параметр в ссылке) важнее сохранённого выбора
+  useEffect(() => {
+    if (partnerFromUrl) setPartnerId(partnerFromUrl);
+  }, [partnerFromUrl, setPartnerId]);
   const org = pickOrg(orgs, orgSel || myOrgId || null) as any;
   const effOrgId: string | null = org?.id ?? null;
 
