@@ -39,7 +39,7 @@ export function PartnerPicker({
         []) as PartnerRow[],
   });
 
-  const list = useMemo(() => partners.filter((p) => p.kind === kind), [partners, kind]);
+  const list = useMemo(() => (kind === "all" ? partners : partners.filter((p) => p.kind === kind)), [partners, kind]);
   const selected = list.find((p) => p.id === value) ?? partners.find((p) => p.id === value);
 
   return (
