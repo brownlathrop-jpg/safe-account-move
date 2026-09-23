@@ -24,7 +24,8 @@ export function PartnerPicker({
 }: {
   value: string | null;
   onChange: (id: string) => void;
-  kind: "customer" | "supplier";
+  /** "all" — и покупатели, и поставщики (для отчётов). */
+  kind: "customer" | "supplier" | "all";
   disabled?: boolean;
   className?: string;
 }) {
