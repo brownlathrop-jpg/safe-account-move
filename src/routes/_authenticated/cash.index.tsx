@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
+import { usePersistentState } from "@/hooks/use-persistent-state";
 import { useQuery } from "@tanstack/react-query";
 import { db } from "@/integrations/db";
 import { useActiveWorkspaceId } from "@/lib/workspace";
@@ -28,10 +29,11 @@ function CashPage() {
   useViewLog("cash");
   const wsId = useActiveWorkspaceId();
   const brand = usePrintBrand();
-  const [tab, setTab] = useState<Tab>("all");
-  const [search, setSearch] = useState("");
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
+  // Фильтры сохраняются между переходами по меню
+  const [tab, setTab] = usePersistentState<Tab>("cash.tab", "all");
+  const [search, setSearch] = usePersistentState<string>("cash.search", "");
+  const [from, setFrom] = usePersistentState<string>("cash.from", "");
+  const [to, setTo] = usePersistentState<string>("cash.to", "");
 
   const { data: rows = [] } = useQuery({
     queryKey: ["cash", wsId, tab],

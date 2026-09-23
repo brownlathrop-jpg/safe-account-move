@@ -1,5 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState, useMemo } from "react";
+import { useMemo } from "react";
+import { usePersistentState } from "@/hooks/use-persistent-state";
 import { useQuery } from "@tanstack/react-query";
 import { db } from "@/integrations/db";
 import { useActiveWorkspaceId } from "@/lib/workspace";
@@ -28,11 +29,12 @@ function ShipmentsPage() {
   const navigate = useNavigate();
   const wsId = useActiveWorkspaceId();
   const brand = usePrintBrand();
-  const [tab, setTab] = useState<Tab>("all");
-  const [search, setSearch] = useState("");
-  const [status, setStatus] = useState<"all" | "posted" | "draft" | "cancelled">("all");
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
+  // Фильтры сохраняются между переходами по меню
+  const [tab, setTab] = usePersistentState<Tab>("shipments.tab", "all");
+  const [search, setSearch] = usePersistentState<string>("shipments.search", "");
+  const [status, setStatus] = usePersistentState<"all" | "posted" | "draft" | "cancelled">("shipments.status", "all");
+  const [from, setFrom] = usePersistentState<string>("shipments.from", "");
+  const [to, setTo] = usePersistentState<string>("shipments.to", "");
 
   const { data: rows = [] } = useQuery({
     queryKey: ["shipments", wsId, tab],
