@@ -1,6 +1,7 @@
 import { NumCell } from "@/components/NumCell";
 import { createFileRoute } from "@tanstack/react-router";
 import { Fragment, useMemo, useState } from "react";
+import { usePersistentState } from "@/hooks/use-persistent-state";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { db } from "@/integrations/db";
@@ -34,6 +35,8 @@ type Receipt = { id: string; number: string; receipt_date: string; supplier_id: 
 
 function StockPage() {
   const wsId = useActiveWorkspaceId();
+  // Вкладка сохраняется между переходами по меню
+  const [tab, setTab] = usePersistentState<string>("stock.tab", "balances");
 
   const { data: warehouses = [] } = useQuery({
     queryKey: ["warehouses", wsId],
@@ -60,7 +63,7 @@ function StockPage() {
         <p className="text-sm text-muted-foreground">Остатки товаров и поступления</p>
       </div>
 
-      <Tabs defaultValue="balances">
+      <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
           <TabsTrigger value="balances">Остатки</TabsTrigger>
           <TabsTrigger value="receipts">Поступления</TabsTrigger>
@@ -92,7 +95,7 @@ function StockPage() {
 // ============================================================
 function BalancesTab({ warehouses, products }: { warehouses: Warehouse[]; products: Product[] }) {
   const wsId = useActiveWorkspaceId();
-  const [whId, setWhId] = useState<string>("");
+  const [whId, setWhId] = usePersistentState<string>("stock.wh", "");
 
   const { data: balances = [] } = useQuery({
     queryKey: ["stock_balances", wsId],
@@ -436,7 +439,7 @@ type BatchRow = {
 function BatchesTab({ products }: { products: Product[] }) {
   const qc = useQueryClient();
   const wsId = useActiveWorkspaceId();
-  const [q, setQ] = useState("");
+  const [q, setQ] = usePersistentState<string>("stock.q", "");
   const [openRow, setOpenRow] = useState<string | null>(null);
 
   const { data: rows = [], isLoading } = useQuery({
