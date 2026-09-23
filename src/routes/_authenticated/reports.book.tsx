@@ -1,7 +1,8 @@
 // Кассовая книга (форма КО-4): записи по кассовым ордерам и продажам,
 // оплаченным наличными, с итогами за день и остатком кассы.
 import { createFileRoute } from "@tanstack/react-router";
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useMemo } from "react";
+import { usePersistentState } from "@/hooks/use-persistent-state";
 import { useQuery } from "@tanstack/react-query";
 import { db } from "@/integrations/db";
 import { useActiveWorkspaceId } from "@/lib/workspace";

@@ -2,6 +2,7 @@
 // или «только с чеками», печать по форме приказа ФНС № ЕА-7-3/816@.
 import { createFileRoute } from "@tanstack/react-router";
 import { Fragment, useMemo, useState } from "react";
+import { usePersistentState } from "@/hooks/use-persistent-state";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { db } from "@/integrations/db";
 import { useActiveWorkspaceId } from "@/lib/workspace";
