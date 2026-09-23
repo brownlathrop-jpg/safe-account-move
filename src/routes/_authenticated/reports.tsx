@@ -1,5 +1,5 @@
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
-import { BarChart3, BookOpen, BookText } from "lucide-react";
+import { BarChart3, BookOpen, BookText, Scale } from "lucide-react";
 import { useBilling } from "@/hooks/use-billing";
 
 export const Route = createFileRoute("/_authenticated/reports")({
@@ -20,6 +20,14 @@ function ReportsLayout() {
         <Link to="/reports" className={tabClass(pathname === "/reports")}>
           <BarChart3 className="h-4 w-4" />
           Отчёты
+        </Link>
+        <Link
+          to="/reports/reconciliation"
+          search={{ partner: undefined }}
+          className={tabClass(pathname === "/reports/reconciliation")}
+        >
+          <Scale className="h-4 w-4" />
+          Акт сверки
         </Link>
         {features.cashbook && (
           <Link to="/reports/book" className={tabClass(pathname === "/reports/book")}>

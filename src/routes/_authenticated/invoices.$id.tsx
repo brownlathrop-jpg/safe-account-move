@@ -32,6 +32,8 @@ import { Torg12 } from "@/components/print/Torg12";
 import { Upd } from "@/components/print/Upd";
 import type { PrintItem } from "@/components/print/print-types";
 import { PrintHeader } from "@/components/print/PrintHeader";
+import { PaymentQr } from "@/components/print/PaymentQr";
+import { SignLine } from "@/components/print/SignLine";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useDiscounts, grossSum, discountSum, netSum, discountLabel, type DiscountKind } from "@/lib/discounts";
 import { DocTreeCard, loadChain } from "@/components/DocTreeCard";
@@ -138,6 +140,8 @@ function InvoiceView() {
   const [items, setItems] = useState<Item[]>([]);
   const [pickRow, setPickRow] = useState<number | null>(null);
   const [printMode, setPrintMode] = useState<PrintMode>("standard");
+  /** Печатать счёт с факсимиле подписей и печатью организации. */
+  const [withFacsimile, setWithFacsimile] = useState(false);
   const [cashReceived, setCashReceived] = useState<number>(0);
   const [cashBasis, setCashBasis] = useState<string>("");
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "card">("card");
@@ -190,8 +194,10 @@ function InvoiceView() {
     };
   }, [fitLandscape]);
 
-  const doPrint = (mode: PrintMode) => {
+  /** Печать формы. facsimile=true — подставить печать и подписи организации. */
+  const doPrint = (mode: PrintMode, facsimile = false) => {
     setPrintMode(mode);
+    setWithFacsimile(facsimile);
     setTimeout(() => {
       if (mode === "torg12" || mode === "upd") fitLandscape();
       window.print();
@@ -648,7 +654,12 @@ function InvoiceView() {
                       : (kind === "outgoing" ? "Заказ покупателя" : "Приходная заявка")}
                   </DropdownMenuItem>
                   {kind === "outgoing" && (
-                    <DropdownMenuItem onClick={() => doPrint("invoice")}>Счёт на оплату</DropdownMenuItem>
+                    <>
+                      <DropdownMenuItem onClick={() => doPrint("invoice")}>Счёт на оплату</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => doPrint("invoice", true)}>
+                        Счёт на оплату (с печатью и подписью)
+                      </DropdownMenuItem>
+                    </>
                   )}
                   <DropdownMenuItem onClick={() => doPrint("torg12")}>Товарная накладная ТОРГ-12</DropdownMenuItem>
                   <DropdownMenuItem onClick={() => doPrint("upd")}>Универсальный передаточный документ (УПД)</DropdownMenuItem>
@@ -1281,10 +1292,41 @@ function InvoiceView() {
         <p className="mt-4 text-sm">Всего наименований {items.length}, на сумму {nfmt.format(total)} руб.</p>
         <p className="mt-1 text-sm font-bold">{amountInWords(total)}</p>
         {note && <p className="mt-4 text-sm"><span className="font-bold">Комментарий:</span> {note}</p>}
-        <div className="mt-12 text-sm">
-          <div className="font-bold mb-6">{kind === "outgoing" ? "Заказ принял:" : "Товар принял:"}</div>
-          <div className="border-b border-black" style={{ width: 260 }} />
-        </div>
+        {printMode === "invoice" ? (
+          <div className="mt-8 flex items-start justify-between gap-6">
+            <div className="flex gap-10">
+              <SignLine
+                caption="Руководитель"
+                name={(myOrg as any)?.director_name || ""}
+                signUrl={withFacsimile ? (myOrg as any)?.sign_director_url : null}
+                stampUrl={withFacsimile ? (myOrg as any)?.stamp_url : null}
+              />
+              <SignLine
+                caption="Главный бухгалтер"
+                name={(myOrg as any)?.accountant_name || ""}
+                signUrl={withFacsimile ? (myOrg as any)?.sign_accountant_url : null}
+              />
+            </div>
+            <PaymentQr
+              data={{
+                name: (myOrg as any)?.print_name?.trim() || orgAsParty?.name,
+                personalAcc: orgAsParty?.bank_account,
+                bankName: orgAsParty?.bank_name,
+                bic: orgAsParty?.bank_bik,
+                correspAcc: orgAsParty?.bank_corr_account,
+                payeeInn: orgAsParty?.inn,
+                kpp: orgAsParty?.kpp,
+                sum: total,
+                purpose: `Оплата по счёту № ${cleanNumber} от ${dfmt.format(new Date(inv.issue_date))}`,
+              }}
+            />
+          </div>
+        ) : (
+          <div className="mt-12 text-sm">
+            <div className="font-bold mb-6">{kind === "outgoing" ? "Заказ принял:" : "Товар принял:"}</div>
+            <div className="border-b border-black" style={{ width: 260 }} />
+          </div>
+        )}
       </div>
       )}
 

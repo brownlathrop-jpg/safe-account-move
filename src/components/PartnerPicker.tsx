@@ -24,7 +24,8 @@ export function PartnerPicker({
 }: {
   value: string | null;
   onChange: (id: string) => void;
-  kind: "customer" | "supplier";
+  /** "all" — и покупатели, и поставщики (для отчётов). */
+  kind: "customer" | "supplier" | "all";
   disabled?: boolean;
   className?: string;
 }) {
@@ -39,7 +40,7 @@ export function PartnerPicker({
         []) as PartnerRow[],
   });
 
-  const list = useMemo(() => partners.filter((p) => p.kind === kind), [partners, kind]);
+  const list = useMemo(() => (kind === "all" ? partners : partners.filter((p) => p.kind === kind)), [partners, kind]);
   const selected = list.find((p) => p.id === value) ?? partners.find((p) => p.id === value);
 
   return (
@@ -53,7 +54,13 @@ export function PartnerPicker({
           className={cn("h-8 w-full justify-between font-normal", className)}
         >
           <span className={cn("truncate", !selected && "text-muted-foreground")}>
-            {selected ? selected.name : kind === "customer" ? "Выберите покупателя" : "Выберите поставщика"}
+            {selected
+              ? selected.name
+              : kind === "customer"
+                ? "Выберите покупателя"
+                : kind === "supplier"
+                  ? "Выберите поставщика"
+                  : "Выберите контрагента"}
           </span>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
@@ -70,7 +77,7 @@ export function PartnerPicker({
                 </Link>
               </div>
             </CommandEmpty>
-            <CommandGroup heading={kind === "customer" ? "Покупатели" : "Поставщики"}>
+            <CommandGroup heading={kind === "customer" ? "Покупатели" : kind === "supplier" ? "Поставщики" : "Контрагенты"}>
               {list.map((p) => (
                 <CommandItem
                   key={p.id}

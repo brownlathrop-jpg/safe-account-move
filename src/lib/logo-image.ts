@@ -70,3 +70,31 @@ export async function prepareLogo(file: File): Promise<LogoResult> {
   const dataUrl = transparent ? canvas.toDataURL("image/png") : canvas.toDataURL("image/jpeg", 0.92);
   return { dataUrl, width: w, height: h };
 }
+
+/** Размер печати/факсимиле подписи (квадрат, при печати ≈ 35×35 мм). */
+export const STAMP_BOX = { width: 420, height: 420 };
+
+/**
+ * Читает файл печати или подписи и возвращает data URL.
+ * Прозрачный PNG сохраняется прозрачным — так оттиск ложится поверх линии подписи.
+ */
+export async function prepareStamp(file: File): Promise<LogoResult> {
+  if (file.size > 8 * 1024 * 1024) throw new Error("Файл больше 8 МБ — выберите картинку меньше");
+  const raw = await readFile(file);
+  if (file.type === "image/svg+xml") {
+    return { dataUrl: raw, width: STAMP_BOX.width, height: STAMP_BOX.height };
+  }
+  const img = await loadImage(raw);
+  const scale = Math.min(STAMP_BOX.width / img.width, STAMP_BOX.height / img.height, 2);
+  const w = Math.max(1, Math.round(img.width * scale));
+  const h = Math.max(1, Math.round(img.height * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Браузер не смог обработать картинку");
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(img, 0, 0, w, h);
+  const dataUrl = canvas.toDataURL("image/png");
+  return { dataUrl, width: w, height: h };
+}
