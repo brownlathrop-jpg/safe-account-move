@@ -21,7 +21,7 @@ import { KktSettingsPanel } from "@/components/kkt-settings-panel";
 import { DataExportPanel } from "@/components/data-export-panel";
 import { useBilling } from "@/hooks/use-billing";
 import { FeatureLock } from "@/components/FeatureLock";
-import { prepareLogo } from "@/lib/logo-image";
+import { prepareLogo, prepareStamp } from "@/lib/logo-image";
 import { PrintHeader } from "@/components/print/PrintHeader";
 import { SNO_LABELS, VAT_LABELS, PAYMENT_METHOD_LABELS, PAYMENT_OBJECT_LABELS } from "@/lib/kkt-atol";
 import { useMyOrgId, setMyOrgPref } from "@/lib/organizations";
