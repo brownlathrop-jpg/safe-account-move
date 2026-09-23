@@ -1290,10 +1290,41 @@ function InvoiceView() {
         <p className="mt-4 text-sm">Всего наименований {items.length}, на сумму {nfmt.format(total)} руб.</p>
         <p className="mt-1 text-sm font-bold">{amountInWords(total)}</p>
         {note && <p className="mt-4 text-sm"><span className="font-bold">Комментарий:</span> {note}</p>}
-        <div className="mt-12 text-sm">
-          <div className="font-bold mb-6">{kind === "outgoing" ? "Заказ принял:" : "Товар принял:"}</div>
-          <div className="border-b border-black" style={{ width: 260 }} />
-        </div>
+        {printMode === "invoice" ? (
+          <div className="mt-8 flex items-start justify-between gap-6">
+            <div className="flex gap-10">
+              <SignLine
+                caption="Руководитель"
+                name={(myOrg as any)?.director_name || ""}
+                signUrl={withFacsimile ? (myOrg as any)?.sign_director_url : null}
+                stampUrl={withFacsimile ? (myOrg as any)?.stamp_url : null}
+              />
+              <SignLine
+                caption="Главный бухгалтер"
+                name={(myOrg as any)?.accountant_name || ""}
+                signUrl={withFacsimile ? (myOrg as any)?.sign_accountant_url : null}
+              />
+            </div>
+            <PaymentQr
+              data={{
+                name: (myOrg as any)?.print_name?.trim() || orgAsParty?.name,
+                personalAcc: orgAsParty?.bank_account,
+                bankName: orgAsParty?.bank_name,
+                bic: orgAsParty?.bank_bik,
+                correspAcc: orgAsParty?.bank_corr_account,
+                payeeInn: orgAsParty?.inn,
+                kpp: orgAsParty?.kpp,
+                sum: total,
+                purpose: `Оплата по счёту № ${cleanNumber} от ${dfmt.format(new Date(inv.issue_date))}`,
+              }}
+            />
+          </div>
+        ) : (
+          <div className="mt-12 text-sm">
+            <div className="font-bold mb-6">{kind === "outgoing" ? "Заказ принял:" : "Товар принял:"}</div>
+            <div className="border-b border-black" style={{ width: 260 }} />
+          </div>
+        )}
       </div>
       )}
 
