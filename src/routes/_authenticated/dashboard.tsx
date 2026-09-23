@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
+import { usePersistentState } from "@/hooks/use-persistent-state";
 import { db } from "@/integrations/db";
 import { useActiveWorkspaceId } from "@/lib/workspace";
 import { Card } from "@/components/ui/card";
@@ -40,9 +41,14 @@ function toKey(d: Date) {
 
 function Dashboard() {
   const wsId = useActiveWorkspaceId();
-  const [period, setPeriod] = useState<Period>("month");
-  const [customFrom, setCustomFrom] = useState<Date | undefined>();
-  const [customTo, setCustomTo] = useState<Date | undefined>();
+  // Период сохраняется между переходами по меню
+  const [period, setPeriod] = usePersistentState<Period>("dashboard.period", "month");
+  const [customFromIso, setCustomFromIso] = usePersistentState<string>("dashboard.customFrom", "");
+  const [customToIso, setCustomToIso] = usePersistentState<string>("dashboard.customTo", "");
+  const customFrom = customFromIso ? new Date(customFromIso) : undefined;
+  const customTo = customToIso ? new Date(customToIso) : undefined;
+  const setCustomFrom = (d: Date | undefined) => setCustomFromIso(d ? d.toISOString() : "");
+  const setCustomTo = (d: Date | undefined) => setCustomToIso(d ? d.toISOString() : "");
 
   const { from, to } = useMemo(() => rangeFor(period, customFrom, customTo), [period, customFrom, customTo]);
 
