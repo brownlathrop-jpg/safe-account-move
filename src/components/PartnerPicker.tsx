@@ -77,7 +77,7 @@ export function PartnerPicker({
                 </Link>
               </div>
             </CommandEmpty>
-            <CommandGroup heading={kind === "customer" ? "Покупатели" : "Поставщики"}>
+            <CommandGroup heading={kind === "customer" ? "Покупатели" : kind === "supplier" ? "Поставщики" : "Контрагенты"}>
               {list.map((p) => (
                 <CommandItem
                   key={p.id}
