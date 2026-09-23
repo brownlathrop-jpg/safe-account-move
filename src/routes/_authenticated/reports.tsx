@@ -21,7 +21,11 @@ function ReportsLayout() {
           <BarChart3 className="h-4 w-4" />
           Отчёты
         </Link>
-        <Link to="/reports/reconciliation" className={tabClass(pathname === "/reports/reconciliation")}>
+        <Link
+          to="/reports/reconciliation"
+          search={{ partner: undefined }}
+          className={tabClass(pathname === "/reports/reconciliation")}
+        >
           <Scale className="h-4 w-4" />
           Акт сверки
         </Link>
