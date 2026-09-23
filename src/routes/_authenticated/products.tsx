@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 // Кнопки «Excel» и «Печать» выгружают весь отфильтрованный список, не только текущую страницу.
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
+import { usePersistentState } from "@/hooks/use-persistent-state";
 import { toast } from "sonner";
 import { db } from "@/integrations/db";
 import { Button } from "@/components/ui/button";
@@ -63,14 +64,14 @@ function ProductsPage() {
   const qc = useQueryClient();
   const wsId = useActiveWorkspaceId();
   const brand = usePrintBrand();
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = usePersistentState<string>("products.search", "");
   const [editing, setEditing] = useState<Partial<Product> | null>(null);
   const [open, setOpen] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [zoomImage, setZoomImage] = useState<string | null>(null);
-  const [selectedFolder, setSelectedFolder] = useState<string>(ALL);
+  const [selectedFolder, setSelectedFolder] = usePersistentState<string>("products.folder", ALL);
   const selectedFolderRef = useRef<string>(ALL);
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [expanded, setExpanded] = usePersistentState<Record<string, boolean>>("products.expanded", {});
   const [folderDialog, setFolderDialog] = useState<FolderDialogState>({ open: false, parent_id: null });
   const [folderName, setFolderName] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);

@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import { usePersistentState } from "@/hooks/use-persistent-state";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
@@ -50,8 +51,8 @@ function PartnersPage() {
   const brand = usePrintBrand();
   const [editing, setEditing] = useState<Partial<Partner> | null>(null);
   const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState("");
-  const [kindFilter, setKindFilter] = useState<"all" | PartnerKind>("customer");
+  const [search, setSearch] = usePersistentState<string>("partners.search", "");
+  const [kindFilter, setKindFilter] = usePersistentState<"all" | PartnerKind>("partners.kind", "customer");
   const lookupOrg = useServerFn(lookupOrgByInn);
   const innLookup = useMutation({
     mutationFn: (inn: string) => lookupOrg({ data: { inn } }),
