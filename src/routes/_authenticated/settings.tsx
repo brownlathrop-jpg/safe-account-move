@@ -70,6 +70,12 @@ type Org = {
   logo_url?: string | null;
   /** Название, которое печатается в шапке документов (если пусто — краткое название). */
   print_name?: string | null;
+  /** Оттиск печати организации (PNG с прозрачным фоном). */
+  stamp_url?: string | null;
+  /** Факсимиле подписи руководителя. */
+  sign_director_url?: string | null;
+  /** Факсимиле подписи главного бухгалтера. */
+  sign_accountant_url?: string | null;
   /** Своя онлайн-касса организации (АТОЛ). */
   kkt_enabled?: boolean;
   kkt_sno?: string;
