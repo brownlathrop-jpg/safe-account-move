@@ -190,8 +190,10 @@ function InvoiceView() {
     };
   }, [fitLandscape]);
 
-  const doPrint = (mode: PrintMode) => {
+  /** Печать формы. facsimile=true — подставить печать и подписи организации. */
+  const doPrint = (mode: PrintMode, facsimile = false) => {
     setPrintMode(mode);
+    setWithFacsimile(facsimile);
     setTimeout(() => {
       if (mode === "torg12" || mode === "upd") fitLandscape();
       window.print();
